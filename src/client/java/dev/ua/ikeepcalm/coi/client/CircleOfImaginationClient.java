@@ -1,6 +1,9 @@
 package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
+import dev.ua.ikeepcalm.coi.client.packet.AbilityListPayload;
+import dev.ua.ikeepcalm.coi.client.packet.AbilityRequestPayload;
+import dev.ua.ikeepcalm.coi.client.packet.AbilityUsePayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -9,10 +12,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -44,6 +43,12 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         PayloadTypeRegistry.playC2S().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(AbilityListPayload.ID, AbilityListPayload.CODEC);
+
+        ClientPlayNetworking.registerGlobalReceiver(AbilityListPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                System.out.println("[COI DEBUG] Received specific packet: " + payload.getId() + ", typed payload: " + payload);
+            });
+        });
     }
 
     private void registerKeybindings() {
@@ -71,10 +76,12 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     private void registerNetworking() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            System.out.println("[COI DEBUG] Sending AbilityRequestPayload");
             ClientPlayNetworking.send(new AbilityRequestPayload("request_abilities"));
         });
 
         ClientPlayNetworking.registerGlobalReceiver(AbilityListPayload.ID, (payload, context) -> {
+            System.out.println("[COI DEBUG] Received AbilityListPayload: " + payload.abilities());
             context.client().execute(() -> {
                 availableAbilities.clear();
                 availableAbilities.addAll(payload.abilities());
@@ -104,6 +111,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     private void sendAbilityUse(String abilityId) {
+        System.out.println("[COI DEBUG] Sending AbilityUsePayload for ability: " + abilityId);
         ClientPlayNetworking.send(new AbilityUsePayload(abilityId));
     }
 
@@ -121,77 +129,4 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             AbilityConfig.saveBindings(boundAbilities);
         }
     }
-
-    public record AbilityUsePayload(String abilityId) implements CustomPayload {
-        public static final CustomPayload.Id<AbilityUsePayload> ID = new CustomPayload.Id<>(Identifier.of(CircleOfImaginationClient.MOD_ID, "abilities"));
-
-        public static void write(RegistryByteBuf buf, AbilityUsePayload payload) { buf.writeString(payload.abilityId()); }
-        public static AbilityUsePayload read(RegistryByteBuf buf) {
-            return new AbilityUsePayload(buf.readString());
-        }
-
-        public static final PacketCodec<RegistryByteBuf, AbilityUsePayload> CODEC = PacketCodec.ofStatic(
-                AbilityUsePayload::write,
-                AbilityUsePayload::read
-        );
-
-        @Override
-        public CustomPayload.Id<? extends CustomPayload> getId() {
-            return ID;
-        }
-    }
-
-    public record AbilityRequestPayload(String request) implements CustomPayload {
-        public static final CustomPayload.Id<AbilityRequestPayload> ID = new CustomPayload.Id<>(Identifier.of(CircleOfImaginationClient.MOD_ID, "ability_list"));
-
-        public static void write(RegistryByteBuf buf, AbilityRequestPayload payload) {
-            buf.writeString(payload.request());
-        }
-
-        public static AbilityRequestPayload read(RegistryByteBuf buf) {
-            return new AbilityRequestPayload(buf.readString());
-        }
-
-        public static final PacketCodec<RegistryByteBuf, AbilityRequestPayload> CODEC = PacketCodec.ofStatic(
-                AbilityRequestPayload::write,
-                AbilityRequestPayload::read
-        );
-
-        @Override
-        public CustomPayload.Id<? extends CustomPayload> getId() {
-            return ID;
-        }
-    }
-
-    public record AbilityListPayload(List<String> abilities) implements CustomPayload {
-        public static final CustomPayload.Id<AbilityListPayload> ID = new CustomPayload.Id<>(Identifier.of(CircleOfImaginationClient.MOD_ID, "ability_list"));
-
-
-        public static final PacketCodec<RegistryByteBuf, AbilityListPayload> CODEC = PacketCodec.ofStatic(
-                AbilityListPayload::write,
-                AbilityListPayload::read
-        );
-
-        public static void write(RegistryByteBuf buf, AbilityListPayload payload) {
-            buf.writeInt(payload.abilities().size());
-            for (String ability : payload.abilities()) {
-                buf.writeString(ability);
-            }
-        }
-
-        public static AbilityListPayload read(RegistryByteBuf buf) {
-            int count = buf.readInt();
-            List<String> abilities = new ArrayList<>();
-            for (int i = 0; i < count; i++) {
-                abilities.add(buf.readString());
-            }
-            return new AbilityListPayload(abilities);
-        }
-
-        @Override
-        public CustomPayload.Id<? extends CustomPayload> getId() {
-            return ID;
-        }
-    }
-
 }

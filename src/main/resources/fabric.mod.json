@@ -4,7 +4,7 @@
   "version": "${version}",
   "name": "COI Client",
   "description": "",
-  "authors": [],
+  "authors": ["ikeepcalm"],
   "contact": {},
   "license": "All-Rights-Reserved",
   "icon": "assets/coi-client/icon.png",
