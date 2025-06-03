@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.screen.narration.NarrationPart;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -18,6 +19,9 @@ public class AbilityDropdownWidget extends ClickableWidget {
     private String selected;
     private boolean expanded = false;
     private int hoveredIndex = -1;
+    private int scrollOffset = 0;
+    private static final int ITEM_HEIGHT = 20;
+    private static final int MAX_VISIBLE_ITEMS = 5;
 
     public AbilityDropdownWidget(int x, int y, int width, int height,
                                  List<String> options, String currentSelection,
@@ -38,6 +42,10 @@ public class AbilityDropdownWidget extends ClickableWidget {
         context.drawBorder(this.getX(), this.getY(), this.width, this.height, borderColor);
 
         String displayText = selected != null ? selected : "Select Ability";
+        if (selected != null && selected.contains(" - ")) {
+            String[] parts = selected.split(" - ");
+            displayText = parts.length > 1 ? parts[1] : selected;
+        }
         context.drawText(textRenderer, displayText,
                 this.getX() + 4, this.getY() + (this.height - 8) / 2, 0xFFFFFF, false);
 
@@ -45,35 +53,71 @@ public class AbilityDropdownWidget extends ClickableWidget {
         context.drawText(textRenderer, arrow,
                 this.getX() + this.width - 12, this.getY() + (this.height - 8) / 2, 0xFFFFFF, false);
 
-        if (expanded) {
-            int dropdownY = this.getY() + this.height;
-            int dropdownHeight = Math.min(options.size() * 20, 100);
-
-            context.fill(this.getX(), dropdownY,
-                    this.getX() + this.width, dropdownY + dropdownHeight, 0xFF000000);
-            context.drawBorder(this.getX(), dropdownY, this.width, dropdownHeight, 0xFFFFFFFF);
-
-            int itemY = dropdownY;
-            hoveredIndex = -1;
-
-            for (int i = 0; i < options.size(); i++) {
-                if (itemY + 20 > dropdownY + dropdownHeight) break;
-
-                boolean isHovered = mouseX >= this.getX() && mouseX < this.getX() + this.width &&
-                        mouseY >= itemY && mouseY < itemY + 20;
-
-                if (isHovered) {
-                    context.fill(this.getX() + 1, itemY,
-                            this.getX() + this.width - 1, itemY + 20, 0xFF404040);
-                    hoveredIndex = i;
-                }
-
-                context.drawText(textRenderer, options.get(i),
-                        this.getX() + 4, itemY + 6, 0xFFFFFF, false);
-
-                itemY += 20;
-            }
+        if (expanded && !options.isEmpty()) {
+            renderDropdown(context, textRenderer, mouseX, mouseY);
         }
+    }
+
+    private void renderDropdown(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+        int dropdownY = this.getY() + this.height;
+        int visibleItems = Math.min(options.size(), MAX_VISIBLE_ITEMS);
+        int dropdownHeight = visibleItems * ITEM_HEIGHT;
+
+        context.fill(this.getX(), dropdownY,
+                this.getX() + this.width, dropdownY + dropdownHeight, 0xFF000000);
+        context.drawBorder(this.getX(), dropdownY, this.width, dropdownHeight, 0xFFFFFFFF);
+
+        context.enableScissor(this.getX() + 1, dropdownY + 1,
+                this.getX() + this.width - 1, dropdownY + dropdownHeight - 1);
+
+        int itemY = dropdownY;
+        hoveredIndex = -1;
+
+        for (int i = scrollOffset; i < Math.min(scrollOffset + visibleItems, options.size()); i++) {
+            boolean isHovered = mouseX >= this.getX() && mouseX < this.getX() + this.width &&
+                    mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
+
+            if (isHovered) {
+                context.fill(this.getX() + 1, itemY,
+                        this.getX() + this.width - 1, itemY + ITEM_HEIGHT, 0xFF404040);
+                hoveredIndex = i;
+            }
+
+            String displayText = options.get(i);
+            String[] parts = displayText.split(" - ");
+            if (parts.length > 1) {
+                displayText = parts[1];
+            }
+
+            context.drawText(textRenderer, displayText,
+                    this.getX() + 4, itemY + 6, 0xFFFFFF, false);
+
+            itemY += ITEM_HEIGHT;
+        }
+
+        context.disableScissor();
+
+        if (options.size() > MAX_VISIBLE_ITEMS) {
+            renderScrollbar(context, dropdownY, dropdownHeight);
+        }
+    }
+
+    private void renderScrollbar(DrawContext context, int dropdownY, int dropdownHeight) {
+        int scrollbarX = this.getX() + this.width - 6;
+        int scrollbarWidth = 4;
+
+        context.fill(scrollbarX, dropdownY + 1,
+                scrollbarX + scrollbarWidth, dropdownY + dropdownHeight - 1, 0xFF404040);
+
+        int totalItems = options.size();
+        int maxScroll = totalItems - MAX_VISIBLE_ITEMS;
+        float scrollPercentage = maxScroll > 0 ? (float) scrollOffset / maxScroll : 0;
+
+        int handleHeight = Math.max(20, (int) ((float) MAX_VISIBLE_ITEMS / totalItems * dropdownHeight));
+        int handleY = dropdownY + 1 + (int) ((dropdownHeight - handleHeight - 2) * scrollPercentage);
+
+        context.fill(scrollbarX, handleY,
+                scrollbarX + scrollbarWidth, handleY + handleHeight, 0xFF808080);
     }
 
     @Override
@@ -99,9 +143,19 @@ public class AbilityDropdownWidget extends ClickableWidget {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (expanded && isMouseOver(mouseX, mouseY)) {
+            int maxScroll = Math.max(0, options.size() - MAX_VISIBLE_ITEMS);
+            scrollOffset = MathHelper.clamp(scrollOffset - (int) verticalAmount, 0, maxScroll);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
         if (expanded) {
-            int dropdownHeight = Math.min(options.size() * 20, 100);
+            int dropdownHeight = Math.min(options.size(), MAX_VISIBLE_ITEMS) * ITEM_HEIGHT;
             return mouseX >= this.getX() && mouseX < this.getX() + this.width &&
                     mouseY >= this.getY() && mouseY < this.getY() + this.height + dropdownHeight;
         }

@@ -1,17 +1,14 @@
 package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
-import dev.ua.ikeepcalm.coi.client.packet.AbilityListPayload;
-import dev.ua.ikeepcalm.coi.client.packet.AbilityRequestPayload;
-import dev.ua.ikeepcalm.coi.client.packet.AbilityUsePayload;
+import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -19,36 +16,23 @@ import java.util.List;
 
 public class CircleOfImaginationClient implements ClientModInitializer {
 
-    public static final String MOD_ID = "coi";
+    private static final String ABILITY_USE_PREFIX = "_0_0_2_2_r";
 
     private static final List<String> availableAbilities = new ArrayList<>();
     private static String[] boundAbilities = new String[3];
 
-    private static KeyBinding ability1Key;
-    private static KeyBinding ability2Key;
-    private static KeyBinding ability3Key;
+    public static KeyBinding ability1Key;
+    public static KeyBinding ability2Key;
+    public static KeyBinding ability3Key;
+    public static KeyBinding abilityMenu;
 
-    private static final boolean[] keyPressed = new boolean[3];
+    private static final boolean[] keyPressed = new boolean[4];
 
     @Override
     public void onInitializeClient() {
         boundAbilities = AbilityConfig.loadBindings();
-        registerPayloads();
         registerKeybindings();
-        registerNetworking();
         registerTickHandler();
-    }
-
-    private void registerPayloads() {
-        PayloadTypeRegistry.playC2S().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(AbilityListPayload.ID, AbilityListPayload.CODEC);
-
-        ClientPlayNetworking.registerGlobalReceiver(AbilityListPayload.ID, (payload, context) -> {
-            context.client().execute(() -> {
-                System.out.println("[COI DEBUG] Received specific packet: " + payload.getId() + ", typed payload: " + payload);
-            });
-        });
     }
 
     private void registerKeybindings() {
@@ -72,47 +56,70 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_C,
                 "category.coi.abilities"
         ));
-    }
 
-    private void registerNetworking() {
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            System.out.println("[COI DEBUG] Sending AbilityRequestPayload");
-            ClientPlayNetworking.send(new AbilityRequestPayload("request_abilities"));
-        });
-
-        ClientPlayNetworking.registerGlobalReceiver(AbilityListPayload.ID, (payload, context) -> {
-            System.out.println("[COI DEBUG] Received AbilityListPayload: " + payload.abilities());
-            context.client().execute(() -> {
-                availableAbilities.clear();
-                availableAbilities.addAll(payload.abilities());
-            });
-        });
+        abilityMenu = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "screen.coi.ability_binding",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_K,
+                "category.coi.abilities"
+        ));
     }
 
     private void registerTickHandler() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            handleKeyPress(0, ability1Key);
-            handleKeyPress(1, ability2Key);
-            handleKeyPress(2, ability3Key);
+            handleKeyPress(0, ability1Key, client);
+            handleKeyPress(1, ability2Key, client);
+            handleKeyPress(2, ability3Key, client);
+            handleKeyPress(3, abilityMenu, client);
         });
     }
 
-    private void handleKeyPress(int index, KeyBinding key) {
+    private void handleKeyPress(int index, KeyBinding key, MinecraftClient client) {
         if (key.isPressed() && !keyPressed[index]) {
             keyPressed[index] = true;
+
+            if (index == 3) {
+                MinecraftClient.getInstance().setScreen(new AbilityBindingScreen(null));
+                return;
+            }
+
             if (boundAbilities[index] != null) {
-                sendAbilityUse(boundAbilities[index]);
+                sendAbilityUse(boundAbilities[index], client);
             }
         } else if (!key.isPressed()) {
             keyPressed[index] = false;
         }
     }
 
-    private void sendAbilityUse(String abilityId) {
-        System.out.println("[COI DEBUG] Sending AbilityUsePayload for ability: " + abilityId);
-        ClientPlayNetworking.send(new AbilityUsePayload(abilityId));
+    private void sendAbilityUse(String abilityIdWithName, MinecraftClient client) {
+        if (client.player != null && abilityIdWithName != null) {
+            String abilityId = abilityIdWithName;
+            if (abilityIdWithName.contains(" - ")) {
+                abilityId = abilityIdWithName.split(" - ")[0];
+            }
+            client.player.networkHandler.sendChatMessage(ABILITY_USE_PREFIX + "USE:" + abilityId);
+
+            client.player.sendMessage(Text.translatable("notification.coi.ability_used",
+                    abilityIdWithName.contains(" - ") ? abilityIdWithName.split(" - ")[1] : abilityIdWithName), true);
+        }
+    }
+
+    public static void handleAbilityData(String data) {
+        availableAbilities.clear();
+
+        if (data.isEmpty()) return;
+
+        String[] abilities = data.split(";");
+        for (String ability : abilities) {
+            if (!ability.isEmpty()) {
+                String[] parts = ability.split("\\|");
+                if (parts.length == 2) {
+                    availableAbilities.add(parts[0] + " - " + parts[1]);
+                }
+            }
+        }
     }
 
     public static List<String> getAvailableAbilities() {

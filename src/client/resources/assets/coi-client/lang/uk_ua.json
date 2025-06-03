@@ -7,5 +7,9 @@
   "screen.coi.ability1_label": "Слот Здібності 1",
   "screen.coi.ability2_label": "Слот Здібності 2",
   "screen.coi.ability3_label": "Слот Здібності 3",
-  "gui.done": "Готово"
+  "gui.done": "Готово",
+  "notification.coi.ability_used": "Використано: %1$s",
+  "screen.coi.clear_all": "Очистити Все",
+  "screen.coi.clear_all.tooltip": "Видалити всі прив'язки здібностей",
+  "screen.coi.no_abilities": "Немає доступних здібностей"
 }

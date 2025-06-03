@@ -4,8 +4,7 @@
   "package": "dev.ua.ikeepcalm.coi.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "ClientPlayNetworkHandlerMixin",
-    "KeybindsScreenMixin"
+    "ChatMessageMixin"
   ],
   "injectors": {
     "defaultRequire": 1

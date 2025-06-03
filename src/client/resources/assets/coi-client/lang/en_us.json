@@ -7,5 +7,9 @@
   "screen.coi.ability1_label": "Ability Slot 1",
   "screen.coi.ability2_label": "Ability Slot 2",
   "screen.coi.ability3_label": "Ability Slot 3",
-  "gui.done": "Done"
+  "gui.done": "Done",
+  "notification.coi.ability_used": "Casted: %1$s",
+  "screen.coi.clear_all": "Clear All",
+  "screen.coi.clear_all.tooltip": "Remove all ability bindings",
+  "screen.coi.no_abilities": "No abilities available"
 }
