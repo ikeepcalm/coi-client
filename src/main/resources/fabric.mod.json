@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "coi-client",
+  "version": "${version}",
+  "name": "COI Client",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/coi-client/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "dev.ua.ikeepcalm.coi.client.CoiClientDataGenerator"
+    ],
+    "client": [
+      "dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient"
+    ],
+    "main": [
+      "dev.ua.ikeepcalm.coi.CoiClient"
+    ]
+  },
+  "mixins": [
+    "coi-client.mixins.json",
+    {
+      "config": "coi-client.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

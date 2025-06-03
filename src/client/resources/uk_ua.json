@@ -1,0 +1,11 @@
+{
+  "key.coi.ability1": "Здібність 1",
+  "key.coi.ability2": "Здібність 2",
+  "key.coi.ability3": "Здібність 3",
+  "category.coi.abilities": "Коло Уяви",
+  "screen.coi.ability_binding": "Прив'язка Здібностей",
+  "screen.coi.ability1_label": "Слот Здібності 1",
+  "screen.coi.ability2_label": "Слот Здібності 2",
+  "screen.coi.ability3_label": "Слот Здібності 3",
+  "gui.done": "Готово"
+}
