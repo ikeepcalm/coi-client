@@ -5,19 +5,13 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (v1.0.0)'
-        required: true
-        type: string
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
 
     permissions:
       contents: write
-      actions: read
 
     steps:
       - name: Checkout repository
@@ -42,31 +36,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Extract version from tag or input
+      - name: Extract version from gradle.properties
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION=${GITHUB_REF#refs/tags/}
-          fi
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-          echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
-
-      - name: Update version in gradle.properties
-        run: |
-          sed -i "s/mod_version=.*/mod_version=${{ steps.version.outputs.VERSION_NUMBER }}/" gradle.properties
-          cat gradle.properties
+          VERSION=$(grep "mod_version=" gradle.properties | cut -d'=' -f2)
+          echo "VERSION=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION_NUMBER=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build with Gradle
         run: ./gradlew build
 
-      - name: Find built jar files
-        id: find_jars
+      - name: Find built jar file
+        id: find_jar
         run: |
-          JAR_FILES=$(find build/libs -name "*.jar" -not -name "*-sources.jar" -not -name "*-dev.jar" | head -1)
-          echo "JAR_PATH=${JAR_FILES}" >> $GITHUB_OUTPUT
-          JAR_NAME=$(basename "${JAR_FILES}")
+          JAR_FILE=$(find build/libs -name "*.jar" -not -name "*-sources.jar" -not -name "*-dev.jar" | head -1)
+          echo "JAR_PATH=${JAR_FILE}" >> $GITHUB_OUTPUT
+          JAR_NAME=$(basename "${JAR_FILE}")
           echo "JAR_NAME=${JAR_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create Release
@@ -76,7 +61,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          release_name: 'COI Client Mod ${{ steps.version.outputs.VERSION }}'
+          release_name: 'Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}'
           body: |
             ## Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}
             
@@ -95,6 +80,7 @@ jobs:
             ### Controls
             - **Z, X, C**: Cast bound abilities
             - **K**: Open ability binding menu
+            - **H**: Open HUD settings
             
             ### Requirements
             - Minecraft 1.21+
@@ -103,7 +89,7 @@ jobs:
             
             ---
             
-            **Download:** `${{ steps.find_jars.outputs.JAR_NAME }}`
+            **Download:** `${{ steps.find_jar.outputs.JAR_NAME }}`
           draft: false
           prerelease: false
 
@@ -113,13 +99,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_jars.outputs.JAR_PATH }}
-          asset_name: ${{ steps.find_jars.outputs.JAR_NAME }}
+          asset_path: ${{ steps.find_jar.outputs.JAR_PATH }}
+          asset_name: ${{ steps.find_jar.outputs.JAR_NAME }}
           asset_content_type: application/java-archive
-
-      - name: Upload to Actions Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: 'coi-client-mod-${{ steps.version.outputs.VERSION_NUMBER }}'
-          path: ${{ steps.find_jars.outputs.JAR_PATH }}
-          retention-days: 30
