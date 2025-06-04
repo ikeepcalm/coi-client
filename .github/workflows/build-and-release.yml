@@ -1,0 +1,125 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Extract version from tag or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "VERSION_NUMBER=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in gradle.properties
+        run: |
+          sed -i "s/mod_version=.*/mod_version=${{ steps.version.outputs.VERSION_NUMBER }}/" gradle.properties
+          cat gradle.properties
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Find built jar files
+        id: find_jars
+        run: |
+          JAR_FILES=$(find build/libs -name "*.jar" -not -name "*-sources.jar" -not -name "*-dev.jar" | head -1)
+          echo "JAR_PATH=${JAR_FILES}" >> $GITHUB_OUTPUT
+          JAR_NAME=$(basename "${JAR_FILES}")
+          echo "JAR_NAME=${JAR_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          release_name: 'COI Client Mod ${{ steps.version.outputs.VERSION }}'
+          body: |
+            ## Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}
+            
+            ### Features
+            - MOBA-style ability HUD overlay
+            - Configurable keybinds for abilities (Z, X, C keys, customizable)
+            - Real-time cooldown tracking and animations
+            - Customizable HUD positioning and appearance
+            - Support for all pathway ability types
+            
+            ### Installation
+            1. Install [Fabric Loader](https://fabricmc.net/use/)
+            2. Download and place this mod in your `mods` folder
+            3. Launch Minecraft and enjoy enhanced ability casting!
+            
+            ### Controls
+            - **Z, X, C**: Cast bound abilities
+            - **K**: Open ability binding menu
+            
+            ### Requirements
+            - Minecraft 1.21+
+            - Fabric Loader
+            - Circle of Imagination server plugin
+            
+            ---
+            
+            **Download:** `${{ steps.find_jars.outputs.JAR_NAME }}`
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_jars.outputs.JAR_PATH }}
+          asset_name: ${{ steps.find_jars.outputs.JAR_NAME }}
+          asset_content_type: application/java-archive
+
+      - name: Upload to Actions Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: 'coi-client-mod-${{ steps.version.outputs.VERSION_NUMBER }}'
+          path: ${{ steps.find_jars.outputs.JAR_PATH }}
+          retention-days: 30
