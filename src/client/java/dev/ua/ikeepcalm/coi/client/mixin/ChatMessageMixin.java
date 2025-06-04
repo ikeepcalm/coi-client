@@ -12,19 +12,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ChatHud.class)
 public class ChatMessageMixin {
-    
-    private static final String ABILITY_DATA_PREFIX = "_0_0_1_1_r";
 
-    @Inject(method = "addMessage(Lnet/minecraft/text/Text;Lnet/minecraft/network/message/MessageSignatureData;Lnet/minecraft/client/gui/hud/MessageIndicator;)V", 
-            at = @At("HEAD"), 
+    private static final String ABILITY_DATA_PREFIX = "_0_0_1_1_r";
+    private static final String COOLDOWN_DATA_PREFIX = "_0_0_3_3_r";
+
+    @Inject(method = "addMessage(Lnet/minecraft/text/Text;Lnet/minecraft/network/message/MessageSignatureData;Lnet/minecraft/client/gui/hud/MessageIndicator;)V",
+            at = @At("HEAD"),
             cancellable = true)
     private void interceptMessage(Text message, MessageSignatureData signature, MessageIndicator indicator, CallbackInfo ci) {
         String messageText = message.getString();
-        
+
         if (messageText.startsWith(ABILITY_DATA_PREFIX)) {
             String data = messageText.substring(ABILITY_DATA_PREFIX.length());
             if (data.startsWith("ABILITIES:")) {
                 CircleOfImaginationClient.handleAbilityData(data.substring(10));
+                ci.cancel();
+            }
+        } else if (messageText.startsWith(COOLDOWN_DATA_PREFIX)) {
+            String data = messageText.substring(COOLDOWN_DATA_PREFIX.length());
+            if (data.startsWith("COOLDOWN:")) {
+                CircleOfImaginationClient.handleCooldownData(data.substring(9));
                 ci.cancel();
             }
         }

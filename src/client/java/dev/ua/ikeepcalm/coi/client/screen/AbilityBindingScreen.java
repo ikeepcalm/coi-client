@@ -2,10 +2,10 @@ package dev.ua.ikeepcalm.coi.client.screen;
 
 import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.option.KeyBinding;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
@@ -18,6 +18,7 @@ public class AbilityBindingScreen extends Screen {
     private dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget ability2Dropdown;
     private dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget ability3Dropdown;
     private ButtonWidget clearAllButton;
+    private ButtonWidget settingsButton;
     private int contentHeight;
 
     public AbilityBindingScreen(Screen parent) {
@@ -30,8 +31,8 @@ public class AbilityBindingScreen extends Screen {
         List<String> abilities = CircleOfImaginationClient.getAvailableAbilities();
 
         int centerX = this.width / 2;
-        int topMargin = 60;
-        int spacing = 60;
+        int topMargin = 80;
+        int spacing = 80;
         int dropdownWidth = Math.min(300, this.width - 40);
         int dropdownHeight = 20;
 
@@ -77,6 +78,16 @@ public class AbilityBindingScreen extends Screen {
         ).dimensions(centerX - 105, buttonY, 100, 20).build();
         this.addDrawableChild(clearAllButton);
 
+        settingsButton = ButtonWidget.builder(
+                Text.translatable("screen.coi.hud_settings"),
+                button -> {
+                    this.close();
+                    MinecraftClient.getInstance().setScreen(new HudSettingsScreen(null));
+                }
+        ).dimensions(centerX + 300, buttonY - 400, 120, 20).build();
+
+        this.addDrawableChild(settingsButton);
+
         this.addDrawableChild(ButtonWidget.builder(
                 Text.translatable("gui.done"),
                 button -> this.close()
@@ -98,8 +109,8 @@ public class AbilityBindingScreen extends Screen {
         }
 
         int centerX = this.width / 2;
-        int topMargin = 60;
-        int spacing = 60;
+        int topMargin = 80;
+        int spacing = 80;
         int dropdownWidth = Math.min(300, this.width - 40);
 
         renderSlotInfo(context, 0, centerX - dropdownWidth / 2, topMargin - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability1Key).getLocalizedText());
@@ -134,6 +145,8 @@ public class AbilityBindingScreen extends Screen {
 
     @Override
     public void close() {
-        this.client.setScreen(this.parent);
+        if (this.client != null) {
+            this.client.setScreen(this.parent);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
+import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -19,6 +20,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     private static final String ABILITY_USE_PREFIX = "_0_0_2_2_r";
 
     private static final List<String> availableAbilities = new ArrayList<>();
+
     private static String[] boundAbilities = new String[3];
 
     public static KeyBinding ability1Key;
@@ -33,6 +35,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         boundAbilities = AbilityConfig.loadBindings();
         registerKeybindings();
         registerTickHandler();
+        AbilityHudOverlay.initialize();
     }
 
     private void registerKeybindings() {
@@ -86,14 +89,14 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             }
 
             if (boundAbilities[index] != null) {
-                sendAbilityUse(boundAbilities[index], client);
+                sendAbilityUse(boundAbilities[index], client, index);
             }
         } else if (!key.isPressed()) {
             keyPressed[index] = false;
         }
     }
 
-    private void sendAbilityUse(String abilityIdWithName, MinecraftClient client) {
+    private void sendAbilityUse(String abilityIdWithName, MinecraftClient client, int slot) {
         if (client.player != null && abilityIdWithName != null) {
             String abilityId = abilityIdWithName;
             if (abilityIdWithName.contains(" - ")) {
@@ -120,6 +123,29 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 }
             }
         }
+
+        updateHudWithCurrentBindings();
+    }
+
+    public static void handleCooldownData(String data) {
+        if (data.isEmpty()) return;
+
+        String[] parts = data.split(":");
+        if (parts.length == 2) {
+            String abilityId = parts[0];
+            try {
+                int cooldownTicks = Integer.parseInt(parts[1]);
+                AbilityHudOverlay.setCooldown(abilityId, cooldownTicks);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid cooldown data: " + data);
+            }
+        }
+    }
+
+    private static void updateHudWithCurrentBindings() {
+        for (int i = 0; i < 3; i++) {
+            AbilityHudOverlay.updateAbilitySlot(i, boundAbilities[i]);
+        }
     }
 
     public static List<String> getAvailableAbilities() {
@@ -134,6 +160,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         if (slot >= 0 && slot < 3) {
             boundAbilities[slot] = abilityId;
             AbilityConfig.saveBindings(boundAbilities);
+            AbilityHudOverlay.updateAbilitySlot(slot, abilityId);
         }
     }
 }

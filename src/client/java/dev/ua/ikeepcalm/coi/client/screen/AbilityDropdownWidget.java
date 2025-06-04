@@ -41,7 +41,7 @@ public class AbilityDropdownWidget extends ClickableWidget {
         context.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xFF000000);
         context.drawBorder(this.getX(), this.getY(), this.width, this.height, borderColor);
 
-        String displayText = selected != null ? selected : "Select Ability";
+        String displayText = selected != null ? selected : Text.translatable("screen.coi.ability_choose").getString();
         if (selected != null && selected.contains(" - ")) {
             String[] parts = selected.split(" - ");
             displayText = parts.length > 1 ? parts[1] : selected;
@@ -54,7 +54,10 @@ public class AbilityDropdownWidget extends ClickableWidget {
                 this.getX() + this.width - 12, this.getY() + (this.height - 8) / 2, 0xFFFFFF, false);
 
         if (expanded && !options.isEmpty()) {
+            context.getMatrices().push();
+            context.getMatrices().translate(0, 0, 1000);
             renderDropdown(context, textRenderer, mouseX, mouseY);
+            context.getMatrices().pop();
         }
     }
 
