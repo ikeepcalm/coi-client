@@ -24,7 +24,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Cache Gradle packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -60,13 +60,10 @@ jobs:
           echo "JAR_NAME=${JAR_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          release_name: 'Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}'
+          name: 'Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}'
           body: |
             ## Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}
             
@@ -95,15 +92,8 @@ jobs:
             ---
             
             **Download:** `${{ steps.find_jar.outputs.JAR_NAME }}`
+          files: ${{ steps.find_jar.outputs.JAR_PATH }}
           draft: false
           prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.find_jar.outputs.JAR_PATH }}
-          asset_name: ${{ steps.find_jar.outputs.JAR_NAME }}
-          asset_content_type: application/java-archive
