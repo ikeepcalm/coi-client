@@ -54,10 +54,7 @@ public class AbilityDropdownWidget extends ClickableWidget {
                 this.getX() + this.width - 12, this.getY() + (this.height - 8) / 2, 0xFFFFFF, false);
 
         if (expanded && !options.isEmpty()) {
-            context.getMatrices().push();
-            context.getMatrices().translate(0, 0, 1000);
             renderDropdown(context, textRenderer, mouseX, mouseY);
-            context.getMatrices().pop();
         }
     }
 

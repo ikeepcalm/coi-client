@@ -370,7 +370,7 @@ public class HudSettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
+        super.render(context, mouseX, mouseY, delta);
 
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 20, 0xFFFFFF);
 
@@ -404,8 +404,6 @@ public class HudSettingsScreen extends Screen {
                     Text.translatable("screen.coi.hud_disabled_warning").formatted(Formatting.RED),
                     this.width / 2, this.height - 80, 0xFF5555);
         }
-
-        super.render(context, mouseX, mouseY, delta);
 
         renderTooltips(context, mouseX, mouseY);
     }

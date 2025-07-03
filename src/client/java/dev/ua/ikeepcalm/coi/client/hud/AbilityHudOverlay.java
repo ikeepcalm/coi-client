@@ -1,8 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud;
 
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
@@ -20,9 +19,7 @@ public class AbilityHudOverlay {
             abilitySlots[i] = new AbilitySlotWidget(i);
         }
 
-        HudLayerRegistrationCallback.EVENT.register(layeredDrawer ->
-                layeredDrawer.attachLayerBefore(IdentifiedLayer.HOTBAR_AND_BARS, ABILITY_LAYER, AbilityHudOverlay::renderAbilities)
-        );
+        HudRenderCallback.EVENT.register(AbilityHudOverlay::renderAbilities);
     }
 
     private static void renderAbilities(DrawContext context, RenderTickCounter tickCounter) {
@@ -33,10 +30,7 @@ public class AbilityHudOverlay {
             return;
         }
 
-        float tickDelta = tickCounter.getTickDelta(false);
-
-        context.getMatrices().push();
-        context.getMatrices().scale(settings.hudScale, settings.hudScale, 1.0f);
+        float tickDelta = 1.0f;
 
         int screenHeight = client.getWindow().getScaledHeight();
         int startY = (int) ((screenHeight - settings.hudYOffset) / settings.hudScale);
@@ -46,8 +40,6 @@ public class AbilityHudOverlay {
             int x = hudX + (i * settings.slotSpacing);
             abilitySlots[i].render(context, x, startY, settings.slotSize, tickDelta);
         }
-
-        context.getMatrices().pop();
     }
 
     public static void setCooldown(String abilityId, int cooldownTicks) {

@@ -96,7 +96,7 @@ public class AbilityBindingScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
+        super.render(context, mouseX, mouseY, delta);
 
         context.drawCenteredTextWithShadow(this.textRenderer,
                 this.title, this.width / 2, 20, 0xFFFFFF);
@@ -116,8 +116,6 @@ public class AbilityBindingScreen extends Screen {
         renderSlotInfo(context, 0, centerX - dropdownWidth / 2, topMargin - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability1Key).getLocalizedText());
         renderSlotInfo(context, 1, centerX - dropdownWidth / 2, topMargin + spacing - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability2Key).getLocalizedText());
         renderSlotInfo(context, 2, centerX - dropdownWidth / 2, topMargin + spacing * 2 - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability3Key).getLocalizedText());
-
-        super.render(context, mouseX, mouseY, delta);
 
         renderTooltips(context, mouseX, mouseY);
     }
