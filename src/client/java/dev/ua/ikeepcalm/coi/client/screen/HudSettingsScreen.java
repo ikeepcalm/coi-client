@@ -59,10 +59,11 @@ public class HudSettingsScreen extends Screen {
     @Override
     protected void init() {
         int centerX = this.width / 2;
-        int leftColumn = centerX - 160;
-        int rightColumn = centerX + 30;
-        int startY = 50;
-        int spacing = 50;
+        int columnSpacing = Math.min(160, this.width / 3);
+        int leftColumn = centerX - columnSpacing;
+        int rightColumn = centerX + Math.min(30, this.width / 20);
+        int startY = Math.max(40, this.height / 12);
+        int spacing = Math.max(35, this.height / 15);
         int currentY = startY;
 
         enabledCheckbox = CheckboxWidget.builder(Text.translatable("screen.coi.hud_enabled"), MinecraftClient.getInstance().textRenderer)
@@ -73,7 +74,10 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(enabledCheckbox);
         currentY += spacing;
 
-        hudXSlider = new SliderWidget(leftColumn, currentY, 160, 20,
+        int sliderWidth = Math.min(160, this.width / 4);
+        int fieldWidth = Math.min(60, this.width / 12);
+        
+        hudXSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("X: " + settings.hudX), settings.hudX / 500.0) {
             @Override
             protected void updateMessage() {
@@ -91,7 +95,7 @@ public class HudSettingsScreen extends Screen {
         };
         this.addDrawableChild(hudXSlider);
 
-        hudXField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, 60, 20,
+        hudXField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, fieldWidth, 20,
                 Text.translatable("screen.coi.hud_x_field"));
         hudXField.setText(String.valueOf(settings.hudX));
         hudXField.setChangedListener(text -> {
@@ -105,7 +109,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(hudXField);
         currentY += spacing;
 
-        hudYOffsetSlider = new SliderWidget(leftColumn, currentY, 160, 20,
+        hudYOffsetSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Y Offset: " + settings.hudYOffset), settings.hudYOffset / 200.0) {
             @Override
             protected void updateMessage() {
@@ -123,7 +127,7 @@ public class HudSettingsScreen extends Screen {
         };
         this.addDrawableChild(hudYOffsetSlider);
 
-        hudYOffsetField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, 60, 20,
+        hudYOffsetField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, fieldWidth, 20,
                 Text.translatable("screen.coi.hud_y_offset_field"));
         hudYOffsetField.setText(String.valueOf(settings.hudYOffset));
         hudYOffsetField.setChangedListener(text -> {
@@ -137,7 +141,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(hudYOffsetField);
         currentY += spacing;
 
-        slotSizeSlider = new SliderWidget(leftColumn, currentY, 160, 20,
+        slotSizeSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Slot Size: " + settings.slotSize), (settings.slotSize - 20) / 80.0) {
             @Override
             protected void updateMessage() {
@@ -155,7 +159,7 @@ public class HudSettingsScreen extends Screen {
         };
         this.addDrawableChild(slotSizeSlider);
 
-        slotSizeField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, 60, 20,
+        slotSizeField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, fieldWidth, 20,
                 Text.translatable("screen.coi.slot_size_field"));
         slotSizeField.setText(String.valueOf(settings.slotSize));
         slotSizeField.setChangedListener(text -> {
@@ -169,7 +173,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(slotSizeField);
         currentY += spacing;
 
-        slotSpacingSlider = new SliderWidget(leftColumn, currentY, 160, 20,
+        slotSpacingSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Spacing: " + settings.slotSpacing), (settings.slotSpacing - 30) / 70.0) {
             @Override
             protected void updateMessage() {
@@ -187,7 +191,7 @@ public class HudSettingsScreen extends Screen {
         };
         this.addDrawableChild(slotSpacingSlider);
 
-        slotSpacingField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, 60, 20,
+        slotSpacingField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, fieldWidth, 20,
                 Text.translatable("screen.coi.slot_spacing_field"));
         slotSpacingField.setText(String.valueOf(settings.slotSpacing));
         slotSpacingField.setChangedListener(text -> {
@@ -201,7 +205,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(slotSpacingField);
         currentY += spacing;
 
-        hudScaleSlider = new SliderWidget(leftColumn, currentY, 160, 20,
+        hudScaleSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Scale: " + String.format("%.1f", settings.hudScale)), (settings.hudScale - 0.5) / 1.5) {
             @Override
             protected void updateMessage() {
@@ -219,7 +223,7 @@ public class HudSettingsScreen extends Screen {
         };
         this.addDrawableChild(hudScaleSlider);
 
-        hudScaleField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, 60, 20,
+        hudScaleField = new TextFieldWidget(this.textRenderer, rightColumn, currentY, fieldWidth, 20,
                 Text.translatable("screen.coi.hud_scale_field"));
         hudScaleField.setText(String.format("%.1f", settings.hudScale));
         hudScaleField.setChangedListener(text -> {
@@ -262,7 +266,9 @@ public class HudSettingsScreen extends Screen {
 
         this.addDrawableChild(showGlowEffectCheckbox);
 
-        int buttonY = this.height - 60;
+        int buttonY = this.height - Math.max(40, this.height / 10);
+        int buttonWidth = Math.min(100, this.width / 8);
+        int smallButtonWidth = Math.min(90, this.width / 9);
 
         presetButton = ButtonWidget.builder(
                 Text.translatable("screen.coi.preset").append(": " + PRESETS[currentPreset]),
@@ -271,7 +277,7 @@ public class HudSettingsScreen extends Screen {
                     button.setMessage(Text.translatable("screen.coi.preset").append(": " + PRESETS[currentPreset]));
                     applyPreset(currentPreset);
                 }
-        ).dimensions(centerX - 205, buttonY, 100, 20).build();
+        ).dimensions(centerX - Math.min(205, this.width / 3), buttonY, buttonWidth, 20).build();
         this.addDrawableChild(presetButton);
 
         resetButton = ButtonWidget.builder(
@@ -280,13 +286,13 @@ public class HudSettingsScreen extends Screen {
                     resetToDefaults();
                     this.init();
                 }
-        ).dimensions(centerX - 100, buttonY, 90, 20).build();
+        ).dimensions(centerX - buttonWidth, buttonY, smallButtonWidth, 20).build();
         this.addDrawableChild(resetButton);
 
         this.addDrawableChild(ButtonWidget.builder(
                 Text.translatable("gui.cancel"),
                 button -> this.close()
-        ).dimensions(centerX - 5, buttonY, 90, 20).build());
+        ).dimensions(centerX - 5, buttonY, smallButtonWidth, 20).build());
 
         this.addDrawableChild(ButtonWidget.builder(
                 Text.translatable("gui.done"),
@@ -294,46 +300,46 @@ public class HudSettingsScreen extends Screen {
                     saveSettings();
                     this.close();
                 }
-        ).dimensions(centerX + 100, buttonY, 90, 20).build());
+        ).dimensions(centerX + Math.min(100, this.width / 10), buttonY, smallButtonWidth, 20).build());
     }
 
     private void applyPreset(int preset) {
         switch (preset) {
-            case 0: // Default
-                settings.hudX = 20;
-                settings.hudYOffset = 80;
-                settings.slotSize = 50;
-                settings.slotSpacing = 60;
+            case 0: // Default - Safe values that work on all GUI scales
+                settings.hudX = 10;
+                settings.hudYOffset = 60;
+                settings.slotSize = 40;
+                settings.slotSpacing = 50;
                 settings.hudScale = 1.0f;
                 settings.showKeybinds = true;
                 settings.showAbilityNames = true;
                 settings.showGlowEffect = true;
                 break;
-            case 1: // Compact
-                settings.hudX = 10;
-                settings.hudYOffset = 60;
-                settings.slotSize = 35;
-                settings.slotSpacing = 40;
+            case 1: // Compact - Small and minimal
+                settings.hudX = 5;
+                settings.hudYOffset = 40;
+                settings.slotSize = 30;
+                settings.slotSpacing = 35;
                 settings.hudScale = 0.8f;
                 settings.showKeybinds = true;
                 settings.showAbilityNames = false;
                 settings.showGlowEffect = false;
                 break;
-            case 2: // Large
-                settings.hudX = 30;
-                settings.hudYOffset = 100;
-                settings.slotSize = 70;
-                settings.slotSpacing = 80;
-                settings.hudScale = 1.3f;
+            case 2: // Large - Bigger but still safe
+                settings.hudX = 15;
+                settings.hudYOffset = 80;
+                settings.slotSize = 55;
+                settings.slotSpacing = 65;
+                settings.hudScale = 1.2f;
                 settings.showKeybinds = true;
                 settings.showAbilityNames = true;
                 settings.showGlowEffect = true;
                 break;
-            case 3: // Minimal
-                settings.hudX = 5;
-                settings.hudYOffset = 50;
-                settings.slotSize = 30;
-                settings.slotSpacing = 35;
+            case 3: // Minimal - Very small and clean
+                settings.hudX = 3;
+                settings.hudYOffset = 30;
+                settings.slotSize = 25;
+                settings.slotSpacing = 30;
                 settings.hudScale = 0.7f;
                 settings.showKeybinds = false;
                 settings.showAbilityNames = false;
@@ -374,9 +380,10 @@ public class HudSettingsScreen extends Screen {
 
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 20, 0xFFFFFF);
 
-        int leftColumn = this.width / 2 - 160;
-        int startY = 100;
-        int spacing = 50;
+        int columnSpacing = Math.min(160, this.width / 3);
+        int leftColumn = this.width / 2 - columnSpacing;
+        int startY = Math.max(80, this.height / 8);
+        int spacing = Math.max(35, this.height / 15);
         int labelY = startY + 5;
 
         context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.coi.hud_x"),

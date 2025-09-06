@@ -112,18 +112,26 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     public static void handleAbilityData(String data) {
         availableAbilities.clear();
 
-        if (data.isEmpty()) return;
+        if (data.isEmpty()) {
+            System.out.println("COI Client: Received empty ability data");
+            return;
+        }
+
+        System.out.println("COI Client: Received ability data: " + data);
 
         String[] abilities = data.split(";");
         for (String ability : abilities) {
             if (!ability.isEmpty()) {
                 String[] parts = ability.split("\\|");
                 if (parts.length == 2) {
-                    availableAbilities.add(parts[0] + " - " + parts[1]);
+                    String formatted = parts[0] + " - " + parts[1];
+                    availableAbilities.add(formatted);
+                    System.out.println("COI Client: Added ability: " + formatted);
                 }
             }
         }
 
+        System.out.println("COI Client: Total abilities loaded: " + availableAbilities.size());
         updateHudWithCurrentBindings();
     }
 
@@ -143,8 +151,30 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     private static void updateHudWithCurrentBindings() {
+        validateBoundAbilities();
+        
         for (int i = 0; i < 3; i++) {
             AbilityHudOverlay.updateAbilitySlot(i, boundAbilities[i]);
+        }
+    }
+    
+    private static void validateBoundAbilities() {
+        boolean needsSave = false;
+        
+        for (int i = 0; i < 3; i++) {
+            if (boundAbilities[i] != null) {
+                boolean isStillAvailable = availableAbilities.contains(boundAbilities[i]);
+                
+                if (!isStillAvailable) {
+                    System.out.println("COI Client: Clearing invalid bound ability: " + boundAbilities[i]);
+                    boundAbilities[i] = null;
+                    needsSave = true;
+                }
+            }
+        }
+        
+        if (needsSave) {
+            AbilityConfig.saveBindings(boundAbilities);
         }
     }
 
@@ -161,6 +191,25 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             boundAbilities[slot] = abilityId;
             AbilityConfig.saveBindings(boundAbilities);
             AbilityHudOverlay.updateAbilitySlot(slot, abilityId);
+        }
+    }
+    
+    public static void requestAbilitiesFromServer() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player != null && client.player.networkHandler != null) {
+            System.out.println("COI Client: Requesting abilities from server...");
+            client.player.networkHandler.sendChatMessage(ABILITY_USE_PREFIX + "REQUEST");
+        }
+    }
+
+    public static void addTestAbilities() {
+        if (availableAbilities.isEmpty()) {
+            System.out.println("COI Client: Adding test abilities for debugging...");
+            availableAbilities.add("fireball - Fireball");
+            availableAbilities.add("heal - Healing Light");
+            availableAbilities.add("teleport - Teleportation");
+            availableAbilities.add("shield - Magic Shield");
+            System.out.println("COI Client: Added " + availableAbilities.size() + " test abilities");
         }
     }
 }

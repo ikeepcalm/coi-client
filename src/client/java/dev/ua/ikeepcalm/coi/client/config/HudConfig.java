@@ -20,10 +20,10 @@ public class HudConfig {
 
     public static class HudSettings {
         public boolean enabled = true;
-        public int hudX = 20;
-        public int hudYOffset = 80;
-        public int slotSize = 50;
-        public int slotSpacing = 60;
+        public int hudX = 10;  // Reduced from 20 for better GUI scale compatibility
+        public int hudYOffset = 60;  // Reduced from 80
+        public int slotSize = 40;  // Reduced from 50
+        public int slotSpacing = 50;  // Reduced from 60
         public boolean showKeybinds = true;
         public boolean showAbilityNames = true;
         public boolean showGlowEffect = true;
@@ -37,10 +37,10 @@ public class HudConfig {
                 JsonObject json = GSON.fromJson(content, JsonObject.class);
 
                 settings.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : true;
-                settings.hudX = json.has("hudX") ? json.get("hudX").getAsInt() : 20;
-                settings.hudYOffset = json.has("hudYOffset") ? json.get("hudYOffset").getAsInt() : 80;
-                settings.slotSize = json.has("slotSize") ? json.get("slotSize").getAsInt() : 50;
-                settings.slotSpacing = json.has("slotSpacing") ? json.get("slotSpacing").getAsInt() : 60;
+                settings.hudX = json.has("hudX") ? json.get("hudX").getAsInt() : 10;
+                settings.hudYOffset = json.has("hudYOffset") ? json.get("hudYOffset").getAsInt() : 60;
+                settings.slotSize = json.has("slotSize") ? json.get("slotSize").getAsInt() : 40;
+                settings.slotSpacing = json.has("slotSpacing") ? json.get("slotSpacing").getAsInt() : 50;
                 settings.showKeybinds = json.has("showKeybinds") ? json.get("showKeybinds").getAsBoolean() : true;
                 settings.showAbilityNames = json.has("showAbilityNames") ? json.get("showAbilityNames").getAsBoolean() : true;
                 settings.showGlowEffect = json.has("showGlowEffect") ? json.get("showGlowEffect").getAsBoolean() : true;

@@ -29,6 +29,7 @@
   "screen.coi.slot_spacing": "Slot Spacing",
   "screen.coi.slot_spacing_field": "Spacing",
   "screen.coi.ability_choose": "Choose Ability",
+  "screen.coi.no_abilities_available": "No abilities available",
   "screen.coi.hud_scale": "HUD Scale",
   "screen.coi.hud_scale_field": "Scale",
   "screen.coi.show_keybinds": "Show Keybinds",

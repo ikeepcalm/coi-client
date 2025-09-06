@@ -28,19 +28,31 @@ public class AbilityBindingScreen extends Screen {
 
     @Override
     protected void init() {
+        // Request abilities from server when screen opens
+        CircleOfImaginationClient.requestAbilitiesFromServer();
+        
         List<String> abilities = CircleOfImaginationClient.getAvailableAbilities();
+        
+        // For testing purposes, add sample abilities if none are available
+        if (abilities.isEmpty()) {
+            System.out.println("COI Client: No abilities received from server, adding test abilities");
+            CircleOfImaginationClient.addTestAbilities();
+            abilities = CircleOfImaginationClient.getAvailableAbilities();
+        }
+        
+        System.out.println("COI Client: Screen init with " + abilities.size() + " abilities available");
 
         int centerX = this.width / 2;
-        int topMargin = 80;
-        int spacing = 80;
-        int dropdownWidth = Math.min(300, this.width - 40);
+        int topMargin = Math.max(60, this.height / 8);
+        int spacing = Math.max(50, this.height / 12);
+        int dropdownWidth = Math.min(Math.max(200, this.width / 3), this.width - 40);
         int dropdownHeight = 20;
 
         contentHeight = topMargin;
 
         ability1Dropdown = new dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget(
                 centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
-                abilities,
+                () -> CircleOfImaginationClient.getAvailableAbilities(),
                 CircleOfImaginationClient.getBoundAbility(0),
                 selected -> CircleOfImaginationClient.setBoundAbility(0, selected)
         );
@@ -49,7 +61,7 @@ public class AbilityBindingScreen extends Screen {
 
         ability2Dropdown = new dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget(
                 centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
-                abilities,
+                () -> CircleOfImaginationClient.getAvailableAbilities(),
                 CircleOfImaginationClient.getBoundAbility(1),
                 selected -> CircleOfImaginationClient.setBoundAbility(1, selected)
         );
@@ -58,14 +70,14 @@ public class AbilityBindingScreen extends Screen {
 
         ability3Dropdown = new dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget(
                 centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
-                abilities,
+                () -> CircleOfImaginationClient.getAvailableAbilities(),
                 CircleOfImaginationClient.getBoundAbility(2),
                 selected -> CircleOfImaginationClient.setBoundAbility(2, selected)
         );
         this.addDrawableChild(ability3Dropdown);
         contentHeight += spacing;
 
-        int buttonY = Math.max(contentHeight + 20, this.height - 60);
+        int buttonY = Math.max(contentHeight + 20, this.height - Math.max(40, this.height / 10));
 
         clearAllButton = ButtonWidget.builder(
                 Text.translatable("screen.coi.clear_all"),
@@ -84,7 +96,7 @@ public class AbilityBindingScreen extends Screen {
                     this.close();
                     MinecraftClient.getInstance().setScreen(new HudSettingsScreen(null));
                 }
-        ).dimensions(centerX + 300, buttonY - 400, 120, 20).build();
+        ).dimensions(Math.max(10, this.width - Math.min(130, this.width / 4)), 10, Math.min(120, this.width / 5), 20).build();
 
         this.addDrawableChild(settingsButton);
 
@@ -109,15 +121,31 @@ public class AbilityBindingScreen extends Screen {
         }
 
         int centerX = this.width / 2;
-        int topMargin = 80;
-        int spacing = 80;
-        int dropdownWidth = Math.min(300, this.width - 40);
+        int topMargin = Math.max(60, this.height / 8);
+        int spacing = Math.max(50, this.height / 12);
+        int dropdownWidth = Math.min(Math.max(200, this.width / 3), this.width - 40);
 
         renderSlotInfo(context, 0, centerX - dropdownWidth / 2, topMargin - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability1Key).getLocalizedText());
         renderSlotInfo(context, 1, centerX - dropdownWidth / 2, topMargin + spacing - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability2Key).getLocalizedText());
         renderSlotInfo(context, 2, centerX - dropdownWidth / 2, topMargin + spacing * 2 - 15, KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.ability3Key).getLocalizedText());
 
         renderTooltips(context, mouseX, mouseY);
+        
+        // Render expanded dropdowns on top of everything else
+        renderExpandedDropdowns(context, mouseX, mouseY, delta);
+    }
+    
+    private void renderExpandedDropdowns(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Render any expanded dropdowns last to ensure they appear on top
+        if (ability1Dropdown != null && ability1Dropdown.isExpanded()) {
+            ability1Dropdown.renderExpanded(context, mouseX, mouseY, delta);
+        }
+        if (ability2Dropdown != null && ability2Dropdown.isExpanded()) {
+            ability2Dropdown.renderExpanded(context, mouseX, mouseY, delta);
+        }
+        if (ability3Dropdown != null && ability3Dropdown.isExpanded()) {
+            ability3Dropdown.renderExpanded(context, mouseX, mouseY, delta);
+        }
     }
 
     private void renderSlotInfo(DrawContext context, int slot, int x, int y, Text key) {
@@ -130,7 +158,8 @@ public class AbilityBindingScreen extends Screen {
         if (bound != null && bound.contains(" - ")) {
             String abilityName = bound.split(" - ")[1];
             Text boundText = Text.literal("→ " + abilityName).formatted(Formatting.GREEN);
-            context.drawTextWithShadow(this.textRenderer, boundText, x + 150, y, 0x55FF55);
+            int textOffset = Math.min(Math.max(100, this.width / 6), 150);
+            context.drawTextWithShadow(this.textRenderer, boundText, x + textOffset, y, 0x55FF55);
         }
     }
 
