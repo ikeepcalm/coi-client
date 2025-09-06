@@ -52,7 +52,7 @@ public class AbilityBindingScreen extends Screen {
 
         ability1Dropdown = new dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget(
                 centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
-                () -> CircleOfImaginationClient.getAvailableAbilities(),
+                CircleOfImaginationClient::getAvailableAbilities,
                 CircleOfImaginationClient.getBoundAbility(0),
                 selected -> CircleOfImaginationClient.setBoundAbility(0, selected)
         );
@@ -61,7 +61,7 @@ public class AbilityBindingScreen extends Screen {
 
         ability2Dropdown = new dev.ua.ikeepcalm.coi.client.screen.AbilityDropdownWidget(
                 centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
-                () -> CircleOfImaginationClient.getAvailableAbilities(),
+                CircleOfImaginationClient::getAvailableAbilities,
                 CircleOfImaginationClient.getBoundAbility(1),
                 selected -> CircleOfImaginationClient.setBoundAbility(1, selected)
         );
@@ -131,12 +131,10 @@ public class AbilityBindingScreen extends Screen {
 
         renderTooltips(context, mouseX, mouseY);
         
-        // Render expanded dropdowns on top of everything else
         renderExpandedDropdowns(context, mouseX, mouseY, delta);
     }
     
     private void renderExpandedDropdowns(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Render any expanded dropdowns last to ensure they appear on top
         if (ability1Dropdown != null && ability1Dropdown.isExpanded()) {
             ability1Dropdown.renderExpanded(context, mouseX, mouseY, delta);
         }

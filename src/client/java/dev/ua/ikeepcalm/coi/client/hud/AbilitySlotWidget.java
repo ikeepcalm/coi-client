@@ -19,12 +19,18 @@ public class AbilitySlotWidget {
     private int maxCooldownTicks;
     private long lastUseTime;
 
-    private static final int BORDER_COLOR = 0xFF444444;
-    private static final int BACKGROUND_COLOR = 0xFF1A1A1A;
-    private static final int COOLDOWN_COLOR = 0x80000000;
-    private static final int READY_GLOW_COLOR = 0xFF00FF00;
-    private static final int KEYBIND_COLOR = 0xFFFFFF55;
-    private static final int ABILITY_NAME_COLOR = 0xFFFFFFFF;
+    private static final int BORDER_COLOR = 0xFF2A2A2A;
+    private static final int BACKGROUND_COLOR = 0xFF0F0F0F;
+    private static final int BACKGROUND_GRADIENT_TOP = 0xFF1A1A1A;
+    private static final int BACKGROUND_GRADIENT_BOTTOM = 0xFF0A0A0A;
+    private static final int COOLDOWN_COLOR = 0xC0000000;
+    private static final int COOLDOWN_PROGRESS_COLOR = 0xFF4A90E2;
+    private static final int READY_GLOW_COLOR = 0xFF32CD32;
+    private static final int READY_BORDER_COLOR = 0xFF228B22;
+    private static final int KEYBIND_COLOR = 0xFFFFE135;
+    private static final int KEYBIND_BACKGROUND = 0xC0000000;
+    private static final int ABILITY_NAME_COLOR = 0xFFE0E0E0;
+    private static final int SHADOW_COLOR = 0x60000000;
 
     public AbilitySlotWidget(int slotIndex) {
         this.slotIndex = slotIndex;
@@ -40,14 +46,22 @@ public class AbilitySlotWidget {
         boolean hasAbility = abilityId != null;
         boolean onCooldown = cooldownTicks > 0;
         boolean isReady = hasAbility && !onCooldown;
+        
 
-        int borderColor = isReady ? READY_GLOW_COLOR : BORDER_COLOR;
+        renderDropShadow(context, x, y, size);
+        
         if (isReady && settings.showGlowEffect) {
             renderGlowEffect(context, x, y, size);
         }
-
+        
+        int borderColor = isReady ? READY_BORDER_COLOR : BORDER_COLOR;
         context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
-        context.fill(x, y, x + size, y + size, BACKGROUND_COLOR);
+        
+        renderGradientBackground(context, x, y, size);
+        
+        if (isReady) {
+            renderReadyOverlay(context, x, y, size);
+        }
 
         if (hasAbility) {
             renderAbilityIcon(context, x, y, size);
@@ -70,13 +84,25 @@ public class AbilitySlotWidget {
             updateCooldown();
         }
     }
+    
+    
+    private void renderDropShadow(DrawContext context, int x, int y, int size) {
+        context.fill(x + 2, y + 2, x + size + 3, y + size + 3, SHADOW_COLOR);
+    }
+    
+    private void renderGradientBackground(DrawContext context, int x, int y, int size) {
+        context.fill(x, y, x + size, y + size / 2, BACKGROUND_GRADIENT_TOP);
+        context.fill(x, y + size / 2, x + size, y + size, BACKGROUND_GRADIENT_BOTTOM);
+    }
+    
+    private void renderReadyOverlay(DrawContext context, int x, int y, int size) {
+        int overlayColor = 0x20228B22;
+        context.fill(x, y, x + size, y + size, overlayColor);
+    }
 
     private void renderGlowEffect(DrawContext context, int x, int y, int size) {
-        double time = Util.getMeasuringTimeMs() / 1000.0;
-        float pulse = (float) (Math.sin(time * 3.0) * 0.3 + 0.7);
-        int alpha = (int) (pulse * 255);
-        int glowColor = (alpha << 24) | 0x00FF00;
-
+        int alpha = 60;
+        int glowColor = (alpha << 24) | 0x32CD32;
         context.fill(x - 2, y - 2, x + size + 2, y + size + 2, glowColor);
     }
 
@@ -107,26 +133,36 @@ public class AbilitySlotWidget {
         float progress = (cooldownTicks - tickDelta) / maxCooldownTicks;
         progress = MathHelper.clamp(progress, 0.0f, 1.0f);
 
+        renderCooldownProgress(context, x, y, size, progress);
+        renderCooldownSweep(context, x, y, size, progress);
+    }
+    
+    private void renderCooldownProgress(DrawContext context, int x, int y, int size, float progress) {
         int overlayHeight = (int) (size * progress);
         if (overlayHeight > 0) {
             context.fill(x, y + size - overlayHeight, x + size, y + size, COOLDOWN_COLOR);
         }
-
-        int sweepAngle = (int) (360 * (1 - progress));
-        renderCooldownSweep(context, x, y, size, sweepAngle);
     }
 
-    private void renderCooldownSweep(DrawContext context, int x, int y, int size, int sweepAngle) {
+    private void renderCooldownSweep(DrawContext context, int x, int y, int size, float progress) {
         int centerX = x + size / 2;
         int centerY = y + size / 2;
-        int radius = size / 2 - 2;
-
-        for (int angle = 0; angle < sweepAngle; angle += 2) {
+        int outerRadius = size / 2 - 1;
+        int innerRadius = size / 2 - 3;
+        
+        int sweepAngle = (int) (360 * (1 - progress));
+        
+        for (int angle = 0; angle < sweepAngle; angle += 1) {
             double radian = Math.toRadians(angle - 90);
-            int endX = centerX + (int) (Math.cos(radian) * radius);
-            int endY = centerY + (int) (Math.sin(radian) * radius);
-
-            context.fill(endX, endY, endX + 2, endY + 2, 0x60FF0000);
+            
+            for (int r = innerRadius; r <= outerRadius; r++) {
+                int endX = centerX + (int) (Math.cos(radian) * r);
+                int endY = centerY + (int) (Math.sin(radian) * r);
+                
+                if (endX >= x && endX < x + size && endY >= y && endY < y + size) {
+                    context.fill(endX, endY, endX + 1, endY + 1, COOLDOWN_PROGRESS_COLOR);
+                }
+            }
         }
     }
 
@@ -175,8 +211,9 @@ public class AbilitySlotWidget {
 
         int textWidth = textRenderer.getWidth(displayName);
         int textX = x + (size - textWidth) / 2;
-        int textY = y + size + 2;
-
+        int textY = y + size + 3;
+        
+        context.drawText(textRenderer, displayName, textX + 1, textY + 1, 0x80000000, false);
         context.drawText(textRenderer, displayName, textX, textY, ABILITY_NAME_COLOR, true);
     }
 
@@ -190,10 +227,17 @@ public class AbilitySlotWidget {
         }
 
         int textWidth = textRenderer.getWidth(keyText);
-        int textX = x + size - textWidth - 2;
-        int textY = y + 2;
+        int padding = 2;
+        int bgWidth = textWidth + padding * 2;
+        int bgHeight = 10;
+        
+        int bgX = x + size - bgWidth - 2;
+        int bgY = y + 2;
+        int textX = bgX + padding;
+        int textY = bgY + 1;
 
-        context.fill(textX - 1, textY - 1, textX + textWidth + 1, textY + 9, 0x80000000);
+        context.fill(bgX, bgY, bgX + bgWidth, bgY + bgHeight, KEYBIND_BACKGROUND);
+        context.fill(bgX, bgY, bgX + bgWidth, bgY + 1, 0xFF555555);
         context.drawText(textRenderer, keyText, textX, textY, KEYBIND_COLOR, true);
     }
 
@@ -211,14 +255,14 @@ public class AbilitySlotWidget {
 
         String pathway = abilityId.split("-")[0];
         return switch (pathway.toLowerCase()) {
-            case "fool" -> 0xFF9932CC;
-            case "door" -> 0xFF4169E1;
-            case "sun" -> 0xFFFFD700;
-            case "tyrant" -> 0xFF1E90FF;
-            case "demoness" -> 0xFF8B0000;
-            case "priest" -> 0xFFFF4500;
-            case "error" -> 0xFF808080;
-            default -> 0xFF666666;
+            case "fool" -> 0xFFB347CC;
+            case "door" -> 0xFF5B7FE6;
+            case "sun" -> 0xFFFFE55C;
+            case "tyrant" -> 0xFF4AA3FF;
+            case "demoness" -> 0xFFB22222;
+            case "priest" -> 0xFFFF6B35;
+            case "error" -> 0xFF999999;
+            default -> 0xFF777777;
         };
     }
 
@@ -237,6 +281,25 @@ public class AbilitySlotWidget {
             }
             return initials.toString().toUpperCase();
         }
+    }
+    
+    private int interpolateColor(int color1, int color2, float progress) {
+        int a1 = (color1 >> 24) & 0xFF;
+        int r1 = (color1 >> 16) & 0xFF;
+        int g1 = (color1 >> 8) & 0xFF;
+        int b1 = color1 & 0xFF;
+        
+        int a2 = (color2 >> 24) & 0xFF;
+        int r2 = (color2 >> 16) & 0xFF;
+        int g2 = (color2 >> 8) & 0xFF;
+        int b2 = color2 & 0xFF;
+        
+        int a = (int) (a1 + (a2 - a1) * progress);
+        int r = (int) (r1 + (r2 - r1) * progress);
+        int g = (int) (g1 + (g2 - g1) * progress);
+        int b = (int) (b1 + (b2 - b1) * progress);
+        
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     public void setAbility(String abilityId) {
