@@ -242,12 +242,10 @@ public class AbilitySlotWidget {
     }
 
     private KeyBinding getKeyBinding() {
-        return switch (slotIndex) {
-            case 0 -> CircleOfImaginationClient.ability1Key;
-            case 1 -> CircleOfImaginationClient.ability2Key;
-            case 2 -> CircleOfImaginationClient.ability3Key;
-            default -> null;
-        };
+        if (slotIndex >= 0 && slotIndex < CircleOfImaginationClient.abilityKeys.length) {
+            return CircleOfImaginationClient.abilityKeys[slotIndex];
+        }
+        return null;
     }
 
     private int getPathwayColor(String abilityId) {
@@ -320,6 +318,10 @@ public class AbilitySlotWidget {
 
     public boolean hasAbility(String abilityId) {
         return this.abilityId != null && this.abilityId.contains(abilityId);
+    }
+
+    public boolean isEmpty() {
+        return this.abilityId == null;
     }
 
     public boolean isOnCooldown() {

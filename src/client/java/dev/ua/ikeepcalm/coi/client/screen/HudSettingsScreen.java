@@ -17,11 +17,13 @@ public class HudSettingsScreen extends Screen {
     private HudConfig.HudSettings settings;
 
     private CheckboxWidget enabledCheckbox;
+
     private SliderWidget hudXSlider;
     private SliderWidget hudYOffsetSlider;
     private SliderWidget slotSizeSlider;
     private SliderWidget slotSpacingSlider;
     private SliderWidget hudScaleSlider;
+
     private CheckboxWidget showKeybindsCheckbox;
     private CheckboxWidget showAbilityNamesCheckbox;
     private CheckboxWidget showGlowEffectCheckbox;

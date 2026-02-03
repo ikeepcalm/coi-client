@@ -10,25 +10,34 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 public class CircleOfImaginationClient implements ClientModInitializer {
+
+    // Configurable maximum number of abilities (change this to support more abilities)
+    public static final int MAX_ABILITIES = 6;
 
     private static final String ABILITY_USE_PREFIX = "_0_0_2_2_r";
 
     private static final List<String> availableAbilities = new ArrayList<>();
 
-    private static String[] boundAbilities = new String[3];
+    private static String[] boundAbilities = new String[MAX_ABILITIES];
 
-    public static KeyBinding ability1Key;
-    public static KeyBinding ability2Key;
-    public static KeyBinding ability3Key;
+    public static KeyBinding[] abilityKeys = new KeyBinding[MAX_ABILITIES];
     public static KeyBinding abilityMenu;
 
-    private static final boolean[] keyPressed = new boolean[4];
+    private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 1];
+
+    // Chat message queue to prevent spam
+    private static final Queue<String> messageQueue = new LinkedList<>();
+    private static long lastMessageTime = 0;
+    private static final long MESSAGE_DELAY_MS = 500; // 500ms delay between messages
 
     @Override
     public void onInitializeClient() {
@@ -39,32 +48,34 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     private void registerKeybindings() {
-        ability1Key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.coi.ability1",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_Z,
-                "category.coi.abilities"
-        ));
+        KeyBinding.Category category = KeyBinding.Category.create(Identifier.of("category.coi.abilities"));
 
-        ability2Key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.coi.ability2",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_X,
-                "category.coi.abilities"
-        ));
+        // Default keybindings for first 6 abilities: Z, X, C, V, B, N
+        int[] defaultKeys = {
+            GLFW.GLFW_KEY_Z,
+            GLFW.GLFW_KEY_X,
+            GLFW.GLFW_KEY_C,
+            GLFW.GLFW_KEY_V,
+            GLFW.GLFW_KEY_B,
+            GLFW.GLFW_KEY_N
+        };
 
-        ability3Key = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.coi.ability3",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_C,
-                "category.coi.abilities"
-        ));
+        // Register ability keybindings dynamically
+        for (int i = 0; i < MAX_ABILITIES; i++) {
+            int defaultKey = i < defaultKeys.length ? defaultKeys[i] : InputUtil.UNKNOWN_KEY.getCode();
+            abilityKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                    "key.coi.ability" + (i + 1),
+                    InputUtil.Type.KEYSYM,
+                    defaultKey,
+                    category
+            ));
+        }
 
         abilityMenu = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "screen.coi.ability_binding",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_K,
-                "category.coi.abilities"
+                category
         ));
     }
 
@@ -72,10 +83,16 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            handleKeyPress(0, ability1Key, client);
-            handleKeyPress(1, ability2Key, client);
-            handleKeyPress(2, ability3Key, client);
-            handleKeyPress(3, abilityMenu, client);
+            // Handle all ability keys dynamically
+            for (int i = 0; i < MAX_ABILITIES; i++) {
+                handleKeyPress(i, abilityKeys[i], client);
+            }
+
+            // Handle menu key
+            handleKeyPress(MAX_ABILITIES, abilityMenu, client);
+
+            // Process message queue with delay
+            processMessageQueue(client);
         });
     }
 
@@ -83,29 +100,53 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         if (key.isPressed() && !keyPressed[index]) {
             keyPressed[index] = true;
 
-            if (index == 3) {
+            // Menu key
+            if (index == MAX_ABILITIES) {
                 MinecraftClient.getInstance().setScreen(new AbilityBindingScreen(null));
                 return;
             }
 
-            if (boundAbilities[index] != null) {
-                sendAbilityUse(boundAbilities[index], client, index);
+            // Ability key
+            if (index < MAX_ABILITIES && boundAbilities[index] != null) {
+                queueAbilityUse(boundAbilities[index], index);
             }
         } else if (!key.isPressed()) {
             keyPressed[index] = false;
         }
     }
 
-    private void sendAbilityUse(String abilityIdWithName, MinecraftClient client, int slot) {
-        if (client.player != null && abilityIdWithName != null) {
+    private void queueAbilityUse(String abilityIdWithName, int slot) {
+        if (abilityIdWithName != null) {
             String abilityId = abilityIdWithName;
             if (abilityIdWithName.contains(" - ")) {
                 abilityId = abilityIdWithName.split(" - ")[0];
             }
-            client.player.networkHandler.sendChatMessage(ABILITY_USE_PREFIX + "USE:" + abilityId);
+            messageQueue.offer(ABILITY_USE_PREFIX + "USE:" + abilityId + "|" + abilityIdWithName);
+        }
+    }
 
-            client.player.sendMessage(Text.translatable("notification.coi.ability_used",
-                    abilityIdWithName.contains(" - ") ? abilityIdWithName.split(" - ")[1] : abilityIdWithName), true);
+    private static void processMessageQueue(MinecraftClient client) {
+        if (client.player == null || messageQueue.isEmpty()) return;
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastMessageTime >= MESSAGE_DELAY_MS) {
+            String message = messageQueue.poll();
+            if (message != null) {
+                String[] parts = message.split("\\|", 2);
+                String chatMessage = parts[0];
+                String abilityName = parts.length > 1 ? parts[1] : "";
+
+                client.player.networkHandler.sendChatMessage(chatMessage);
+                lastMessageTime = currentTime;
+
+                // Show notification
+                if (!abilityName.isEmpty()) {
+                    String displayName = abilityName.contains(" - ") ?
+                        abilityName.split(" - ")[1] : abilityName;
+                    client.player.sendMessage(Text.translatable("notification.coi.ability_used",
+                        displayName), true);
+                }
+            }
         }
     }
 
@@ -152,19 +193,19 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     private static void updateHudWithCurrentBindings() {
         validateBoundAbilities();
-        
-        for (int i = 0; i < 3; i++) {
+
+        for (int i = 0; i < MAX_ABILITIES; i++) {
             AbilityHudOverlay.updateAbilitySlot(i, boundAbilities[i]);
         }
     }
-    
+
     private static void validateBoundAbilities() {
         boolean needsSave = false;
-        
-        for (int i = 0; i < 3; i++) {
+
+        for (int i = 0; i < MAX_ABILITIES; i++) {
             if (boundAbilities[i] != null) {
                 boolean isStillAvailable = availableAbilities.contains(boundAbilities[i]);
-                
+
                 if (!isStillAvailable) {
                     System.out.println("COI Client: Clearing invalid bound ability: " + boundAbilities[i]);
                     boundAbilities[i] = null;
@@ -172,7 +213,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 }
             }
         }
-        
+
         if (needsSave) {
             AbilityConfig.saveBindings(boundAbilities);
         }
@@ -187,18 +228,22 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     public static void setBoundAbility(int slot, String abilityId) {
-        if (slot >= 0 && slot < 3) {
+        if (slot >= 0 && slot < MAX_ABILITIES) {
             boundAbilities[slot] = abilityId;
             AbilityConfig.saveBindings(boundAbilities);
             AbilityHudOverlay.updateAbilitySlot(slot, abilityId);
         }
     }
-    
+
+    public static int getMaxAbilities() {
+        return MAX_ABILITIES;
+    }
+
     public static void requestAbilitiesFromServer() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && client.player.networkHandler != null) {
             System.out.println("COI Client: Requesting abilities from server...");
-            client.player.networkHandler.sendChatMessage(ABILITY_USE_PREFIX + "REQUEST");
+            messageQueue.offer(ABILITY_USE_PREFIX + "REQUEST|");
         }
     }
 

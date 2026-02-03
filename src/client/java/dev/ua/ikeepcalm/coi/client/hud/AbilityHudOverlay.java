@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.hud;
 
+import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
@@ -10,12 +11,15 @@ import net.minecraft.util.Identifier;
 public class AbilityHudOverlay {
 
     private static final Identifier ABILITY_LAYER = Identifier.of("coi-client", "abilities");
-    private static AbilitySlotWidget[] abilitySlots = new AbilitySlotWidget[3];
+    private static AbilitySlotWidget[] abilitySlots;
 
     public static void initialize() {
         HudConfig.load();
 
-        for (int i = 0; i < 3; i++) {
+        int maxAbilities = CircleOfImaginationClient.MAX_ABILITIES;
+        abilitySlots = new AbilitySlotWidget[maxAbilities];
+
+        for (int i = 0; i < maxAbilities; i++) {
             abilitySlots[i] = new AbilitySlotWidget(i);
         }
 
@@ -36,14 +40,19 @@ public class AbilityHudOverlay {
         int startY = (int) ((screenHeight - settings.hudYOffset) / settings.hudScale);
         int hudX = (int) (settings.hudX / settings.hudScale);
 
-        for (int i = 0; i < 3; i++) {
-            int x = hudX + (i * settings.slotSpacing);
-            abilitySlots[i].render(context, x, startY, settings.slotSize, tickDelta);
+        // Only render slots that have abilities bound to them
+        int renderedCount = 0;
+        for (int i = 0; i < abilitySlots.length; i++) {
+            if (!abilitySlots[i].isEmpty()) {
+                int x = hudX + (renderedCount * settings.slotSpacing);
+                abilitySlots[i].render(context, x, startY, settings.slotSize, tickDelta);
+                renderedCount++;
+            }
         }
     }
 
     public static void setCooldown(String abilityId, int cooldownTicks) {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < abilitySlots.length; i++) {
             if (abilitySlots[i].hasAbility(abilityId)) {
                 if (!abilitySlots[i].isOnCooldown()) {
                     abilitySlots[i].setCooldown(cooldownTicks);
@@ -54,7 +63,7 @@ public class AbilityHudOverlay {
     }
 
     public static void updateAbilitySlot(int slot, String abilityId) {
-        if (slot >= 0 && slot < 3) {
+        if (abilitySlots != null && slot >= 0 && slot < abilitySlots.length) {
             abilitySlots[slot].setAbility(abilityId);
         }
     }

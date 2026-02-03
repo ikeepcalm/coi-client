@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.client.screen;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.screen.narration.NarrationPart;
@@ -41,7 +42,11 @@ public class AbilityDropdownWidget extends ClickableWidget {
         // Render the main dropdown button
         int borderColor = this.isHovered() ? 0xFFFFFFFF : 0xFFA0A0A0;
         context.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xFF2C2C2C);
-        context.drawBorder(this.getX(), this.getY(), this.width, this.height, borderColor);
+        // Draw border manually
+        context.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + 1, borderColor); // Top
+        context.fill(this.getX(), this.getY() + this.height - 1, this.getX() + this.width, this.getY() + this.height, borderColor); // Bottom
+        context.fill(this.getX(), this.getY(), this.getX() + 1, this.getY() + this.height, borderColor); // Left
+        context.fill(this.getX() + this.width - 1, this.getY(), this.getX() + this.width, this.getY() + this.height, borderColor); // Right
 
         List<String> options = optionsSupplier.get();
         
@@ -86,7 +91,11 @@ public class AbilityDropdownWidget extends ClickableWidget {
         // Draw dropdown background with a slightly lighter color than pure black
         context.fill(this.getX(), dropdownY,
                 this.getX() + this.width, dropdownY + dropdownHeight, 0xFF2C2C2C);
-        context.drawBorder(this.getX(), dropdownY, this.width, dropdownHeight, 0xFFFFFFFF);
+        // Draw border manually
+        context.fill(this.getX(), dropdownY, this.getX() + this.width, dropdownY + 1, 0xFFFFFFFF); // Top
+        context.fill(this.getX(), dropdownY + dropdownHeight - 1, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Bottom
+        context.fill(this.getX(), dropdownY, this.getX() + 1, dropdownY + dropdownHeight, 0xFFFFFFFF); // Left
+        context.fill(this.getX() + this.width - 1, dropdownY, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Right
 
         // Note: Scissor clipping disabled as it was preventing text from rendering properly
         // context.enableScissor(this.getX() + 1, dropdownY + 1,
@@ -151,26 +160,27 @@ public class AbilityDropdownWidget extends ClickableWidget {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            if (isMouseOver(mouseX, mouseY)) {
-                if (!expanded) {
-                    expanded = true;
-                    return true;
-                }
-            }
+    public void onClick(Click click, boolean doubled) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
+        double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
 
+        handleClick(mouseX, mouseY);
+    }
+
+    protected void handleClick(double mouseX, double mouseY) {
+        if (!expanded) {
+            expanded = true;
+        } else {
             List<String> options = optionsSupplier.get();
-            if (expanded && hoveredIndex >= 0 && hoveredIndex < options.size()) {
+            if (hoveredIndex >= 0 && hoveredIndex < options.size()) {
                 selected = options.get(hoveredIndex);
                 onSelect.accept(selected);
                 expanded = false;
-                return true;
+            } else {
+                expanded = false;
             }
-
-            expanded = false;
         }
-        return false;
     }
 
     @Override
