@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.screen;
 
+import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.Click;
@@ -49,15 +50,16 @@ public class AbilityDropdownWidget extends ClickableWidget {
         context.fill(this.getX() + this.width - 1, this.getY(), this.getX() + this.width, this.getY() + this.height, borderColor); // Right
 
         List<String> options = optionsSupplier.get();
-        
+
         String displayText;
         if (selected != null) {
-            if (selected.contains(" - ")) {
-                String[] parts = selected.split(" - ");
-                displayText = parts.length > 1 ? parts[1] : selected;
-            } else {
-                displayText = selected;
-            }
+            String selectedId = AbilityInfo.extractId(selected);
+            displayText = options.stream()
+                    .filter(o -> o.startsWith(selectedId + " - "))
+                    .findFirst()
+                    .map(AbilityInfo::extractDisplayName)
+                    .orElseGet(() -> AbilityInfo.extractDisplayName(selected));
+            if (displayText == null) displayText = selected;
         } else {
             if (options.isEmpty()) {
                 displayText = Text.translatable("screen.coi.no_abilities_available").getString();
@@ -65,11 +67,11 @@ public class AbilityDropdownWidget extends ClickableWidget {
                 displayText = Text.translatable("screen.coi.ability_choose").getString();
             }
         }
-        
+
         // Ensure text fits in the dropdown button
         String trimmedText = textRenderer.trimToWidth(displayText, this.width - 20);
-        
-        
+
+
         // Use light yellow color for better visibility against dark backgrounds
         context.drawText(textRenderer, trimmedText,
                 this.getX() + 4, this.getY() + (this.height - 8) / 2, 0xFFFFFF55, false);
@@ -79,11 +81,11 @@ public class AbilityDropdownWidget extends ClickableWidget {
         context.drawText(textRenderer, arrow,
                 this.getX() + this.width - 12, this.getY() + (this.height - 8) / 2, 0xFFFFFF55, false);
     }
-    
+
 
     private void renderDropdown(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
         List<String> options = optionsSupplier.get();
-        
+
         int dropdownY = this.getY() + this.height;
         int visibleItems = Math.min(options.size(), MAX_VISIBLE_ITEMS);
         int dropdownHeight = visibleItems * ITEM_HEIGHT;
@@ -115,14 +117,14 @@ public class AbilityDropdownWidget extends ClickableWidget {
             }
 
             String displayText = options.get(i);
-            
+
             if (displayText != null) {
                 String[] parts = displayText.split(" - ");
                 if (parts.length > 1) {
                     displayText = parts[1];
                 }
-                
-                
+
+
                 // Ensure text fits within the dropdown item
                 String trimmedText = textRenderer.trimToWidth(displayText, this.width - 8);
                 // Use light yellow color for better visibility
@@ -162,8 +164,8 @@ public class AbilityDropdownWidget extends ClickableWidget {
     @Override
     public void onClick(Click click, boolean doubled) {
         MinecraftClient client = MinecraftClient.getInstance();
-        double mouseX = client.mouse.getX() * (double)client.getWindow().getScaledWidth() / (double)client.getWindow().getWidth();
-        double mouseY = client.mouse.getY() * (double)client.getWindow().getScaledHeight() / (double)client.getWindow().getHeight();
+        double mouseX = client.mouse.getX() * (double) client.getWindow().getScaledWidth() / (double) client.getWindow().getWidth();
+        double mouseY = client.mouse.getY() * (double) client.getWindow().getScaledHeight() / (double) client.getWindow().getHeight();
 
         handleClick(mouseX, mouseY);
     }
@@ -188,11 +190,11 @@ public class AbilityDropdownWidget extends ClickableWidget {
         if (expanded && isMouseOver(mouseX, mouseY)) {
             List<String> options = optionsSupplier.get();
             int maxScroll = Math.max(0, options.size() - MAX_VISIBLE_ITEMS);
-            
+
             // Use proper scroll direction and magnitude
             int scrollDirection = verticalAmount > 0 ? -1 : 1; // Reverse direction for natural scrolling
             scrollOffset = MathHelper.clamp(scrollOffset + scrollDirection, 0, maxScroll);
-            
+
             return true;
         }
         return false;
@@ -212,14 +214,14 @@ public class AbilityDropdownWidget extends ClickableWidget {
     public boolean isExpanded() {
         return expanded;
     }
-    
+
     public void renderExpanded(DrawContext context, int mouseX, int mouseY, float delta) {
         List<String> options = optionsSupplier.get();
         if (expanded && !options.isEmpty()) {
             renderDropdown(context, MinecraftClient.getInstance().textRenderer, mouseX, mouseY);
         }
     }
-    
+
     @Override
     protected void appendClickableNarrations(NarrationMessageBuilder builder) {
         builder.put(NarrationPart.TITLE, Text.literal("Ability dropdown"));

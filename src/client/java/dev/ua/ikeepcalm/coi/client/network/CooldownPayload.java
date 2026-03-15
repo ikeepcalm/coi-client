@@ -7,13 +7,13 @@ import net.minecraft.util.Identifier;
 
 public record CooldownPayload(String abilityId, int ticks) implements CustomPayload {
     public static final CustomPayload.Id<CooldownPayload> ID =
-        new CustomPayload.Id<>(Identifier.of("coi-client", "cooldown"));
+            new CustomPayload.Id<>(Identifier.of("coi-client", "cooldown"));
     public static final PacketCodec<RegistryByteBuf, CooldownPayload> CODEC = PacketCodec.of(
-        (value, buf) -> {
-            buf.writeString(value.abilityId());
-            buf.writeInt(value.ticks());
-        },
-        buf -> new CooldownPayload(buf.readString(), buf.readInt())
+            (value, buf) -> {
+                buf.writeString(value.abilityId());
+                buf.writeInt(value.ticks());
+            },
+            buf -> new CooldownPayload(buf.readString(), buf.readInt())
     );
 
     @Override

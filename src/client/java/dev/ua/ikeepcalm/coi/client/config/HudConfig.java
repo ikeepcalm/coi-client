@@ -36,14 +36,14 @@ public class HudConfig {
                 String content = Files.readString(CONFIG_PATH);
                 JsonObject json = GSON.fromJson(content, JsonObject.class);
 
-                settings.enabled = json.has("enabled") ? json.get("enabled").getAsBoolean() : true;
+                settings.enabled = !json.has("enabled") || json.get("enabled").getAsBoolean();
                 settings.hudX = json.has("hudX") ? json.get("hudX").getAsInt() : 10;
                 settings.hudYOffset = json.has("hudYOffset") ? json.get("hudYOffset").getAsInt() : 60;
                 settings.slotSize = json.has("slotSize") ? json.get("slotSize").getAsInt() : 40;
                 settings.slotSpacing = json.has("slotSpacing") ? json.get("slotSpacing").getAsInt() : 50;
-                settings.showKeybinds = json.has("showKeybinds") ? json.get("showKeybinds").getAsBoolean() : true;
-                settings.showAbilityNames = json.has("showAbilityNames") ? json.get("showAbilityNames").getAsBoolean() : true;
-                settings.showGlowEffect = json.has("showGlowEffect") ? json.get("showGlowEffect").getAsBoolean() : true;
+                settings.showKeybinds = !json.has("showKeybinds") || json.get("showKeybinds").getAsBoolean();
+                settings.showAbilityNames = !json.has("showAbilityNames") || json.get("showAbilityNames").getAsBoolean();
+                settings.showGlowEffect = !json.has("showGlowEffect") || json.get("showGlowEffect").getAsBoolean();
                 settings.hudScale = json.has("hudScale") ? json.get("hudScale").getAsFloat() : 1.0f;
             } catch (IOException e) {
                 e.printStackTrace();

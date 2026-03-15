@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
+import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
 import dev.ua.ikeepcalm.coi.client.network.AbilitiesPayload;
 import dev.ua.ikeepcalm.coi.client.network.AbilityRequestPayload;
@@ -20,7 +21,9 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CircleOfImaginationClient implements ClientModInitializer {
 
@@ -28,6 +31,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     public static final int MAX_ABILITIES = 6;
 
     private static final List<String> availableAbilities = new ArrayList<>();
+    private static final Map<String, AbilityInfo> abilityInfoMap = new HashMap<>();
 
     private static String[] boundAbilities = new String[MAX_ABILITIES];
 
@@ -74,7 +78,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         };
 
         for (int i = 0; i < MAX_ABILITIES; i++) {
-            int defaultKey = i < defaultKeys.length ? defaultKeys[i] : InputUtil.UNKNOWN_KEY.getCode();
+            int defaultKey = defaultKeys[i];
             abilityKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                     "key.coi.ability" + (i + 1),
                     InputUtil.Type.KEYSYM,
@@ -112,7 +116,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 return;
             }
 
-            if (index < MAX_ABILITIES && boundAbilities[index] != null) {
+            if (boundAbilities[index] != null) {
                 useAbility(boundAbilities[index]);
             }
         } else if (!key.isPressed()) {
@@ -123,13 +127,12 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     private static void useAbility(String abilityIdWithName) {
         if (abilityIdWithName == null) return;
 
-        String abilityId = abilityIdWithName.contains(" - ") ?
-                abilityIdWithName.split(" - ")[0] : abilityIdWithName;
+        String abilityId = abilityIdWithName.contains(" - ") ? abilityIdWithName.split(" - ")[0] : abilityIdWithName;
 
         ClientPlayNetworking.send(new AbilityUsePayload(abilityId));
 
-        String displayName = abilityIdWithName.contains(" - ") ?
-                abilityIdWithName.split(" - ")[1] : abilityIdWithName;
+        AbilityInfo info = getAbilityInfo(abilityId);
+        String displayName = info != null ? info.englishName() : AbilityInfo.extractDisplayName(abilityIdWithName);
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null) {
             client.player.sendMessage(Text.translatable("notification.coi.ability_used", displayName), true);
@@ -146,13 +149,20 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         System.out.println("COI Client: Received ability data: " + data);
 
+        abilityInfoMap.clear();
         String[] abilities = data.split(";");
         for (String ability : abilities) {
             if (!ability.isEmpty()) {
                 String[] parts = ability.split("\\|");
-                if (parts.length == 2) {
-                    String formatted = parts[0] + " - " + parts[1];
+                if (parts.length >= 2) {
+                    String id = parts[0];
+                    String localizedName = parts[1];
+                    String englishName = parts.length > 2 ? parts[2] : localizedName;
+                    String category = parts.length > 3 ? parts[3] : "uncategorized";
+
+                    String formatted = id + " - " + englishName;
                     availableAbilities.add(formatted);
+                    abilityInfoMap.put(id, new AbilityInfo(id, localizedName, englishName, category));
                     System.out.println("COI Client: Added ability: " + formatted);
                 }
             }
@@ -178,14 +188,21 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         boolean needsSave = false;
 
         for (int i = 0; i < MAX_ABILITIES; i++) {
-            if (boundAbilities[i] != null) {
-                boolean isStillAvailable = availableAbilities.contains(boundAbilities[i]);
+            if (boundAbilities[i] == null) continue;
 
-                if (!isStillAvailable) {
-                    System.out.println("COI Client: Clearing invalid bound ability: " + boundAbilities[i]);
-                    boundAbilities[i] = null;
-                    needsSave = true;
-                }
+            String boundId = AbilityInfo.extractId(boundAbilities[i]);
+            String freshEntry = availableAbilities.stream()
+                    .filter(a -> a.startsWith(boundId + " - "))
+                    .findFirst()
+                    .orElse(null);
+
+            if (freshEntry == null) {
+                System.out.println("COI Client: Clearing invalid bound ability: " + boundAbilities[i]);
+                boundAbilities[i] = null;
+                needsSave = true;
+            } else if (!freshEntry.equals(boundAbilities[i])) {
+                boundAbilities[i] = freshEntry;
+                needsSave = true;
             }
         }
 
@@ -196,6 +213,10 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     public static List<String> getAvailableAbilities() {
         return new ArrayList<>(availableAbilities);
+    }
+
+    public static AbilityInfo getAbilityInfo(String abilityId) {
+        return abilityInfoMap.get(abilityId);
     }
 
     public static String getBoundAbility(int slot) {

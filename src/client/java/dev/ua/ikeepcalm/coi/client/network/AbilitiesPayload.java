@@ -7,10 +7,10 @@ import net.minecraft.util.Identifier;
 
 public record AbilitiesPayload(String data) implements CustomPayload {
     public static final CustomPayload.Id<AbilitiesPayload> ID =
-        new CustomPayload.Id<>(Identifier.of("coi-client", "abilities"));
+            new CustomPayload.Id<>(Identifier.of("coi-client", "abilities"));
     public static final PacketCodec<RegistryByteBuf, AbilitiesPayload> CODEC = PacketCodec.of(
-        (value, buf) -> buf.writeString(value.data()),
-        buf -> new AbilitiesPayload(buf.readString())
+            (value, buf) -> buf.writeString(value.data()),
+            buf -> new AbilitiesPayload(buf.readString())
     );
 
     @Override

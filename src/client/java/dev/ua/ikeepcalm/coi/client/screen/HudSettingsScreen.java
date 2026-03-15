@@ -18,12 +18,6 @@ public class HudSettingsScreen extends Screen {
 
     private CheckboxWidget enabledCheckbox;
 
-    private SliderWidget hudXSlider;
-    private SliderWidget hudYOffsetSlider;
-    private SliderWidget slotSizeSlider;
-    private SliderWidget slotSpacingSlider;
-    private SliderWidget hudScaleSlider;
-
     private CheckboxWidget showKeybindsCheckbox;
     private CheckboxWidget showAbilityNamesCheckbox;
     private CheckboxWidget showGlowEffectCheckbox;
@@ -78,8 +72,8 @@ public class HudSettingsScreen extends Screen {
 
         int sliderWidth = Math.min(160, this.width / 4);
         int fieldWidth = Math.min(60, this.width / 12);
-        
-        hudXSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
+
+        SliderWidget hudXSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("X: " + settings.hudX), settings.hudX / 500.0) {
             @Override
             protected void updateMessage() {
@@ -111,7 +105,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(hudXField);
         currentY += spacing;
 
-        hudYOffsetSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
+        SliderWidget hudYOffsetSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Y Offset: " + settings.hudYOffset), settings.hudYOffset / 200.0) {
             @Override
             protected void updateMessage() {
@@ -143,7 +137,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(hudYOffsetField);
         currentY += spacing;
 
-        slotSizeSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
+        SliderWidget slotSizeSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Slot Size: " + settings.slotSize), (settings.slotSize - 20) / 80.0) {
             @Override
             protected void updateMessage() {
@@ -175,7 +169,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(slotSizeField);
         currentY += spacing;
 
-        slotSpacingSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
+        SliderWidget slotSpacingSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Spacing: " + settings.slotSpacing), (settings.slotSpacing - 30) / 70.0) {
             @Override
             protected void updateMessage() {
@@ -207,7 +201,7 @@ public class HudSettingsScreen extends Screen {
         this.addDrawableChild(slotSpacingField);
         currentY += spacing;
 
-        hudScaleSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
+        SliderWidget hudScaleSlider = new SliderWidget(leftColumn, currentY, sliderWidth, 20,
                 Text.literal("Scale: " + String.format("%.1f", settings.hudScale)), (settings.hudScale - 0.5) / 1.5) {
             @Override
             protected void updateMessage() {
@@ -406,7 +400,6 @@ public class HudSettingsScreen extends Screen {
 
         context.drawTextWithShadow(this.textRenderer, Text.translatable("screen.coi.hud_scale"),
                 leftColumn, labelY - 15, 0xA0A0A0);
-        labelY += spacing;
 
         if (!settings.enabled) {
             context.drawCenteredTextWithShadow(this.textRenderer,

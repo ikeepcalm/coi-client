@@ -14,8 +14,8 @@ public class AbilityConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance()
-        .getConfigDir()
-        .resolve("coi_abilities.json");
+            .getConfigDir()
+            .resolve("coi_abilities.json");
 
     public static void saveBindings(String[] abilities) {
         JsonObject json = new JsonObject();
@@ -42,7 +42,7 @@ public class AbilityConfig {
                 for (int i = 0; i < maxAbilities; i++) {
                     String key = "ability" + (i + 1);
                     abilities[i] = json.has(key) && !json.get(key).isJsonNull() ?
-                        json.get(key).getAsString() : null;
+                            json.get(key).getAsString() : null;
                 }
             } catch (IOException e) {
                 e.printStackTrace();
