@@ -3,9 +3,7 @@
   "minVersion": "0.8",
   "package": "dev.ua.ikeepcalm.coi.client.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": [
-    "ChatMessageMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 1
   }

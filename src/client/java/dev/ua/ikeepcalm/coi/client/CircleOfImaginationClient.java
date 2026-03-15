@@ -2,10 +2,16 @@ package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
+import dev.ua.ikeepcalm.coi.client.network.AbilitiesPayload;
+import dev.ua.ikeepcalm.coi.client.network.AbilityRequestPayload;
+import dev.ua.ikeepcalm.coi.client.network.AbilityUsePayload;
+import dev.ua.ikeepcalm.coi.client.network.CooldownPayload;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -14,16 +20,12 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 
 public class CircleOfImaginationClient implements ClientModInitializer {
 
     // Configurable maximum number of abilities (change this to support more abilities)
     public static final int MAX_ABILITIES = 6;
-
-    private static final String ABILITY_USE_PREFIX = "_0_0_2_2_r";
 
     private static final List<String> availableAbilities = new ArrayList<>();
 
@@ -34,17 +36,28 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 1];
 
-    // Chat message queue to prevent spam
-    private static final Queue<String> messageQueue = new LinkedList<>();
-    private static long lastMessageTime = 0;
-    private static final long MESSAGE_DELAY_MS = 500; // 500ms delay between messages
-
     @Override
     public void onInitializeClient() {
         boundAbilities = AbilityConfig.loadBindings();
+        registerPayloads();
         registerKeybindings();
         registerTickHandler();
         AbilityHudOverlay.initialize();
+    }
+
+    private void registerPayloads() {
+        // C2S
+        PayloadTypeRegistry.playC2S().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
+        // S2C
+        PayloadTypeRegistry.playS2C().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(CooldownPayload.ID, CooldownPayload.CODEC);
+
+        // S2C receivers
+        ClientPlayNetworking.registerGlobalReceiver(AbilitiesPayload.ID,
+                (payload, context) -> context.client().execute(() -> handleAbilityData(payload.data())));
+        ClientPlayNetworking.registerGlobalReceiver(CooldownPayload.ID,
+                (payload, context) -> context.client().execute(() -> handleCooldownData(payload.abilityId(), payload.ticks())));
     }
 
     private void registerKeybindings() {
@@ -52,15 +65,14 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         // Default keybindings for first 6 abilities: Z, X, C, V, B, N
         int[] defaultKeys = {
-            GLFW.GLFW_KEY_Z,
-            GLFW.GLFW_KEY_X,
-            GLFW.GLFW_KEY_C,
-            GLFW.GLFW_KEY_V,
-            GLFW.GLFW_KEY_B,
-            GLFW.GLFW_KEY_N
+                GLFW.GLFW_KEY_Z,
+                GLFW.GLFW_KEY_X,
+                GLFW.GLFW_KEY_C,
+                GLFW.GLFW_KEY_V,
+                GLFW.GLFW_KEY_B,
+                GLFW.GLFW_KEY_N
         };
 
-        // Register ability keybindings dynamically
         for (int i = 0; i < MAX_ABILITIES; i++) {
             int defaultKey = i < defaultKeys.length ? defaultKeys[i] : InputUtil.UNKNOWN_KEY.getCode();
             abilityKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -83,16 +95,11 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            // Handle all ability keys dynamically
             for (int i = 0; i < MAX_ABILITIES; i++) {
                 handleKeyPress(i, abilityKeys[i], client);
             }
 
-            // Handle menu key
             handleKeyPress(MAX_ABILITIES, abilityMenu, client);
-
-            // Process message queue with delay
-            processMessageQueue(client);
         });
     }
 
@@ -100,53 +107,32 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         if (key.isPressed() && !keyPressed[index]) {
             keyPressed[index] = true;
 
-            // Menu key
             if (index == MAX_ABILITIES) {
                 MinecraftClient.getInstance().setScreen(new AbilityBindingScreen(null));
                 return;
             }
 
-            // Ability key
             if (index < MAX_ABILITIES && boundAbilities[index] != null) {
-                queueAbilityUse(boundAbilities[index], index);
+                useAbility(boundAbilities[index]);
             }
         } else if (!key.isPressed()) {
             keyPressed[index] = false;
         }
     }
 
-    private void queueAbilityUse(String abilityIdWithName, int slot) {
-        if (abilityIdWithName != null) {
-            String abilityId = abilityIdWithName;
-            if (abilityIdWithName.contains(" - ")) {
-                abilityId = abilityIdWithName.split(" - ")[0];
-            }
-            messageQueue.offer(ABILITY_USE_PREFIX + "USE:" + abilityId + "|" + abilityIdWithName);
-        }
-    }
+    private static void useAbility(String abilityIdWithName) {
+        if (abilityIdWithName == null) return;
 
-    private static void processMessageQueue(MinecraftClient client) {
-        if (client.player == null || messageQueue.isEmpty()) return;
+        String abilityId = abilityIdWithName.contains(" - ") ?
+                abilityIdWithName.split(" - ")[0] : abilityIdWithName;
 
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastMessageTime >= MESSAGE_DELAY_MS) {
-            String message = messageQueue.poll();
-            if (message != null) {
-                String[] parts = message.split("\\|", 2);
-                String chatMessage = parts[0];
-                String abilityName = parts.length > 1 ? parts[1] : "";
+        ClientPlayNetworking.send(new AbilityUsePayload(abilityId));
 
-                client.player.networkHandler.sendChatMessage(chatMessage);
-                lastMessageTime = currentTime;
-
-                // Show notification
-                if (!abilityName.isEmpty()) {
-                    String displayName = abilityName.contains(" - ") ?
-                        abilityName.split(" - ")[1] : abilityName;
-                    client.player.sendMessage(Text.translatable("notification.coi.ability_used",
-                        displayName), true);
-                }
-            }
+        String displayName = abilityIdWithName.contains(" - ") ?
+                abilityIdWithName.split(" - ")[1] : abilityIdWithName;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player != null) {
+            client.player.sendMessage(Text.translatable("notification.coi.ability_used", displayName), true);
         }
     }
 
@@ -176,19 +162,8 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         updateHudWithCurrentBindings();
     }
 
-    public static void handleCooldownData(String data) {
-        if (data.isEmpty()) return;
-
-        String[] parts = data.split(":");
-        if (parts.length == 2) {
-            String abilityId = parts[0];
-            try {
-                int cooldownTicks = Integer.parseInt(parts[1]);
-                AbilityHudOverlay.setCooldown(abilityId, cooldownTicks);
-            } catch (NumberFormatException e) {
-                System.err.println("Invalid cooldown data: " + data);
-            }
-        }
+    public static void handleCooldownData(String abilityId, int cooldownTicks) {
+        AbilityHudOverlay.setCooldown(abilityId, cooldownTicks);
     }
 
     private static void updateHudWithCurrentBindings() {
@@ -241,9 +216,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     public static void requestAbilitiesFromServer() {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null && client.player.networkHandler != null) {
+        if (client.player != null) {
             System.out.println("COI Client: Requesting abilities from server...");
-            messageQueue.offer(ABILITY_USE_PREFIX + "REQUEST|");
+            ClientPlayNetworking.send(AbilityRequestPayload.INSTANCE);
         }
     }
 
