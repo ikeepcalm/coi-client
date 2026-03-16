@@ -45,5 +45,7 @@
   "screen.coi.reset_defaults.tooltip": "Reset all settings to default values",
   "screen.coi.preset": "Preset",
   "screen.coi.preset.tooltip": "Apply predefined HUD configurations",
-  "screen.coi.hud_disabled_warning": "HUD is currently disabled"
+  "screen.coi.hud_disabled_warning": "HUD is currently disabled",
+  "screen.coi.effect_debug": "Visual Effects (Debug)",
+  "key.coi.effect_debug": "Open Effects Debug Menu"
 }

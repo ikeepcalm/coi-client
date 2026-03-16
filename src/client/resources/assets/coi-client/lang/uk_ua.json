@@ -24,7 +24,6 @@
   "hud.coi.ability_on_cooldown": "Перезарядка",
   "hud.coi.cooldown_seconds": "%dс",
   "hud.coi.cooldown_decimal": "%.1fс",
-  "screen.coi.ability_choose": "Обрати Здібність",
   "screen.coi.hud_settings": "Налаштування HUD",
   "screen.coi.hud_enabled": "Увімкнути HUD",
   "screen.coi.hud_x": "Горизонтальна Позиція",
@@ -35,6 +34,7 @@
   "screen.coi.slot_size_field": "Розмір",
   "screen.coi.slot_spacing": "Відстань Між Слотами",
   "screen.coi.slot_spacing_field": "Відстань",
+  "screen.coi.ability_choose": "Обрати Здібність",
   "screen.coi.hud_scale": "Масштаб HUD",
   "screen.coi.hud_scale_field": "Масштаб",
   "screen.coi.show_keybinds": "Показувати Клавіші",
@@ -44,5 +44,7 @@
   "screen.coi.reset_defaults.tooltip": "Скинути всі налаштування до значень за замовчуванням",
   "screen.coi.preset": "Шаблон",
   "screen.coi.preset.tooltip": "Застосувати попередньо налаштовані конфігурації HUD",
-  "screen.coi.hud_disabled_warning": "HUD наразі вимкнено"
+  "screen.coi.hud_disabled_warning": "HUD наразі вимкнено",
+  "screen.coi.effect_debug": "Візуальні ефекти (налагодження)",
+  "key.coi.effect_debug": "Відкрити меню налагодження ефектів"
 }

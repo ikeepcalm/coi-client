@@ -2,17 +2,17 @@ package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
 import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
-import dev.ua.ikeepcalm.coi.client.network.AbilitiesPayload;
-import dev.ua.ikeepcalm.coi.client.network.AbilityRequestPayload;
-import dev.ua.ikeepcalm.coi.client.network.AbilityUsePayload;
-import dev.ua.ikeepcalm.coi.client.network.CooldownPayload;
+import dev.ua.ikeepcalm.coi.client.network.*;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
+import dev.ua.ikeepcalm.coi.client.screen.EffectDebugScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -37,8 +37,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     public static KeyBinding[] abilityKeys = new KeyBinding[MAX_ABILITIES];
     public static KeyBinding abilityMenu;
+    public static KeyBinding effectDebugMenu; // null when not in dev environment
 
-    private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 1];
+    private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 2];
 
     @Override
     public void onInitializeClient() {
@@ -47,6 +48,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         registerKeybindings();
         registerTickHandler();
         AbilityHudOverlay.initialize();
+        EffectManager.initialize();
     }
 
     private void registerPayloads() {
@@ -56,12 +58,15 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         // S2C
         PayloadTypeRegistry.playS2C().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(CooldownPayload.ID, CooldownPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(VisualEffectPayload.ID, VisualEffectPayload.CODEC);
 
         // S2C receivers
         ClientPlayNetworking.registerGlobalReceiver(AbilitiesPayload.ID,
                 (payload, context) -> context.client().execute(() -> handleAbilityData(payload.data())));
         ClientPlayNetworking.registerGlobalReceiver(CooldownPayload.ID,
                 (payload, context) -> context.client().execute(() -> handleCooldownData(payload.abilityId(), payload.ticks())));
+        ClientPlayNetworking.registerGlobalReceiver(VisualEffectPayload.ID,
+                (payload, context) -> context.client().execute(() -> EffectManager.trigger(payload.effectId(), payload.params())));
     }
 
     private void registerKeybindings() {
@@ -93,6 +98,15 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_K,
                 category
         ));
+
+        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            effectDebugMenu = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                    "screen.coi.effect_debug",
+                    InputUtil.Type.KEYSYM,
+                    GLFW.GLFW_KEY_F8,
+                    category
+            ));
+        }
     }
 
     private void registerTickHandler() {
@@ -104,6 +118,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             }
 
             handleKeyPress(MAX_ABILITIES, abilityMenu, client);
+            if (effectDebugMenu != null) {
+                handleKeyPress(MAX_ABILITIES + 1, effectDebugMenu, client);
+            }
         });
     }
 
@@ -113,6 +130,10 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
             if (index == MAX_ABILITIES) {
                 MinecraftClient.getInstance().setScreen(new AbilityBindingScreen(null));
+                return;
+            }
+            if (index == MAX_ABILITIES + 1) {
+                MinecraftClient.getInstance().setScreen(new EffectDebugScreen(null));
                 return;
             }
 
