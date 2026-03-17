@@ -1,7 +1,9 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,9 +13,45 @@ public class EyesEffect implements VisualEffect {
 
     public static final String ID = "eyes";
 
+    private static final long STAGGER = 500L;   // ms between each eye spawning
+    private static final long OPEN_DURATION = 900L;   // eye1 → eye4
+
+    private static final long[] CLOSE_FRAME_MS = {200L, 250L, 1000L, 200L, 150L};
+    private static final long CLOSE_DURATION; // sum of CLOSE_FRAME_MS
+
+    static {
+        long sum = 0;
+        for (long t : CLOSE_FRAME_MS) sum += t;
+        CLOSE_DURATION = sum;
+    }
+
+    private static final long FADE_MS = 300L;
+    private static final long PUPIL_FRAME_MS = 300L;   // ms per pupil-shift frame (eye4.1–4.4)
+    private static final long PUPIL_CYCLE_MS = PUPIL_FRAME_MS * 4; // full loop = 1200ms
+
+    // Texture arrays
+    private static final Identifier[] OPEN_FRAMES = new Identifier[4]; // eye1..eye4
+    private static final Identifier[] PUPIL_FRAMES = new Identifier[4]; // eye4.1..eye4.4
+    private static final Identifier[] CLOSE_FRAMES = new Identifier[5]; // eye5..eye9
+
+    static {
+        for (int i = 0; i < 4; i++)
+            OPEN_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye" + (i + 1) + ".png");
+        for (int i = 0; i < 4; i++)
+            PUPIL_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye4." + (i + 1) + ".png");
+        for (int i = 0; i < 5; i++)
+            CLOSE_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye" + (i + 5) + ".png");
+    }
+
     private int count = 2;
-    private long duration = 8000;
+    // Minimum time (ms) the LAST eye stares before all eyes start closing.
+    // Must be >= PUPIL_CYCLE_MS to guarantee at least one full pupil loop.
+    private long stareMs = PUPIL_CYCLE_MS * 2;
+
     private long startTime;
+    // Elapsed ms from startTime at which ALL eyes begin closing simultaneously.
+    // Computed in spawnEyes() once screen dimensions are known.
+    private long globalCloseStart;
 
     private final List<EyeData> eyes = new ArrayList<>();
 
@@ -29,7 +67,7 @@ public class EyesEffect implements VisualEffect {
 
     @Override
     public String getDefaultParams() {
-        return "count=2,duration=8000";
+        return "count=2,stare=2400";
     }
 
     @Override
@@ -37,6 +75,7 @@ public class EyesEffect implements VisualEffect {
         parseParams(params);
         startTime = System.currentTimeMillis();
         eyes.clear();
+        globalCloseStart = 0;
     }
 
     @Override
@@ -49,125 +88,144 @@ public class EyesEffect implements VisualEffect {
             long eyeElapsed = elapsed - eye.offset;
             if (eyeElapsed < 0) continue;
 
-            // Phase timings (ms)
-            long fadeIn = 500;
-            long opening = 1500;
-            long staring = duration - 4500;
-            long closing = 1500;
-            long fadeOut = 500;
+            Identifier frame;
+            float alpha;
 
-            float ambient, openProgress;
-
-            if (eyeElapsed < fadeIn) {
-                ambient = eyeElapsed / (float) fadeIn;
-                openProgress = 0f;
-            } else if (eyeElapsed < fadeIn + opening) {
-                ambient = 1f;
-                openProgress = (eyeElapsed - fadeIn) / (float) opening;
-            } else if (eyeElapsed < fadeIn + opening + staring) {
-                ambient = 1f;
-                openProgress = 1f;
-            } else if (eyeElapsed < fadeIn + opening + staring + closing) {
-                ambient = 1f;
-                openProgress = 1f - (eyeElapsed - fadeIn - opening - staring) / (float) closing;
-            } else if (eyeElapsed < fadeIn + opening + staring + closing + fadeOut) {
-                ambient = 1f - (eyeElapsed - fadeIn - opening - staring - closing) / (float) fadeOut;
-                openProgress = 0f;
+            if (elapsed < globalCloseStart) {
+                // ── Opening or staring (pupil loop) ──────────────────────────────
+                if (eyeElapsed < OPEN_DURATION) {
+                    // eye1 → eye4
+                    int idx = (int) (eyeElapsed * 4 / OPEN_DURATION);
+                    frame = OPEN_FRAMES[Math.min(idx, 3)];
+                    alpha = Math.min(1f, eyeElapsed / (float) FADE_MS);
+                } else {
+                    // Pupil shifting: eye4.1 → 4.4, loops until globalCloseStart
+                    long stareElapsed = eyeElapsed - OPEN_DURATION;
+                    int idx = (int) ((stareElapsed % PUPIL_CYCLE_MS) / PUPIL_FRAME_MS);
+                    frame = PUPIL_FRAMES[idx];
+                    alpha = 1f;
+                }
             } else {
-                continue; // this eye is done
+                // ── All eyes close simultaneously ─────────────────────────────────
+                long closeElapsed = elapsed - globalCloseStart;
+                if (closeElapsed > CLOSE_DURATION) continue;
+
+                int idx = 4;
+                long acc = 0;
+                for (int f = 0; f < CLOSE_FRAME_MS.length; f++) {
+                    acc += CLOSE_FRAME_MS[f];
+                    if (closeElapsed < acc) {
+                        idx = f;
+                        break;
+                    }
+                }
+                frame = CLOSE_FRAMES[idx];
+                float fadeStart = CLOSE_DURATION - FADE_MS;
+                alpha = closeElapsed > fadeStart
+                        ? 1f - (closeElapsed - fadeStart) / (float) FADE_MS
+                        : 1f;
             }
 
-            renderEye(ctx, eye, openProgress, ambient, elapsed);
+            drawEye(ctx, eye, frame, Math.max(0f, Math.min(1f, alpha)));
         }
     }
 
-    private void renderEye(DrawContext ctx, EyeData eye, float openProgress, float ambient, long elapsed) {
-        int cx = eye.cx, cy = eye.cy;
-        int rx = eye.rx, ry = eye.ry;
+    private void drawEye(DrawContext ctx, EyeData eye, Identifier texture, float alpha) {
+        if (alpha <= 0) return;
+        int x = eye.cx - eye.halfW;
+        int y = eye.cy - eye.halfH;
+        int w = eye.halfW * 2;
+        int h = eye.halfH * 2;
 
-        // Slight pupil dilation pulsing while staring
-        float dilate = (float) (1 + 0.08 * Math.sin(elapsed * 0.002));
+        var matrices = ctx.getMatrices();
+        matrices.pushMatrix();
+        matrices.translate((float) eye.cx, (float) eye.cy);
+        matrices.rotate((float) Math.toRadians(eye.rotation));
+        matrices.translate((float) -eye.cx, (float) -eye.cy);
 
-        // Ambient dark glow around the eye
-        if (ambient > 0) {
-            int ga = (int) (100 * ambient);
-            drawOval(ctx, cx, cy, rx + 14, ry + 7, (ga << 24));
-            drawOval(ctx, cx, cy, rx + 8, ry + 4, (ga * 2 << 24));
-        }
+        int argb = ((int) (alpha * 255) << 24) | 0xFFFFFF;
+        ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, w, h, w, h, argb);
 
-        if (openProgress <= 0) return;
-
-        // Sclera (white)
-        drawOval(ctx, cx, cy, rx, ry, 0xFFEEEEEE);
-
-        // Iris (sickly yellowish-green with a hint of red for horror)
-        int irisR = (int) (ry * 0.8f * dilate);
-        drawOval(ctx, cx, cy, irisR, irisR, eye.irisColor);
-
-        // Pupil (vertically elongated — cat-like)
-        int pupilW = Math.max(1, (int) (irisR * 0.35f));
-        int pupilH = (int) (irisR * 0.85f * dilate);
-        drawOval(ctx, cx, cy, pupilW, pupilH, 0xFF000000);
-
-        // Eyelids — cover top and bottom of eye based on open progress
-        // openProgress=0: fully closed, 1: fully open
-        int lidY = (int) ((1f - openProgress) * ry);
-        // Upper lid (covers from top of eye down to cy - ry + lidY)
-        ctx.fill(cx - rx - 4, cy - ry - 4, cx + rx + 4, cy - ry + lidY + 2, 0xFF000000);
-        // Lower lid (covers from cy + ry - lidY up)
-        ctx.fill(cx - rx - 4, cy + ry - lidY - 2, cx + rx + 4, cy + ry + 4, 0xFF000000);
-    }
-
-    /**
-     * Rasterizes a filled ellipse using scanline approach.
-     */
-    private static void drawOval(DrawContext ctx, int cx, int cy, int rx, int ry, int color) {
-        if (rx <= 0 || ry <= 0) return;
-        for (int dy = -ry; dy <= ry; dy++) {
-            float frac = (float) (dy * dy) / (float) (ry * ry);
-            if (frac > 1f) continue;
-            int hw = (int) (rx * Math.sqrt(1f - frac));
-            ctx.fill(cx - hw, cy + dy, cx + hw + 1, cy + dy + 1, color);
-        }
+        matrices.popMatrix();
     }
 
     private void spawnEyes(int w, int h) {
         Random rng = new Random(startTime);
-        int margin = 55;
-
-        // Divide the screen into a grid so eyes are spread evenly.
-        // Up to 3 columns; rows added as needed.
+        // Grid divides the screen so candidates are spread out before rejection sampling
         int cols = Math.min(count, 3);
         int rows = (count + cols - 1) / cols;
-        int cellW = (w - margin * 2) / cols;
-        int cellH = (h - margin * 2) / rows;
-        // Ensure eyes aren't placed so close to cell edges that they overlap neighbours
-        int innerPad = margin / 2;
-
-        int[] irisColors = {0xFF8B2500, 0xFF4B3200, 0xFF2D5A00, 0xFF1A1A4A};
+        int cellW = w / cols;
+        int cellH = h / rows;
 
         for (int i = 0; i < count; i++) {
             int col = i % cols;
             int row = i / cols;
+            int cellOriginX = col * cellW;
+            int cellOriginY = row * cellH;
 
-            int cellOriginX = margin + col * cellW;
-            int cellOriginY = margin + row * cellH;
+            int halfW = 70 + rng.nextInt(40); // 140–218 px wide
+            int halfH = halfW / 2;            // 2:1 aspect ratio
+            float rotation = rng.nextFloat() * 80f - 25f; // –25° to +25°
 
-            int ex = cellOriginX + innerPad + rng.nextInt(Math.max(1, cellW - innerPad * 2));
-            int ey = cellOriginY + innerPad + rng.nextInt(Math.max(1, cellH - innerPad * 2));
+            // Safe bounds: center must be far enough from every screen edge
+            // so the eye body (halfW / halfH) doesn't cross the border
+            int borderPad = 20; // extra gap beyond the eye's own half-size
+            int minCx = halfW + borderPad;
+            int maxCx = w - halfW - borderPad;
+            int minCy = halfH + borderPad;
+            int maxCy = h - halfH - borderPad;
+            // Constrain to cell, then clamp to safe bounds
+            int cellMinCx = Math.max(minCx, cellOriginX + halfW);
+            int cellMaxCx = Math.min(maxCx, cellOriginX + cellW - halfW);
+            int cellMinCy = Math.max(minCy, cellOriginY + halfH);
+            int cellMaxCy = Math.min(maxCy, cellOriginY + cellH - halfH);
+            // Fallback to cell centre if the cell is too small
+            if (cellMinCx >= cellMaxCx) {
+                cellMinCx = cellMaxCx = (cellOriginX + cellW / 2);
+            }
+            if (cellMinCy >= cellMaxCy) {
+                cellMinCy = cellMaxCy = (cellOriginY + cellH / 2);
+            }
 
-            int eyeRx = 18 + rng.nextInt(12);
-            int eyeRy = 9 + rng.nextInt(6);
-            long offset = i * 400L;
-            int irisColor = irisColors[rng.nextInt(irisColors.length)];
+            // Rejection sampling: try up to 20 candidates, keep the one furthest from neighbours
+            int bestCx = (cellMinCx + cellMaxCx) / 2;
+            int bestCy = (cellMinCy + cellMaxCy) / 2;
+            float bestMinDist = -Float.MAX_VALUE;
+            for (int attempt = 0; attempt < 20; attempt++) {
+                int cx = cellMinCx + rng.nextInt(Math.max(1, cellMaxCx - cellMinCx));
+                int cy = cellMinCy + rng.nextInt(Math.max(1, cellMaxCy - cellMinCy));
+                float minDist = Float.MAX_VALUE;
+                for (EyeData placed : eyes) {
+                    float dx = cx - placed.cx;
+                    float dy = cy - placed.cy;
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
+                    float required = halfW + placed.halfW + 20f;
+                    minDist = Math.min(minDist, dist - required);
+                }
+                if (eyes.isEmpty()) {
+                    bestCx = cx;
+                    bestCy = cy;
+                    break;
+                }
+                if (minDist > bestMinDist) {
+                    bestMinDist = minDist;
+                    bestCx = cx;
+                    bestCy = cy;
+                    if (minDist >= 0) break; // non-overlapping — good enough
+                }
+            }
 
-            eyes.add(new EyeData(ex, ey, eyeRx, eyeRy, irisColor, offset));
+            eyes.add(new EyeData(bestCx, bestCy, halfW, halfH, rotation, (long) i * STAGGER));
         }
+
+        // All eyes close together after the LAST eye finishes opening + stareMs
+        globalCloseStart = (long) (count - 1) * STAGGER + OPEN_DURATION + stareMs;
     }
 
     @Override
     public boolean isFinished() {
-        return System.currentTimeMillis() - startTime > duration + eyes.size() * 400L + 500L;
+        if (eyes.isEmpty()) return false;
+        return System.currentTimeMillis() - startTime > globalCloseStart + CLOSE_DURATION + FADE_MS;
     }
 
     @Override
@@ -181,11 +239,11 @@ public class EyesEffect implements VisualEffect {
             String[] kv = part.split("=", 2);
             if (kv.length == 2) switch (kv[0].trim()) {
                 case "count" -> count = Integer.parseInt(kv[1].trim());
-                case "duration" -> duration = Long.parseLong(kv[1].trim());
+                case "stare" -> stareMs = Long.parseLong(kv[1].trim());
             }
         }
     }
 
-    private record EyeData(int cx, int cy, int rx, int ry, int irisColor, long offset) {
+    private record EyeData(int cx, int cy, int halfW, int halfH, float rotation, long offset) {
     }
 }

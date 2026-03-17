@@ -12,17 +12,13 @@ public class CracksEffect implements VisualEffect {
 
     public static final String ID = "cracks";
 
-    private static final int MAX_SEGMENTS = 14;  // hard cap — keeps fill calls under ~280/frame
-    private static final int MAX_QUADS_LINE = 20;  // max fill() calls per segment
+    private static final int MAX_SEGMENTS = 30;
 
     private float intensity = 0.7f;
     private boolean pulse = false;
     private long duration = -1;
     private long startTime;
 
-    /**
-     * Each segment: {x1, y1, x2, y2}
-     */
     private final List<int[]> segments = new ArrayList<>();
 
     @Override
@@ -56,16 +52,16 @@ public class CracksEffect implements VisualEffect {
         int visibleCount = (int) (segments.size() * growProgress);
 
         float pulseVal = pulse ? (float) (0.7 + 0.3 * Math.sin(elapsed * 0.004)) : 1f;
-
-        int crackColor = ((int) (230 * pulseVal) << 24) | 0x0A0A0A;
-        int redAlpha = pulse ? (int) (110 * pulseVal * intensity) : 0;
-        int redColor = (redAlpha << 24) | 0xFF0000;
+        int crackAlpha = (int) (230 * pulseVal);
+        int crackColor = (crackAlpha << 24) | 0x080808;
+        int redAlpha = pulse ? (int) (120 * pulseVal * intensity) : 0;
+        int redColor = (redAlpha << 24) | 0xFF1100;
 
         for (int i = 0; i < Math.min(visibleCount, segments.size()); i++) {
             int[] seg = segments.get(i);
-            drawLine(ctx, seg[0], seg[1], seg[2], seg[3], crackColor, 3);
-            if (pulse) {
-                drawLine(ctx, seg[0], seg[1], seg[2], seg[3], redColor, 2);
+            drawSegment(ctx, seg[0], seg[1], seg[2], seg[3], crackColor, seg[4]);
+            if (pulse && redAlpha > 0) {
+                drawSegment(ctx, seg[0], seg[1], seg[2], seg[3], redColor, Math.max(1, seg[4] - 1));
             }
         }
     }
@@ -73,53 +69,71 @@ public class CracksEffect implements VisualEffect {
     private void generateSegments(int w, int h) {
         Random rng = new Random(startTime);
         int cx = w / 2, cy = h / 2;
-        float maxLen = (float) Math.sqrt(cx * cx + cy * cy) * 0.7f * intensity;
+        float maxLen = (float) Math.sqrt(cx * cx + cy * cy) * 0.75f * intensity;
 
-        int[][] corners = {{0, 0}, {w, 0}, {0, h}, {w, h}};
-        for (int[] corner : corners) {
+        // 4 corners + 4 edge midpoints = 8 origins
+        int[][] origins = {{0, 0}, {w, 0}, {0, h}, {w, h}, {cx, 0}, {cx, h}, {0, cy}, {w, cy}};
+
+        for (int[] o : origins) {
             if (segments.size() >= MAX_SEGMENTS) break;
-            float angle = (float) Math.atan2(cy - corner[1], cx - corner[0]);
-            angle += (rng.nextFloat() - 0.5f) * 0.5f;
-            addCrack(rng, corner[0], corner[1], angle, maxLen * (0.5f + rng.nextFloat() * 0.5f), 3, w, h);
+            float angle = (float) Math.atan2(cy - o[1], cx - o[0]);
+            angle += (rng.nextFloat() - 0.5f) * 0.6f;
+            float len = maxLen * (0.45f + rng.nextFloat() * 0.55f);
+            addCrack(rng, o[0], o[1], angle, len, 4, w, h, 5);
         }
     }
 
-    private void addCrack(Random rng, float x, float y, float angle, float length, int depth, int w, int h) {
-        if (depth == 0 || length < 10 || segments.size() >= MAX_SEGMENTS) return;
+    private void addCrack(Random rng, float x, float y, float angle, float length, int depth, int w, int h, int thickness) {
+        if (depth == 0 || length < 12 || segments.size() >= MAX_SEGMENTS) return;
 
         float ex = x + (float) Math.cos(angle) * length;
         float ey = y + (float) Math.sin(angle) * length;
         ex = Math.max(-5, Math.min(w + 5, ex));
         ey = Math.max(-5, Math.min(h + 5, ey));
 
-        segments.add(new int[]{(int) x, (int) y, (int) ex, (int) ey});
+        segments.add(new int[]{(int) x, (int) y, (int) ex, (int) ey, thickness});
 
-        float branch1 = angle + (rng.nextFloat() - 0.5f) * 0.7f;
-        float branch2 = angle + (rng.nextFloat() - 0.5f) * 0.9f;
-        float newLen = length * (0.35f + rng.nextFloat() * 0.25f);
+        int nextThick = Math.max(1, thickness - 1);
+        float newLen = length * (0.38f + rng.nextFloat() * 0.27f);
 
-        addCrack(rng, ex, ey, branch1, newLen, depth - 1, w, h);
-        if (depth > 1 && rng.nextFloat() > 0.45f) {
-            addCrack(rng, ex, ey, branch2, newLen * 0.6f, depth - 2, w, h);
+        // Primary branch — always spawns
+        float b1 = angle + (rng.nextFloat() - 0.5f) * 0.75f;
+        addCrack(rng, ex, ey, b1, newLen, depth - 1, w, h, nextThick);
+
+        // Secondary branch — 75% chance
+        if (rng.nextFloat() < 0.75f) {
+            float b2 = angle + (rng.nextFloat() - 0.5f) * 1.1f;
+            addCrack(rng, ex, ey, b2, newLen * 0.65f, depth - 1, w, h, nextThick);
+        }
+
+        // Tertiary splinter off the main trunk — 30% chance at higher depths
+        if (depth >= 3 && rng.nextFloat() < 0.30f) {
+            float b3 = angle + (rng.nextFloat() - 0.5f) * 1.4f;
+            addCrack(rng, ex, ey, b3, newLen * 0.4f, depth - 2, w, h, 1);
         }
     }
 
     /**
-     * Draws a line as a series of quads, capped at MAX_QUADS_LINE fill calls.
-     * Uses Euclidean length for stride so diagonal segments aren't over-sampled.
+     * Draws a true straight line as a single rotated filled rectangle,
+     * so diagonal cracks render as clean solid lines instead of dotted quads.
      */
-    private static void drawLine(DrawContext ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
+    private static void drawSegment(DrawContext ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
         int dx = x2 - x1, dy = y2 - y1;
         int length = (int) Math.sqrt((double) dx * dx + (double) dy * dy);
         if (length == 0) return;
-        int stride = Math.max(thickness, length / MAX_QUADS_LINE);
-        float sx = (float) dx / length;
-        float sy = (float) dy / length;
-        for (int i = 0; i <= length; i += stride) {
-            int px = (int) (x1 + sx * i);
-            int py = (int) (y1 + sy * i);
-            ctx.fill(px, py, px + thickness, py + thickness, color);
-        }
+
+        float angle = (float) Math.atan2(dy, dx);
+        float mx = (x1 + x2) / 2f;
+        float my = (y1 + y2) / 2f;
+        int half = length / 2 + 1;
+        int halfT = Math.max(1, thickness / 2);
+
+        var matrices = ctx.getMatrices();
+        matrices.pushMatrix();
+        matrices.translate(mx, my);
+        matrices.rotate(angle);
+        ctx.fill(-half, -halfT, half, halfT, color);
+        matrices.popMatrix();
     }
 
     @Override
