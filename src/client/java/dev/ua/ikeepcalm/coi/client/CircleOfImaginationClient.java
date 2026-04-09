@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
@@ -9,15 +10,14 @@ import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
 import dev.ua.ikeepcalm.coi.client.screen.EffectDebugScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -35,9 +35,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     private static String[] boundAbilities = new String[MAX_ABILITIES];
 
-    public static KeyBinding[] abilityKeys = new KeyBinding[MAX_ABILITIES];
-    public static KeyBinding abilityMenu;
-    public static KeyBinding effectDebugMenu; // null when not in dev environment
+    public static KeyMapping[] abilityKeys = new KeyMapping[MAX_ABILITIES];
+    public static KeyMapping abilityMenu;
+    public static KeyMapping effectDebugMenu; // null when not in dev environment
 
     private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 2];
 
@@ -52,13 +52,13 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     private void registerPayloads() {
-        // C2S
-        PayloadTypeRegistry.playC2S().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
-        // S2C
-        PayloadTypeRegistry.playS2C().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(CooldownPayload.ID, CooldownPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(VisualEffectPayload.ID, VisualEffectPayload.CODEC);
+        // C2S (client → server = serverboundPlay)
+        PayloadTypeRegistry.serverboundPlay().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
+        // S2C (server → client = clientboundPlay)
+        PayloadTypeRegistry.clientboundPlay().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(CooldownPayload.ID, CooldownPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(VisualEffectPayload.ID, VisualEffectPayload.CODEC);
 
         // S2C receivers
         ClientPlayNetworking.registerGlobalReceiver(AbilitiesPayload.ID,
@@ -70,7 +70,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     private void registerKeybindings() {
-        KeyBinding.Category category = KeyBinding.Category.create(Identifier.of("category.coi.abilities"));
+        KeyMapping.Category category = KeyMapping.Category.register(Identifier.parse("category.coi.abilities"));
 
         // Default keybindings for first 6 abilities: Z, X, C, V, B, N
         int[] defaultKeys = {
@@ -84,25 +84,25 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         for (int i = 0; i < MAX_ABILITIES; i++) {
             int defaultKey = defaultKeys[i];
-            abilityKeys[i] = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            abilityKeys[i] = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.coi.ability" + (i + 1),
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     defaultKey,
                     category
             ));
         }
 
-        abilityMenu = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        abilityMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "screen.coi.ability_binding",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_K,
                 category
         ));
 
         if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-            effectDebugMenu = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            effectDebugMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "screen.coi.effect_debug",
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_F8,
                     category
             ));
@@ -124,23 +124,23 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         });
     }
 
-    private void handleKeyPress(int index, KeyBinding key, MinecraftClient client) {
-        if (key.isPressed() && !keyPressed[index]) {
+    private void handleKeyPress(int index, KeyMapping key, Minecraft client) {
+        if (key.isDown() && !keyPressed[index]) {
             keyPressed[index] = true;
 
             if (index == MAX_ABILITIES) {
-                MinecraftClient.getInstance().setScreen(new AbilityBindingScreen(null));
+                Minecraft.getInstance().setScreen(new AbilityBindingScreen(null));
                 return;
             }
             if (index == MAX_ABILITIES + 1) {
-                MinecraftClient.getInstance().setScreen(new EffectDebugScreen(null));
+                Minecraft.getInstance().setScreen(new EffectDebugScreen(null));
                 return;
             }
 
             if (boundAbilities[index] != null) {
                 useAbility(boundAbilities[index]);
             }
-        } else if (!key.isPressed()) {
+        } else if (!key.isDown()) {
             keyPressed[index] = false;
         }
     }
@@ -154,9 +154,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         AbilityInfo info = getAbilityInfo(abilityId);
         String displayName = info != null ? info.englishName() : AbilityInfo.extractDisplayName(abilityIdWithName);
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
-            client.player.sendMessage(Text.translatable("notification.coi.ability_used", displayName), true);
+            client.player.sendOverlayMessage(Component.translatable("notification.coi.ability_used", displayName));
         }
     }
 
@@ -257,7 +257,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     }
 
     public static void requestAbilitiesFromServer() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
             System.out.println("COI Client: Requesting abilities from server...");
             ClientPlayNetworking.send(AbilityRequestPayload.INSTANCE);

@@ -1,21 +1,22 @@
 package dev.ua.ikeepcalm.coi.client.screen;
 
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
-import net.minecraft.client.gui.screen.narration.NarrationPart;
-import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.narration.NarratedElementType;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class AbilityDropdownWidget extends ClickableWidget {
+public class AbilityDropdownWidget extends AbstractWidget {
 
     private final Supplier<List<String>> optionsSupplier;
     private final Consumer<String> onSelect;
@@ -29,25 +30,25 @@ public class AbilityDropdownWidget extends ClickableWidget {
     public AbilityDropdownWidget(int x, int y, int width, int height,
                                  Supplier<List<String>> optionsSupplier, String currentSelection,
                                  Consumer<String> onSelect) {
-        super(x, y, width, height, Text.empty());
+        super(x, y, width, height, Component.empty());
         this.optionsSupplier = optionsSupplier;
         this.selected = currentSelection;
         this.onSelect = onSelect;
     }
 
     @Override
-    protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        TextRenderer textRenderer = client.textRenderer;
+    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+        Minecraft client = Minecraft.getInstance();
+        Font textRenderer = client.font;
 
         // Render the main dropdown button
         int borderColor = this.isHovered() ? 0xFFFFFFFF : 0xFFA0A0A0;
-        context.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xFF2C2C2C);
+        graphics.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xFF2C2C2C);
         // Draw border manually
-        context.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + 1, borderColor); // Top
-        context.fill(this.getX(), this.getY() + this.height - 1, this.getX() + this.width, this.getY() + this.height, borderColor); // Bottom
-        context.fill(this.getX(), this.getY(), this.getX() + 1, this.getY() + this.height, borderColor); // Left
-        context.fill(this.getX() + this.width - 1, this.getY(), this.getX() + this.width, this.getY() + this.height, borderColor); // Right
+        graphics.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + 1, borderColor); // Top
+        graphics.fill(this.getX(), this.getY() + this.height - 1, this.getX() + this.width, this.getY() + this.height, borderColor); // Bottom
+        graphics.fill(this.getX(), this.getY(), this.getX() + 1, this.getY() + this.height, borderColor); // Left
+        graphics.fill(this.getX() + this.width - 1, this.getY(), this.getX() + this.width, this.getY() + this.height, borderColor); // Right
 
         List<String> options = optionsSupplier.get();
 
@@ -62,28 +63,28 @@ public class AbilityDropdownWidget extends ClickableWidget {
             if (displayText == null) displayText = selected;
         } else {
             if (options.isEmpty()) {
-                displayText = Text.translatable("screen.coi.no_abilities_available").getString();
+                displayText = Component.translatable("screen.coi.no_abilities_available").getString();
             } else {
-                displayText = Text.translatable("screen.coi.ability_choose").getString();
+                displayText = Component.translatable("screen.coi.ability_choose").getString();
             }
         }
 
         // Ensure text fits in the dropdown button
-        String trimmedText = textRenderer.trimToWidth(displayText, this.width - 20);
+        String trimmedText = textRenderer.plainSubstrByWidth(displayText, this.width - 20);
 
 
         // Use light yellow color for better visibility against dark backgrounds
-        context.drawText(textRenderer, trimmedText,
+        graphics.text(textRenderer, trimmedText,
                 this.getX() + 4, this.getY() + (this.height - 8) / 2, 0xFFFFFF55, false);
 
         String arrow = expanded ? "▲" : "▼";
         // Use same light yellow color as text for consistency
-        context.drawText(textRenderer, arrow,
+        graphics.text(textRenderer, arrow,
                 this.getX() + this.width - 12, this.getY() + (this.height - 8) / 2, 0xFFFFFF55, false);
     }
 
 
-    private void renderDropdown(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+    private void renderDropdown(GuiGraphicsExtractor graphics, Font textRenderer, int mouseX, int mouseY) {
         List<String> options = optionsSupplier.get();
 
         int dropdownY = this.getY() + this.height;
@@ -91,16 +92,16 @@ public class AbilityDropdownWidget extends ClickableWidget {
         int dropdownHeight = visibleItems * ITEM_HEIGHT;
 
         // Draw dropdown background with a slightly lighter color than pure black
-        context.fill(this.getX(), dropdownY,
+        graphics.fill(this.getX(), dropdownY,
                 this.getX() + this.width, dropdownY + dropdownHeight, 0xFF2C2C2C);
         // Draw border manually
-        context.fill(this.getX(), dropdownY, this.getX() + this.width, dropdownY + 1, 0xFFFFFFFF); // Top
-        context.fill(this.getX(), dropdownY + dropdownHeight - 1, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Bottom
-        context.fill(this.getX(), dropdownY, this.getX() + 1, dropdownY + dropdownHeight, 0xFFFFFFFF); // Left
-        context.fill(this.getX() + this.width - 1, dropdownY, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Right
+        graphics.fill(this.getX(), dropdownY, this.getX() + this.width, dropdownY + 1, 0xFFFFFFFF); // Top
+        graphics.fill(this.getX(), dropdownY + dropdownHeight - 1, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Bottom
+        graphics.fill(this.getX(), dropdownY, this.getX() + 1, dropdownY + dropdownHeight, 0xFFFFFFFF); // Left
+        graphics.fill(this.getX() + this.width - 1, dropdownY, this.getX() + this.width, dropdownY + dropdownHeight, 0xFFFFFFFF); // Right
 
         // Note: Scissor clipping disabled as it was preventing text from rendering properly
-        // context.enableScissor(this.getX() + 1, dropdownY + 1,
+        // graphics.enableScissor(this.getX() + 1, dropdownY + 1,
         //         this.getX() + this.width - 1, dropdownY + dropdownHeight - 1);
 
         int itemY = dropdownY;
@@ -111,7 +112,7 @@ public class AbilityDropdownWidget extends ClickableWidget {
                     mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
 
             if (isHovered) {
-                context.fill(this.getX() + 1, itemY,
+                graphics.fill(this.getX() + 1, itemY,
                         this.getX() + this.width - 1, itemY + ITEM_HEIGHT, 0xFF505050);
                 hoveredIndex = i;
             }
@@ -126,28 +127,28 @@ public class AbilityDropdownWidget extends ClickableWidget {
 
 
                 // Ensure text fits within the dropdown item
-                String trimmedText = textRenderer.trimToWidth(displayText, this.width - 8);
+                String trimmedText = textRenderer.plainSubstrByWidth(displayText, this.width - 8);
                 // Use light yellow color for better visibility
-                context.drawText(textRenderer, trimmedText,
+                graphics.text(textRenderer, trimmedText,
                         this.getX() + 4, itemY + 6, 0xFFFFFF55, false);
             }
 
             itemY += ITEM_HEIGHT;
         }
 
-        // context.disableScissor(); // Not needed since scissor is disabled
+        // graphics.disableScissor(); // Not needed since scissor is disabled
 
         if (options.size() > MAX_VISIBLE_ITEMS) {
-            renderScrollbar(context, dropdownY, dropdownHeight);
+            renderScrollbar(graphics, dropdownY, dropdownHeight);
         }
     }
 
-    private void renderScrollbar(DrawContext context, int dropdownY, int dropdownHeight) {
+    private void renderScrollbar(GuiGraphicsExtractor graphics, int dropdownY, int dropdownHeight) {
         List<String> options = optionsSupplier.get();
         int scrollbarX = this.getX() + this.width - 6;
         int scrollbarWidth = 4;
 
-        context.fill(scrollbarX, dropdownY + 1,
+        graphics.fill(scrollbarX, dropdownY + 1,
                 scrollbarX + scrollbarWidth, dropdownY + dropdownHeight - 1, 0xFF404040);
 
         int totalItems = options.size();
@@ -157,15 +158,16 @@ public class AbilityDropdownWidget extends ClickableWidget {
         int handleHeight = Math.max(20, (int) ((float) MAX_VISIBLE_ITEMS / totalItems * dropdownHeight));
         int handleY = dropdownY + 1 + (int) ((dropdownHeight - handleHeight - 2) * scrollPercentage);
 
-        context.fill(scrollbarX, handleY,
+        graphics.fill(scrollbarX, handleY,
                 scrollbarX + scrollbarWidth, handleY + handleHeight, 0xFF808080);
     }
 
+
     @Override
-    public void onClick(Click click, boolean doubled) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        double mouseX = client.mouse.getX() * (double) client.getWindow().getScaledWidth() / (double) client.getWindow().getWidth();
-        double mouseY = client.mouse.getY() * (double) client.getWindow().getScaledHeight() / (double) client.getWindow().getHeight();
+    public void onClick(@NonNull MouseButtonEvent click, boolean doubled) {
+        Minecraft client = Minecraft.getInstance();
+        double mouseX = client.mouseHandler.xpos() * (double) client.getWindow().getGuiScaledWidth() / (double) client.getWindow().getScreenWidth();
+        double mouseY = client.mouseHandler.ypos() * (double) client.getWindow().getGuiScaledHeight() / (double) client.getWindow().getScreenHeight();
 
         handleClick(mouseX, mouseY);
     }
@@ -193,7 +195,7 @@ public class AbilityDropdownWidget extends ClickableWidget {
 
             // Use proper scroll direction and magnitude
             int scrollDirection = verticalAmount > 0 ? -1 : 1; // Reverse direction for natural scrolling
-            scrollOffset = MathHelper.clamp(scrollOffset + scrollDirection, 0, maxScroll);
+            scrollOffset = Mth.clamp(scrollOffset + scrollDirection, 0, maxScroll);
 
             return true;
         }
@@ -215,15 +217,15 @@ public class AbilityDropdownWidget extends ClickableWidget {
         return expanded;
     }
 
-    public void renderExpanded(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void renderExpanded(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         List<String> options = optionsSupplier.get();
         if (expanded && !options.isEmpty()) {
-            renderDropdown(context, MinecraftClient.getInstance().textRenderer, mouseX, mouseY);
+            renderDropdown(graphics, Minecraft.getInstance().font, mouseX, mouseY);
         }
     }
 
     @Override
-    protected void appendClickableNarrations(NarrationMessageBuilder builder) {
-        builder.put(NarrationPart.TITLE, Text.literal("Ability dropdown"));
+    protected void updateWidgetNarration(NarrationElementOutput builder) {
+        builder.add(NarratedElementType.TITLE, Component.literal("Ability dropdown"));
     }
 }

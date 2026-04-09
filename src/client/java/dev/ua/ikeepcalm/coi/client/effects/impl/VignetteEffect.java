@@ -1,7 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class VignetteEffect implements VisualEffect {
 
@@ -33,7 +33,7 @@ public class VignetteEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         float alpha = computeAlpha();
         int maxA = (int) (200 * intensity * alpha);
 

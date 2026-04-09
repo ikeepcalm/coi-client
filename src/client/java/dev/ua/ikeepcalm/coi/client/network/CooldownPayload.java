@@ -1,23 +1,23 @@
 package dev.ua.ikeepcalm.coi.client.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record CooldownPayload(String abilityId, int ticks) implements CustomPayload {
-    public static final CustomPayload.Id<CooldownPayload> ID =
-            new CustomPayload.Id<>(Identifier.of("coi-client", "cooldown"));
-    public static final PacketCodec<RegistryByteBuf, CooldownPayload> CODEC = PacketCodec.of(
+public record CooldownPayload(String abilityId, int ticks) implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<CooldownPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("coi-client", "cooldown"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, CooldownPayload> CODEC = StreamCodec.ofMember(
             (value, buf) -> {
-                buf.writeString(value.abilityId());
+                buf.writeUtf(value.abilityId());
                 buf.writeInt(value.ticks());
             },
-            buf -> new CooldownPayload(buf.readString(), buf.readInt())
+            buf -> new CooldownPayload(buf.readUtf(), buf.readInt())
     );
 
     @Override
-    public CustomPayload.Id<? extends CustomPayload> getId() {
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

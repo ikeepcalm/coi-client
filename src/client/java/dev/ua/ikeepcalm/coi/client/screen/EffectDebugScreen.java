@@ -2,12 +2,13 @@ package dev.ua.ikeepcalm.coi.client.screen;
 
 import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,11 +26,11 @@ public class EffectDebugScreen extends Screen {
     private static final int PANEL_W = 440;
 
     private final Screen parent;
-    private TextFieldWidget paramsField;
+    private EditBox paramsField;
     private final List<EffectRow> rows = new ArrayList<>();
 
     public EffectDebugScreen(Screen parent) {
-        super(Text.literal("Visual Effects — Debug"));
+        super(Component.literal("Visual Effects — Debug"));
         this.parent = parent;
     }
 
@@ -41,14 +42,12 @@ public class EffectDebugScreen extends Screen {
         int y = 50;
 
         // Params input shared by all "Test" buttons
-        this.paramsField = new TextFieldWidget(
-                this.textRenderer,
-                panelX, y, PANEL_W - 4, 20,
-                Text.literal("params")
+        this.paramsField = new EditBox(this.font,
+                panelX, y, PANEL_W - 4, 20, Component.literal("params")
         );
         paramsField.setMaxLength(200);
-        paramsField.setPlaceholder(Text.literal("params (leave blank for defaults)").formatted(Formatting.DARK_GRAY));
-        addDrawableChild(paramsField);
+        paramsField.setHint(Component.literal("params (leave blank for defaults)").withStyle(ChatFormatting.DARK_GRAY));
+        addRenderableWidget(paramsField);
         y += 28;
 
         // One row per registered effect
@@ -61,24 +60,21 @@ public class EffectDebugScreen extends Screen {
             final int rowY = y;
 
             // [Test] button
-            ButtonWidget testBtn = ButtonWidget.builder(Text.literal("Test"), btn -> {
-                String raw = paramsField.getText().trim();
+            Button testBtn = Button.builder(Component.literal("Test"), btn -> {
+                String raw = paramsField.getValue().trim();
                 String p = raw.isEmpty() ? defaultParams : raw;
                 EffectManager.trigger(id, p);
-            }).dimensions(panelX, rowY, BTN_W, 20).build();
-            addDrawableChild(testBtn);
+            }).bounds(panelX, rowY, BTN_W, 20).build();
+            addRenderableWidget(testBtn);
 
             // [Stop] button
-            ButtonWidget stopBtn = ButtonWidget.builder(Text.literal("Stop"), btn ->
-                    EffectManager.stopEffect(id)
-            ).dimensions(panelX + BTN_W + 4, rowY, 50, 20).build();
-            addDrawableChild(stopBtn);
+            Button stopBtn = Button.builder(Component.literal("Stop"), btn ->
+                    EffectManager.stopEffect(id)).bounds(panelX + BTN_W + 4, rowY, 50, 20).build();
+            addRenderableWidget(stopBtn);
 
             // [Defaults] button — fills the params field with this effect's defaults
-            ButtonWidget defsBtn = ButtonWidget.builder(Text.literal("↩ defaults"), btn ->
-                    paramsField.setText(defaultParams)
-            ).dimensions(panelX + BTN_W + 58, rowY, 90, 20).build();
-            addDrawableChild(defsBtn);
+            Button defsBtn = Button.builder(Component.literal("↩ defaults"), btn -> paramsField.setValue(defaultParams)).bounds(panelX + BTN_W + 58, rowY, 90, 20).build();
+            addRenderableWidget(defsBtn);
 
             rows.add(new EffectRow(id, probe.getDisplayName(), panelX + BTN_W + 154, rowY));
             y += ROW_H;
@@ -87,33 +83,28 @@ public class EffectDebugScreen extends Screen {
         y += 6;
 
         // Stop All
-        addDrawableChild(ButtonWidget.builder(
-                Text.literal("Stop All Effects").formatted(Formatting.RED),
-                btn -> EffectManager.stopAll()
-        ).dimensions(panelX, y, PANEL_W / 2 - 2, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Stop All Effects").withStyle(ChatFormatting.RED),
+                btn -> EffectManager.stopAll()).bounds(panelX, y, PANEL_W / 2 - 2, 20).build());
 
         // Done
-        addDrawableChild(ButtonWidget.builder(
-                Text.translatable("gui.done"),
-                btn -> close()
-        ).dimensions(panelX + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), btn -> onClose()).bounds(panelX + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+        super.extractRenderState(graphics, mouseX, mouseY, a);
+
         // Semi-transparent panel behind controls (no blur — world is still rendering)
         int panelX = (this.width - PANEL_W) / 2;
         int panelH = 50 + EffectManager.getRegistry().size() * ROW_H + 34;
-        ctx.fill(panelX - 8, 8, panelX + PANEL_W + 8, 8 + panelH, 0xCC000000);
+        graphics.fill(panelX - 8, 8, panelX + PANEL_W + 8, 8 + panelH, 0xCC000000);
 
         // Title
-        ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal("Visual Effects — Debug").formatted(Formatting.GOLD, Formatting.BOLD),
+        graphics.centeredText(font, Component.literal("Visual Effects — Debug").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
                 this.width / 2, 18, 0xFFFFFFFF);
 
         // Column header
-        ctx.drawTextWithShadow(textRenderer,
-                Text.literal("Params:").formatted(Formatting.GRAY),
+        graphics.text(font, Component.literal("Params:").withStyle(ChatFormatting.GRAY),
                 panelX, 38, 0xFFFFFFFF);
 
         // Effect name labels + active indicator
@@ -121,21 +112,18 @@ public class EffectDebugScreen extends Screen {
             boolean active = EffectManager.isActive(row.id);
             int nameColor = active ? 0xFF55FF55 : 0xFFAAAAAA;
             String indicator = active ? "● " : "○ ";
-            ctx.drawTextWithShadow(textRenderer,
-                    Text.literal(indicator + row.displayName).formatted(active ? Formatting.GREEN : Formatting.GRAY),
+            graphics.text(font, Component.literal(indicator + row.displayName).withStyle(active ? ChatFormatting.GREEN : ChatFormatting.GRAY),
                     row.labelX, row.y + 6, nameColor);
         }
-
-        super.render(ctx, mouseX, mouseY, delta);
     }
 
     @Override
-    public void close() {
-        if (client != null) client.setScreen(parent);
+    public void onClose() {
+        minecraft.setScreen(parent);
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 

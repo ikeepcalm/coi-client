@@ -1,12 +1,11 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class WhispersEffect implements VisualEffect {
 
@@ -63,9 +62,9 @@ public class WhispersEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         long elapsed = System.currentTimeMillis() - startTime;
-        var font = MinecraftClient.getInstance().textRenderer;
+        var font = Minecraft.getInstance().font;
 
         // Spawn new whispers on a schedule driven by intensity
         if (elapsed >= nextSpawn) {
@@ -85,7 +84,7 @@ public class WhispersEffect implements VisualEffect {
             int alpha = (int) (200 * a * intensity);
             int color = (alpha << 24) | 0xCCCCCC;
 
-            ctx.drawTextWithShadow(font, wh.text, wh.x, wh.y, color);
+            ctx.text(font, wh.text, wh.x, wh.y, color);
         }
     }
 
@@ -101,8 +100,8 @@ public class WhispersEffect implements VisualEffect {
         Random rng = new Random(elapsed ^ startTime);
         String text = textPool[rng.nextInt(textPool.length)];
 
-        var font = MinecraftClient.getInstance().textRenderer;
-        int textW = font.getWidth(text);
+        var font = Minecraft.getInstance().font;
+        int textW = font.width(text);
 
         // Prefer screen edges and mid-periphery; avoid exact center
         int margin = 20;

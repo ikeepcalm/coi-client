@@ -1,6 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.effects;
 
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public interface VisualEffect {
 
@@ -27,7 +27,7 @@ public interface VisualEffect {
     /**
      * Called every render frame while the effect is active.
      */
-    void render(DrawContext ctx, int screenWidth, int screenHeight, float tickDelta);
+    void render(GuiGraphicsExtractor ctx, int screenWidth, int screenHeight, float tickDelta);
 
     /**
      * Return true once the effect has naturally finished and should be removed.

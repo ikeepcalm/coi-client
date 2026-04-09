@@ -1,13 +1,15 @@
 package dev.ua.ikeepcalm.coi.client.screen;
 
 import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.NonNull;
 
 import java.util.List;
 
@@ -15,12 +17,12 @@ public class AbilityBindingScreen extends Screen {
 
     private final Screen parent;
     private AbilityDropdownWidget[] abilityDropdowns;
-    private ButtonWidget clearAllButton;
-    private ButtonWidget settingsButton;
+    private Button clearAllButton;
+    private Button settingsButton;
     private int contentHeight;
 
     public AbilityBindingScreen(Screen parent) {
-        super(Text.translatable("screen.coi.ability_binding"));
+        super(Component.translatable("screen.coi.ability_binding"));
         this.parent = parent;
     }
 
@@ -46,7 +48,7 @@ public class AbilityBindingScreen extends Screen {
         int centerX = this.width / 2;
         int topMargin = Math.max(60, this.height / 8);
         int spacing = Math.max(50, this.height / 12);
-        int dropdownWidth = Math.min(Math.max(200, this.width / 3), this.width - 40);
+        int dropdownWidth = Math.clamp(this.width / 3, 200, this.width - 40);
         int dropdownHeight = 20;
 
         contentHeight = topMargin;
@@ -60,108 +62,97 @@ public class AbilityBindingScreen extends Screen {
                     CircleOfImaginationClient.getBoundAbility(slot),
                     selected -> CircleOfImaginationClient.setBoundAbility(slot, selected)
             );
-            this.addDrawableChild(abilityDropdowns[i]);
+            this.addRenderableWidget(abilityDropdowns[i]);
             contentHeight += spacing;
         }
 
         int buttonY = Math.max(contentHeight + 20, this.height - Math.max(40, this.height / 10));
 
-        clearAllButton = ButtonWidget.builder(
-                Text.translatable("screen.coi.clear_all"),
+        clearAllButton = Button.builder(Component.translatable("screen.coi.clear_all"),
                 button -> {
                     for (int i = 0; i < maxAbilities; i++) {
                         CircleOfImaginationClient.setBoundAbility(i, null);
                     }
                     this.init();
-                }
-        ).dimensions(centerX - 105, buttonY, 100, 20).build();
-        this.addDrawableChild(clearAllButton);
+                }).bounds(centerX - 105, buttonY, 100, 20).build();
+        this.addRenderableWidget(clearAllButton);
 
-        settingsButton = ButtonWidget.builder(
-                Text.translatable("screen.coi.hud_settings"),
+        settingsButton = Button.builder(Component.translatable("screen.coi.hud_settings"),
                 button -> {
-                    this.close();
-                    MinecraftClient.getInstance().setScreen(new HudSettingsScreen(null));
-                }
-        ).dimensions(Math.max(10, this.width - Math.min(130, this.width / 4)), 10, Math.min(120, this.width / 5), 20).build();
+                    this.onClose();
+                    Minecraft.getInstance().setScreen(new HudSettingsScreen(null));
+                }).bounds(Math.max(10, this.width - Math.min(130, this.width / 4)), 10, Math.min(120, this.width / 5), 20).build();
 
-        this.addDrawableChild(settingsButton);
+        this.addRenderableWidget(settingsButton);
 
-        this.addDrawableChild(ButtonWidget.builder(
-                Text.translatable("gui.done"),
-                button -> this.close()
-        ).dimensions(centerX + 5, buttonY, 100, 20).build());
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> this.onClose()).bounds(centerX + 5, buttonY, 100, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
+    public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+        super.extractRenderState(graphics, mouseX, mouseY, a);
 
-        context.drawCenteredTextWithShadow(this.textRenderer,
+        graphics.centeredText(this.font,
                 this.title, this.width / 2, 20, 0xFFFFFF);
 
         List<String> abilities = CircleOfImaginationClient.getAvailableAbilities();
         if (abilities.isEmpty()) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("screen.coi.no_abilities").formatted(Formatting.RED),
+            graphics.centeredText(this.font, Component.translatable("screen.coi.no_abilities").withStyle(ChatFormatting.RED),
                     this.width / 2, 40, 0xFF5555);
         }
 
         int centerX = this.width / 2;
         int topMargin = Math.max(60, this.height / 8);
         int spacing = Math.max(50, this.height / 12);
-        int dropdownWidth = Math.min(Math.max(200, this.width / 3), this.width - 40);
+        int dropdownWidth = Math.clamp(this.width / 3, 200, this.width - 40);
 
         // Render slot info for all abilities
         if (abilityDropdowns != null) {
             for (int i = 0; i < abilityDropdowns.length; i++) {
                 int y = topMargin + (spacing * i) - 15;
-                Text key = KeyBindingHelper.getBoundKeyOf(CircleOfImaginationClient.abilityKeys[i]).getLocalizedText();
-                renderSlotInfo(context, i, centerX - dropdownWidth / 2, y, key);
+                Component key = KeyMappingHelper.getBoundKeyOf(CircleOfImaginationClient.abilityKeys[i]).getDisplayName();
+                renderSlotInfo(graphics, i, centerX - dropdownWidth / 2, y, key);
             }
         }
 
-        renderTooltips(context, mouseX, mouseY);
+        renderTooltips(graphics, mouseX, mouseY);
 
-        renderExpandedDropdowns(context, mouseX, mouseY, delta);
+        renderExpandedDropdowns(graphics, mouseX, mouseY, a);
     }
 
-    private void renderExpandedDropdowns(DrawContext context, int mouseX, int mouseY, float delta) {
+    private void renderExpandedDropdowns(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         if (abilityDropdowns != null) {
             for (AbilityDropdownWidget dropdown : abilityDropdowns) {
                 if (dropdown != null && dropdown.isExpanded()) {
-                    dropdown.renderExpanded(context, mouseX, mouseY, delta);
+                    dropdown.renderExpanded(graphics, mouseX, mouseY, delta);
                 }
             }
         }
     }
 
-    private void renderSlotInfo(DrawContext context, int slot, int x, int y, Text key) {
-        Text label = Text.translatable("screen.coi.ability" + (slot + 1) + "_label");
-        context.drawTextWithShadow(this.textRenderer, label, x, y, 0xA0A0A0);
+    private void renderSlotInfo(GuiGraphicsExtractor graphics, int slot, int x, int y, Component key) {
+        Component label = Component.translatable("screen.coi.ability" + (slot + 1) + "_label");
+        graphics.text(this.font, label, x, y, 0xA0A0A0);
 
-        context.drawTextWithShadow(this.textRenderer, "[" + key.getLiteralString() + "]", x + this.textRenderer.getWidth(label) + 5, y, 0xFFFF55);
+        graphics.text(this.font, "[" + key.tryCollapseToString() + "]", x + this.font.width(label) + 5, y, 0xFFFF55);
 
         String bound = CircleOfImaginationClient.getBoundAbility(slot);
         if (bound != null && bound.contains(" - ")) {
             String abilityName = bound.split(" - ")[1];
-            Text boundText = Text.literal("→ " + abilityName).formatted(Formatting.GREEN);
-            int textOffset = Math.min(Math.max(100, this.width / 6), 150);
-            context.drawTextWithShadow(this.textRenderer, boundText, x + textOffset, y, 0x55FF55);
+            Component boundText = Component.literal("→ " + abilityName).withStyle(ChatFormatting.GREEN);
+            int textOffset = Math.clamp(this.width / 6, 100, 150);
+            graphics.text(this.font, boundText, x + textOffset, y, 0x55FF55);
         }
     }
 
-    private void renderTooltips(DrawContext context, int mouseX, int mouseY) {
+    private void renderTooltips(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         if (clearAllButton.isHovered()) {
-            context.drawTooltip(this.textRenderer,
-                    Text.translatable("screen.coi.clear_all.tooltip"), mouseX, mouseY);
+            graphics.setTooltipForNextFrame(this.font, Component.translatable("screen.coi.clear_all.tooltip"), mouseX, mouseY);
         }
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(this.parent);
-        }
+    public void onClose() {
+        this.minecraft.setScreen(this.parent);
     }
 }

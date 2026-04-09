@@ -1,20 +1,20 @@
 package dev.ua.ikeepcalm.coi.client.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record AbilityUsePayload(String abilityId) implements CustomPayload {
-    public static final CustomPayload.Id<AbilityUsePayload> ID =
-            new CustomPayload.Id<>(Identifier.of("coi-client", "use"));
-    public static final PacketCodec<RegistryByteBuf, AbilityUsePayload> CODEC = PacketCodec.of(
-            (value, buf) -> buf.writeString(value.abilityId()),
-            buf -> new AbilityUsePayload(buf.readString())
+public record AbilityUsePayload(String abilityId) implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<AbilityUsePayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("coi-client", "use"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, AbilityUsePayload> CODEC = StreamCodec.ofMember(
+            (value, buf) -> buf.writeUtf(value.abilityId()),
+            buf -> new AbilityUsePayload(buf.readUtf())
     );
 
     @Override
-    public CustomPayload.Id<? extends CustomPayload> getId() {
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

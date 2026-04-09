@@ -1,13 +1,12 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.Identifier;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 public class EyesEffect implements VisualEffect {
 
@@ -36,11 +35,11 @@ public class EyesEffect implements VisualEffect {
 
     static {
         for (int i = 0; i < 4; i++)
-            OPEN_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye" + (i + 1) + ".png");
+            OPEN_FRAMES[i] = Identifier.fromNamespaceAndPath("coi-client", "textures/eyes/eye" + (i + 1) + ".png");
         for (int i = 0; i < 4; i++)
-            PUPIL_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye4." + (i + 1) + ".png");
+            PUPIL_FRAMES[i] = Identifier.fromNamespaceAndPath("coi-client", "textures/eyes/eye4." + (i + 1) + ".png");
         for (int i = 0; i < 5; i++)
-            CLOSE_FRAMES[i] = Identifier.of("coi-client", "textures/eyes/eye" + (i + 5) + ".png");
+            CLOSE_FRAMES[i] = Identifier.fromNamespaceAndPath("coi-client", "textures/eyes/eye" + (i + 5) + ".png");
     }
 
     private int count = 2;
@@ -79,7 +78,7 @@ public class EyesEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         if (eyes.isEmpty()) spawnEyes(w, h);
 
         long elapsed = System.currentTimeMillis() - startTime;
@@ -130,21 +129,21 @@ public class EyesEffect implements VisualEffect {
         }
     }
 
-    private void drawEye(DrawContext ctx, EyeData eye, Identifier texture, float alpha) {
+    private void drawEye(GuiGraphicsExtractor ctx, EyeData eye, Identifier texture, float alpha) {
         if (alpha <= 0) return;
         int x = eye.cx - eye.halfW;
         int y = eye.cy - eye.halfH;
         int w = eye.halfW * 2;
         int h = eye.halfH * 2;
 
-        var matrices = ctx.getMatrices();
+        var matrices = ctx.pose();
         matrices.pushMatrix();
         matrices.translate((float) eye.cx, (float) eye.cy);
         matrices.rotate((float) Math.toRadians(eye.rotation));
         matrices.translate((float) -eye.cx, (float) -eye.cy);
 
         int argb = ((int) (alpha * 255) << 24) | 0xFFFFFF;
-        ctx.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, w, h, w, h, argb);
+        ctx.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, w, h, w, h, argb);
 
         matrices.popMatrix();
     }

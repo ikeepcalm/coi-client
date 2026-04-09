@@ -1,9 +1,8 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.Random;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class GlitchEffect implements VisualEffect {
 
@@ -35,7 +34,7 @@ public class GlitchEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         long elapsed = System.currentTimeMillis() - startTime;
 
         // Determine burst/calm phase.

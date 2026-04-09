@@ -1,19 +1,19 @@
 package dev.ua.ikeepcalm.coi.client.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record AbilityRequestPayload() implements CustomPayload {
+public record AbilityRequestPayload() implements CustomPacketPayload {
     public static final AbilityRequestPayload INSTANCE = new AbilityRequestPayload();
-    public static final CustomPayload.Id<AbilityRequestPayload> ID =
-            new CustomPayload.Id<>(Identifier.of("coi-client", "request"));
-    public static final PacketCodec<RegistryByteBuf, AbilityRequestPayload> CODEC =
-            PacketCodec.unit(INSTANCE);
+    public static final CustomPacketPayload.Type<AbilityRequestPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("coi-client", "request"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, AbilityRequestPayload> CODEC =
+            StreamCodec.unit(INSTANCE);
 
     @Override
-    public CustomPayload.Id<? extends CustomPayload> getId() {
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

@@ -1,11 +1,12 @@
 package dev.ua.ikeepcalm.coi.client.effects;
 
 import dev.ua.ikeepcalm.coi.client.effects.impl.*;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderTickCounter;
-
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -26,7 +27,7 @@ public class EffectManager {
         register(TunnelEffect.ID, TunnelEffect::new);
         register(FlashEffect.ID, FlashEffect::new);
 
-        HudRenderCallback.EVENT.register(EffectManager::render);
+        HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT, Identifier.fromNamespaceAndPath("coi-client", "effects"), EffectManager::render);
     }
 
     public static void register(String id, Supplier<VisualEffect> factory) {
@@ -82,12 +83,12 @@ public class EffectManager {
         return Collections.unmodifiableMap(REGISTRY);
     }
 
-    private static void render(DrawContext ctx, RenderTickCounter counter) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static void render(GuiGraphicsExtractor ctx, DeltaTracker counter) {
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) return;
 
-        int w = client.getWindow().getScaledWidth();
-        int h = client.getWindow().getScaledHeight();
+        int w = client.getWindow().getGuiScaledWidth();
+        int h = client.getWindow().getGuiScaledHeight();
         float tickDelta = 1.0f;
 
         activeEffects.removeIf(VisualEffect::isFinished);

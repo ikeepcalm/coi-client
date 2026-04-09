@@ -1,9 +1,9 @@
 package dev.ua.ikeepcalm.coi.client.network;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
 /**
  * Server → Client payload to trigger (or stop) a visual effect.
@@ -18,21 +18,21 @@ import net.minecraft.util.Identifier;
  * VisualEffectPayload("cracks",  "stop")
  * VisualEffectPayload("all",     "stop")
  */
-public record VisualEffectPayload(String effectId, String params) implements CustomPayload {
+public record VisualEffectPayload(String effectId, String params) implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<VisualEffectPayload> ID =
-            new CustomPayload.Id<>(Identifier.of("coi-client", "effect"));
+    public static final CustomPacketPayload.Type<VisualEffectPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("coi-client", "effect"));
 
-    public static final PacketCodec<RegistryByteBuf, VisualEffectPayload> CODEC = PacketCodec.of(
+    public static final StreamCodec<RegistryFriendlyByteBuf, VisualEffectPayload> CODEC = StreamCodec.ofMember(
             (value, buf) -> {
-                buf.writeString(value.effectId());
-                buf.writeString(value.params());
+                buf.writeUtf(value.effectId());
+                buf.writeUtf(value.params());
             },
-            buf -> new VisualEffectPayload(buf.readString(), buf.readString())
+            buf -> new VisualEffectPayload(buf.readUtf(), buf.readUtf())
     );
 
     @Override
-    public CustomPayload.Id<? extends CustomPayload> getId() {
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

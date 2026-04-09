@@ -1,11 +1,10 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class FrostEffect implements VisualEffect {
 
@@ -43,7 +42,7 @@ public class FrostEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         if (segments.isEmpty()) generateSegments(w, h);
 
         long elapsed = System.currentTimeMillis() - startTime;
@@ -126,7 +125,7 @@ public class FrostEffect implements VisualEffect {
         }
     }
 
-    private static void drawLine(DrawContext ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
+    private static void drawLine(GuiGraphicsExtractor ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
         int dx = x2 - x1, dy = y2 - y1;
         int length = (int) Math.sqrt((double) dx * dx + (double) dy * dy);
         if (length == 0) return;

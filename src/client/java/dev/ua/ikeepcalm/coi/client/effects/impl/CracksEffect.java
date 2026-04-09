@@ -1,11 +1,10 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 
 public class CracksEffect implements VisualEffect {
@@ -44,7 +43,7 @@ public class CracksEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         if (segments.isEmpty()) generateSegments(w, h);
 
         long elapsed = System.currentTimeMillis() - startTime;
@@ -88,8 +87,8 @@ public class CracksEffect implements VisualEffect {
 
         float ex = x + (float) Math.cos(angle) * length;
         float ey = y + (float) Math.sin(angle) * length;
-        ex = Math.max(-5, Math.min(w + 5, ex));
-        ey = Math.max(-5, Math.min(h + 5, ey));
+        ex = Math.clamp(ex, -5, w + 5);
+        ey = Math.clamp(ey, -5, h + 5);
 
         segments.add(new int[]{(int) x, (int) y, (int) ex, (int) ey, thickness});
 
@@ -117,7 +116,7 @@ public class CracksEffect implements VisualEffect {
      * Draws a true straight line as a single rotated filled rectangle,
      * so diagonal cracks render as clean solid lines instead of dotted quads.
      */
-    private static void drawSegment(DrawContext ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
+    private static void drawSegment(GuiGraphicsExtractor ctx, int x1, int y1, int x2, int y2, int color, int thickness) {
         int dx = x2 - x1, dy = y2 - y1;
         int length = (int) Math.sqrt((double) dx * dx + (double) dy * dy);
         if (length == 0) return;
@@ -128,7 +127,7 @@ public class CracksEffect implements VisualEffect {
         int half = length / 2 + 1;
         int halfT = Math.max(1, thickness / 2);
 
-        var matrices = ctx.getMatrices();
+        var matrices = ctx.pose();
         matrices.pushMatrix();
         matrices.translate(mx, my);
         matrices.rotate(angle);

@@ -1,7 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.effects.impl;
 
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class HeartbeatEffect implements VisualEffect {
 
@@ -34,7 +34,7 @@ public class HeartbeatEffect implements VisualEffect {
     }
 
     @Override
-    public void render(DrawContext ctx, int w, int h, float tickDelta) {
+    public void render(GuiGraphicsExtractor ctx, int w, int h, float tickDelta) {
         float pulse = computePulse();
         float alpha = computeFade();
         int maxA = (int) (220 * intensity * pulse * alpha);

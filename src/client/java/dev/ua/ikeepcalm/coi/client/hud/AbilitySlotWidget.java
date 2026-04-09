@@ -3,14 +3,14 @@ package dev.ua.ikeepcalm.coi.client.hud;
 import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.MathHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 
 public class AbilitySlotWidget {
 
@@ -38,9 +38,9 @@ public class AbilitySlotWidget {
         this.maxCooldownTicks = 0;
     }
 
-    public void render(DrawContext context, int x, int y, int size, float tickDelta) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        TextRenderer textRenderer = client.textRenderer;
+    public void render(GuiGraphicsExtractor context, int x, int y, int size, float tickDelta) {
+        Minecraft client = Minecraft.getInstance();
+        Font textRenderer = client.font;
         HudConfig.HudSettings settings = HudConfig.getSettings();
 
         boolean hasAbility = abilityId != null;
@@ -86,27 +86,27 @@ public class AbilitySlotWidget {
     }
 
 
-    private void renderDropShadow(DrawContext context, int x, int y, int size) {
+    private void renderDropShadow(GuiGraphicsExtractor context, int x, int y, int size) {
         context.fill(x + 2, y + 2, x + size + 3, y + size + 3, SHADOW_COLOR);
     }
 
-    private void renderGradientBackground(DrawContext context, int x, int y, int size) {
+    private void renderGradientBackground(GuiGraphicsExtractor context, int x, int y, int size) {
         context.fill(x, y, x + size, y + size / 2, BACKGROUND_GRADIENT_TOP);
         context.fill(x, y + size / 2, x + size, y + size, BACKGROUND_GRADIENT_BOTTOM);
     }
 
-    private void renderReadyOverlay(DrawContext context, int x, int y, int size) {
+    private void renderReadyOverlay(GuiGraphicsExtractor context, int x, int y, int size) {
         int overlayColor = 0x20228B22;
         context.fill(x, y, x + size, y + size, overlayColor);
     }
 
-    private void renderGlowEffect(DrawContext context, int x, int y, int size) {
+    private void renderGlowEffect(GuiGraphicsExtractor context, int x, int y, int size) {
         int alpha = 60;
         int glowColor = (alpha << 24) | 0x32CD32;
         context.fill(x - 2, y - 2, x + size + 2, y + size + 2, glowColor);
     }
 
-    private void renderAbilityIcon(DrawContext context, int x, int y, int size) {
+    private void renderAbilityIcon(GuiGraphicsExtractor context, int x, int y, int size) {
         if (abilityId == null) return;
 
         int iconX = x + 3;
@@ -120,8 +120,8 @@ public class AbilitySlotWidget {
         // Category texture
         String cat = (category != null && !category.isEmpty()) ? category.toLowerCase() : "uncategorized";
         String tier = getTierFromAbilityId(abilityId);
-        Identifier texture = Identifier.of("coi-client", "textures/icons/" + cat + "/" + tier + ".png");
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0, 0, iconSize, iconSize, iconSize, iconSize);
+        Identifier texture = Identifier.fromNamespaceAndPath("coi-client", "textures/icons/" + cat + "/" + tier + ".png");
+        context.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0, 0, iconSize, iconSize, iconSize, iconSize);
     }
 
     private String getTierFromAbilityId(String rawId) {
@@ -143,11 +143,11 @@ public class AbilitySlotWidget {
         }
     }
 
-    private void renderCooldownOverlay(DrawContext context, int x, int y, int size, float tickDelta) {
+    private void renderCooldownOverlay(GuiGraphicsExtractor context, int x, int y, int size, float tickDelta) {
         if (maxCooldownTicks <= 0) return;
 
         float progress = (cooldownTicks - tickDelta) / maxCooldownTicks;
-        progress = MathHelper.clamp(progress, 0.0f, 1.0f);
+        progress = Mth.clamp(progress, 0.0f, 1.0f);
 
         int overlayHeight = (int) (size * progress);
         if (overlayHeight > 0) {
@@ -155,7 +155,7 @@ public class AbilitySlotWidget {
         }
     }
 
-    private void renderCooldownText(DrawContext context, TextRenderer textRenderer, int x, int y, int size) {
+    private void renderCooldownText(GuiGraphicsExtractor context, Font textRenderer, int x, int y, int size) {
         if (cooldownTicks <= 0) return;
 
         float seconds = cooldownTicks / 20.0f;
@@ -169,11 +169,11 @@ public class AbilitySlotWidget {
             cooldownText = String.format("%.1f", seconds);
         }
 
-        int textWidth = textRenderer.getWidth(cooldownText);
+        int textWidth = textRenderer.width(cooldownText);
         int textX = x + (size - textWidth) / 2;
         int textY = y + size / 2 - 4;
 
-        context.drawText(textRenderer, cooldownText, textX, textY, 0xFFFFFF, true);
+        context.text(textRenderer, cooldownText, textX, textY, 0xFFFFFF, true);
     }
 
     private void updateCooldown() {
@@ -190,7 +190,7 @@ public class AbilitySlotWidget {
         }
     }
 
-    private void renderAbilityName(DrawContext context, TextRenderer textRenderer, int x, int y, int size) {
+    private void renderAbilityName(GuiGraphicsExtractor context, Font textRenderer, int x, int y, int size) {
         if (abilityId == null) return;
 
         AbilityInfo info = CircleOfImaginationClient.getAbilityInfo(AbilityInfo.extractId(abilityId));
@@ -201,24 +201,24 @@ public class AbilitySlotWidget {
             displayName = displayName.substring(0, 12) + "...";
         }
 
-        int textWidth = textRenderer.getWidth(displayName);
+        int textWidth = textRenderer.width(displayName);
         int textX = x + (size - textWidth) / 2;
         int textY = y + size + 3;
 
-        context.drawText(textRenderer, displayName, textX + 1, textY + 1, 0x80000000, false);
-        context.drawText(textRenderer, displayName, textX, textY, ABILITY_NAME_COLOR, true);
+        context.text(textRenderer, displayName, textX + 1, textY + 1, 0x80000000, false);
+        context.text(textRenderer, displayName, textX, textY, ABILITY_NAME_COLOR, true);
     }
 
-    private void renderKeybind(DrawContext context, TextRenderer textRenderer, int x, int y, int size) {
-        KeyBinding keyBinding = getKeyBinding();
+    private void renderKeybind(GuiGraphicsExtractor context, Font textRenderer, int x, int y, int size) {
+        KeyMapping keyBinding = getKeyBinding();
         if (keyBinding == null) return;
 
-        String keyText = KeyBindingHelper.getBoundKeyOf(keyBinding).getLocalizedText().getString();
+        String keyText = KeyMappingHelper.getBoundKeyOf(keyBinding).getName();
         if (keyText.length() > 3) {
             keyText = keyText.substring(0, 3);
         }
 
-        int textWidth = textRenderer.getWidth(keyText);
+        int textWidth = textRenderer.width(keyText);
         int padding = 2;
         int bgWidth = textWidth + padding * 2;
         int bgHeight = 10;
@@ -230,10 +230,10 @@ public class AbilitySlotWidget {
 
         context.fill(bgX, bgY, bgX + bgWidth, bgY + bgHeight, KEYBIND_BACKGROUND);
         context.fill(bgX, bgY, bgX + bgWidth, bgY + 1, 0xFF555555);
-        context.drawText(textRenderer, keyText, textX, textY, KEYBIND_COLOR, true);
+        context.text(textRenderer, keyText, textX, textY, KEYBIND_COLOR, true);
     }
 
-    private KeyBinding getKeyBinding() {
+    private KeyMapping getKeyBinding() {
         if (slotIndex >= 0 && slotIndex < CircleOfImaginationClient.abilityKeys.length) {
             return CircleOfImaginationClient.abilityKeys[slotIndex];
         }
