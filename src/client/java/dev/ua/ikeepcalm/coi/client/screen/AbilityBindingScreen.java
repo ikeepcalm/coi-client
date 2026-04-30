@@ -140,6 +140,10 @@ public class AbilityBindingScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
+            return true;
+        }
+
         int totalItems = showingWheel ? CircleOfImaginationClient.getWheelSize() : CircleOfImaginationClient.getMaxAbilities();
         int totalPages = (totalItems + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
         
@@ -152,7 +156,7 @@ public class AbilityBindingScreen extends Screen {
             this.init();
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return false;
     }
 
     @Override
@@ -161,22 +165,22 @@ public class AbilityBindingScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, 0x80000000);
 
         graphics.centeredText(this.font,
-                this.title, this.width / 2, 10, 0xFFFFFF);
+                this.title, this.width / 2, 10, 0xFFFFFFFF);
         
         graphics.centeredText(this.font, 
                 Component.translatable(showingWheel ? "screen.coi.wheel_bindings" : "screen.coi.key_bindings"),
-                this.width / 2, 25, 0xAAAAAA);
+                this.width / 2, 25, 0xFFAAAAAA);
 
         int totalItems = showingWheel ? CircleOfImaginationClient.getWheelSize() : CircleOfImaginationClient.getMaxAbilities();
         int totalPages = (totalItems + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
         if (totalPages > 1) {
-            graphics.centeredText(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 55, 0xFFFFFF);
+            graphics.centeredText(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 55, 0xFFFFFFFF);
         }
 
         List<String> abilities = CircleOfImaginationClient.getAvailableAbilities();
         if (abilities.isEmpty()) {
             graphics.centeredText(this.font, Component.translatable("screen.coi.no_abilities").withStyle(ChatFormatting.RED),
-                    this.width / 2, 40, 0xFF5555);
+                    this.width / 2, 40, 0xFFFF5555);
         }
 
         int centerX = this.width / 2;
@@ -220,10 +224,10 @@ public class AbilityBindingScreen extends Screen {
         Component label = Component.translatable(isWheel ? "screen.coi.wheel_slot" : "screen.coi.ability" + (slot + 1) + "_label");
         if (isWheel) label = label.copy().append(" " + (slot + 1));
         
-        graphics.text(this.font, label, x, y, 0xA0A0A0);
+        graphics.text(this.font, label, x, y, 0xFFA0A0A0);
 
         if (!isWheel) {
-            graphics.text(this.font, "[" + key.tryCollapseToString() + "]", x + this.font.width(label) + 5, y, 0xFFFF55);
+            graphics.text(this.font, "[" + key.tryCollapseToString() + "]", x + this.font.width(label) + 5, y, 0xFFFFFF55);
         }
 
         String bound = isWheel ? CircleOfImaginationClient.getWheelAbility(slot) : CircleOfImaginationClient.getBoundAbility(slot);
@@ -231,7 +235,7 @@ public class AbilityBindingScreen extends Screen {
             String abilityName = bound.split(" - ")[1];
             Component boundText = Component.literal("→ " + abilityName).withStyle(ChatFormatting.GREEN);
             int textOffset = Math.clamp(this.width / 6, 100, 150);
-            graphics.text(this.font, boundText, x + textOffset, y, 0x55FF55);
+            graphics.text(this.font, boundText, x + textOffset, y, 0xFF55FF55);
         }
     }
 

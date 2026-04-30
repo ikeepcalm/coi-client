@@ -117,7 +117,7 @@ public class AbilityWheelScreen extends Screen {
             if (abilityIdWithName != null) {
                 renderAbilityIcon(graphics, abilityIdWithName, x, y, SLOT_RADIUS * 2 - 10);
             } else {
-                graphics.centeredText(this.font, Component.literal("+"), x, y - 4, 0x555555);
+                graphics.centeredText(this.font, Component.literal("+"), x, y - 4, 0xFF555555);
             }
         }
     }
@@ -126,13 +126,15 @@ public class AbilityWheelScreen extends Screen {
         if (selectedSlot != -1) {
             String abilityIdWithName = CircleOfImaginationClient.getWheelAbility(selectedSlot);
             if (abilityIdWithName != null) {
-                String name = AbilityInfo.extractDisplayName(abilityIdWithName);
-                graphics.centeredText(this.font, Component.literal(name), centerX, centerY - 10, 0xFFFFFF);
+                String id = AbilityInfo.extractId(abilityIdWithName);
+                AbilityInfo info = CircleOfImaginationClient.getAbilityInfo(id);
+                String name = info != null ? info.englishName() : AbilityInfo.extractDisplayName(abilityIdWithName);
+                graphics.centeredText(this.font, Component.literal(name), centerX, centerY - 10, 0xFFFFFFFF);
             } else {
-                graphics.centeredText(this.font, Component.translatable("screen.coi.empty_slot"), centerX, centerY - 10, 0xAAAAAA);
+                graphics.centeredText(this.font, Component.translatable("screen.coi.empty_slot"), centerX, centerY - 10, 0xFFAAAAAA);
             }
         } else {
-            graphics.centeredText(this.font, Component.translatable("screen.coi.select_ability"), centerX, centerY - 10, 0xFFFFFF);
+            graphics.centeredText(this.font, Component.translatable("screen.coi.select_ability"), centerX, centerY - 10, 0xFFFFFFFF);
         }
     }
 

@@ -381,7 +381,7 @@ public class HudSettingsScreen extends Screen {
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         super.extractRenderState(graphics, mouseX, mouseY, a);
 
-        graphics.centeredText(this.font, this.title, this.width / 2, 20, 0xFFFFFF);
+        graphics.centeredText(this.font, this.title, this.width / 2, 20, 0xFFFFFFFF);
 
         int columnSpacing = Math.min(160, this.width / 3);
         int leftColumn = this.width / 2 - columnSpacing;
@@ -389,30 +389,30 @@ public class HudSettingsScreen extends Screen {
         int spacing = Math.max(35, this.height / 15);
         int labelY = startY + 5;
 
-        graphics.text(this.font, Component.translatable("screen.coi.hud_x"), leftColumn, labelY - 15, 0xA0A0A0);
+        graphics.text(this.font, Component.translatable("screen.coi.hud_x"), leftColumn, labelY - 15, 0xFFA0A0A0);
         labelY += spacing;
 
-        graphics.text(this.font, Component.translatable("screen.coi.hud_y_offset"), leftColumn, labelY - 15, 0xA0A0A0);
+        graphics.text(this.font, Component.translatable("screen.coi.hud_y_offset"), leftColumn, labelY - 15, 0xFFA0A0A0);
         labelY += spacing;
 
         graphics.text(this.font, Component.translatable("screen.coi.slot_size"),
-                leftColumn, labelY - 15, 0xA0A0A0);
+                leftColumn, labelY - 15, 0xFFA0A0A0);
         labelY += spacing;
 
         graphics.text(this.font, Component.translatable("screen.coi.slot_spacing"),
-                leftColumn, labelY - 15, 0xA0A0A0);
+                leftColumn, labelY - 15, 0xFFA0A0A0);
         labelY += spacing;
 
         graphics.text(this.font, Component.translatable("screen.coi.hud_scale"),
-                leftColumn, labelY - 15, 0xA0A0A0);
+                leftColumn, labelY - 15, 0xFFA0A0A0);
         labelY += spacing;
 
         graphics.text(this.font, Component.translatable("screen.coi.wheel_slots"),
-                leftColumn, labelY - 15, 0xA0A0A0);
+                leftColumn, labelY - 15, 0xFFA0A0A0);
 
         if (!settings.enabled) {
             graphics.centeredText(this.font, Component.translatable("screen.coi.hud_disabled_warning").withStyle(ChatFormatting.RED),
-                    this.width / 2, this.height - 80, 0xFF5555);
+                    this.width / 2, this.height - 80, 0xFFFF5555);
         }
 
         renderTooltips(graphics, mouseX, mouseY);
