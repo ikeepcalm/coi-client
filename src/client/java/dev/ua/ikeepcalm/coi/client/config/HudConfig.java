@@ -20,14 +20,15 @@ public class HudConfig {
 
     public static class HudSettings {
         public boolean enabled = true;
-        public int hudX = 10;  // Reduced from 20 for better GUI scale compatibility
-        public int hudYOffset = 60;  // Reduced from 80
-        public int slotSize = 40;  // Reduced from 50
-        public int slotSpacing = 50;  // Reduced from 60
+        public int hudX = 10;
+        public int hudYOffset = 60;
+        public int slotSize = 40;
+        public int slotSpacing = 50;
         public boolean showKeybinds = true;
         public boolean showAbilityNames = true;
         public boolean showGlowEffect = true;
         public float hudScale = 1.0f;
+        public int wheelSlots = 8;
     }
 
     public static void load() {
@@ -45,6 +46,7 @@ public class HudConfig {
                 settings.showAbilityNames = !json.has("showAbilityNames") || json.get("showAbilityNames").getAsBoolean();
                 settings.showGlowEffect = !json.has("showGlowEffect") || json.get("showGlowEffect").getAsBoolean();
                 settings.hudScale = json.has("hudScale") ? json.get("hudScale").getAsFloat() : 1.0f;
+                settings.wheelSlots = json.has("wheelSlots") ? json.get("wheelSlots").getAsInt() : 8;
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -64,6 +66,7 @@ public class HudConfig {
         json.addProperty("showAbilityNames", settings.showAbilityNames);
         json.addProperty("showGlowEffect", settings.showGlowEffect);
         json.addProperty("hudScale", settings.hudScale);
+        json.addProperty("wheelSlots", settings.wheelSlots);
 
         try {
             Files.writeString(CONFIG_PATH, GSON.toJson(json));

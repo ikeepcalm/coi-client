@@ -17,9 +17,15 @@ public class AbilityBindingScreen extends Screen {
 
     private final Screen parent;
     private AbilityDropdownWidget[] abilityDropdowns;
+    private AbilityDropdownWidget[] wheelDropdowns;
     private Button clearAllButton;
     private Button settingsButton;
+    private Button modeToggleButton;
     private int contentHeight;
+    private boolean showingWheel = false;
+
+    private int currentPage = 0;
+    private static final int ITEMS_PER_PAGE = 6;
 
     public AbilityBindingScreen(Screen parent) {
         super(Component.translatable("screen.coi.ability_binding"));
@@ -28,6 +34,7 @@ public class AbilityBindingScreen extends Screen {
 
     @Override
     protected void init() {
+        this.clearWidgets();
         // Request abilities from server when screen opens
         CircleOfImaginationClient.requestAbilitiesFromServer();
 
@@ -40,38 +47,81 @@ public class AbilityBindingScreen extends Screen {
             abilities = CircleOfImaginationClient.getAvailableAbilities();
         }
 
-        System.out.println("COI Client: Screen init with " + abilities.size() + " abilities available");
-
         int maxAbilities = CircleOfImaginationClient.getMaxAbilities();
+        int wheelSize = CircleOfImaginationClient.getWheelSize();
+        int totalItems = showingWheel ? wheelSize : maxAbilities;
+        int totalPages = (totalItems + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
+        
+        if (currentPage >= totalPages) currentPage = Math.max(0, totalPages - 1);
+
         abilityDropdowns = new AbilityDropdownWidget[maxAbilities];
+        wheelDropdowns = new AbilityDropdownWidget[wheelSize];
 
         int centerX = this.width / 2;
-        int topMargin = Math.max(60, this.height / 8);
-        int spacing = Math.max(50, this.height / 12);
+        int topMargin = 60; 
+        int spacing = 40;
         int dropdownWidth = Math.clamp(this.width / 3, 200, this.width - 40);
         int dropdownHeight = 20;
 
-        contentHeight = topMargin;
+        int startIdx = currentPage * ITEMS_PER_PAGE;
+        int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalItems);
 
-        // Create dropdowns dynamically
-        for (int i = 0; i < maxAbilities; i++) {
+        // Create dropdowns for current page
+        for (int i = startIdx; i < endIdx; i++) {
             final int slot = i;
-            abilityDropdowns[i] = new AbilityDropdownWidget(
-                    centerX - dropdownWidth / 2, contentHeight, dropdownWidth, dropdownHeight,
+            int y = topMargin + ((i - startIdx) * spacing);
+            
+            AbilityDropdownWidget dropdown = new AbilityDropdownWidget(
+                    centerX - dropdownWidth / 2, y, dropdownWidth, dropdownHeight,
                     CircleOfImaginationClient::getAvailableAbilities,
-                    CircleOfImaginationClient.getBoundAbility(slot),
-                    selected -> CircleOfImaginationClient.setBoundAbility(slot, selected)
+                    showingWheel ? CircleOfImaginationClient.getWheelAbility(slot) : CircleOfImaginationClient.getBoundAbility(slot),
+                    selected -> {
+                        if (showingWheel) CircleOfImaginationClient.setWheelAbility(slot, selected);
+                        else CircleOfImaginationClient.setBoundAbility(slot, selected);
+                    }
             );
-            this.addRenderableWidget(abilityDropdowns[i]);
-            contentHeight += spacing;
+            
+            if (showingWheel) wheelDropdowns[slot] = dropdown;
+            else abilityDropdowns[slot] = dropdown;
+            
+            this.addRenderableWidget(dropdown);
         }
 
-        int buttonY = Math.max(contentHeight + 20, this.height - Math.max(40, this.height / 10));
+        int buttonY = this.height - 35;
+
+        // Pagination buttons
+        if (totalPages > 1) {
+            this.addRenderableWidget(Button.builder(Component.literal("<"), b -> {
+                currentPage--;
+                this.init();
+            }).bounds(centerX - 180, buttonY - 25, 20, 20).build()).active = currentPage > 0;
+
+            this.addRenderableWidget(Button.builder(Component.literal(">"), b -> {
+                currentPage++;
+                this.init();
+            }).bounds(centerX + 160, buttonY - 25, 20, 20).build()).active = currentPage < totalPages - 1;
+            
+            // Page indicator text handled in render
+        }
+
+        modeToggleButton = Button.builder(Component.translatable(showingWheel ? "screen.coi.show_keybinds_mode" : "screen.coi.show_wheel_mode"),
+                button -> {
+                    showingWheel = !showingWheel;
+                    currentPage = 0;
+                    this.init();
+                }).bounds(centerX - 155, buttonY - 25, 310, 20).build();
+        this.addRenderableWidget(modeToggleButton);
 
         clearAllButton = Button.builder(Component.translatable("screen.coi.clear_all"),
                 button -> {
-                    for (int i = 0; i < maxAbilities; i++) {
-                        CircleOfImaginationClient.setBoundAbility(i, null);
+                    if (showingWheel) {
+                        for (int i = 0; i < wheelSize; i++) {
+                            CircleOfImaginationClient.setWheelAbility(i, null);
+                        }
+                    } else {
+                        for (int i = 0; i < maxAbilities; i++) {
+                            CircleOfImaginationClient.setBoundAbility(i, null);
+                        }
                     }
                     this.init();
                 }).bounds(centerX - 105, buttonY, 100, 20).build();
@@ -81,7 +131,7 @@ public class AbilityBindingScreen extends Screen {
                 button -> {
                     this.onClose();
                     Minecraft.getInstance().setScreen(new HudSettingsScreen(null));
-                }).bounds(Math.max(10, this.width - Math.min(130, this.width / 4)), 10, Math.min(120, this.width / 5), 20).build();
+                }).bounds(this.width - 130, 10, 120, 20).build();
 
         this.addRenderableWidget(settingsButton);
 
@@ -89,11 +139,39 @@ public class AbilityBindingScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        int totalItems = showingWheel ? CircleOfImaginationClient.getWheelSize() : CircleOfImaginationClient.getMaxAbilities();
+        int totalPages = (totalItems + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
+        
+        if (verticalAmount > 0 && currentPage > 0) {
+            currentPage--;
+            this.init();
+            return true;
+        } else if (verticalAmount < 0 && currentPage < totalPages - 1) {
+            currentPage++;
+            this.init();
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
-        super.extractRenderState(graphics, mouseX, mouseY, a);
+        // Draw background and header info BEFORE super call (which renders widgets)
+        graphics.fill(0, 0, this.width, this.height, 0x80000000);
 
         graphics.centeredText(this.font,
-                this.title, this.width / 2, 20, 0xFFFFFF);
+                this.title, this.width / 2, 10, 0xFFFFFF);
+        
+        graphics.centeredText(this.font, 
+                Component.translatable(showingWheel ? "screen.coi.wheel_bindings" : "screen.coi.key_bindings"),
+                this.width / 2, 25, 0xAAAAAA);
+
+        int totalItems = showingWheel ? CircleOfImaginationClient.getWheelSize() : CircleOfImaginationClient.getMaxAbilities();
+        int totalPages = (totalItems + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
+        if (totalPages > 1) {
+            graphics.centeredText(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 55, 0xFFFFFF);
+        }
 
         List<String> abilities = CircleOfImaginationClient.getAvailableAbilities();
         if (abilities.isEmpty()) {
@@ -102,18 +180,25 @@ public class AbilityBindingScreen extends Screen {
         }
 
         int centerX = this.width / 2;
-        int topMargin = Math.max(60, this.height / 8);
-        int spacing = Math.max(50, this.height / 12);
+        int topMargin = 60;
+        int spacing = 40;
         int dropdownWidth = Math.clamp(this.width / 3, 200, this.width - 40);
 
-        // Render slot info for all abilities
-        if (abilityDropdowns != null) {
-            for (int i = 0; i < abilityDropdowns.length; i++) {
-                int y = topMargin + (spacing * i) - 15;
+        int startIdx = currentPage * ITEMS_PER_PAGE;
+        int endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalItems);
+
+        for (int i = startIdx; i < endIdx; i++) {
+            int y = topMargin + ((i - startIdx) * spacing) - 15;
+            if (showingWheel) {
+                renderSlotInfo(graphics, i, centerX - dropdownWidth / 2, y, Component.literal(String.valueOf(i + 1)), true);
+            } else {
                 Component key = KeyMappingHelper.getBoundKeyOf(CircleOfImaginationClient.abilityKeys[i]).getDisplayName();
-                renderSlotInfo(graphics, i, centerX - dropdownWidth / 2, y, key);
+                renderSlotInfo(graphics, i, centerX - dropdownWidth / 2, y, key, false);
             }
         }
+
+        // Render widgets (buttons and dropdowns)
+        super.extractRenderState(graphics, mouseX, mouseY, a);
 
         renderTooltips(graphics, mouseX, mouseY);
 
@@ -121,8 +206,9 @@ public class AbilityBindingScreen extends Screen {
     }
 
     private void renderExpandedDropdowns(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        if (abilityDropdowns != null) {
-            for (AbilityDropdownWidget dropdown : abilityDropdowns) {
+        AbilityDropdownWidget[] current = showingWheel ? wheelDropdowns : abilityDropdowns;
+        if (current != null) {
+            for (AbilityDropdownWidget dropdown : current) {
                 if (dropdown != null && dropdown.isExpanded()) {
                     dropdown.renderExpanded(graphics, mouseX, mouseY, delta);
                 }
@@ -130,13 +216,17 @@ public class AbilityBindingScreen extends Screen {
         }
     }
 
-    private void renderSlotInfo(GuiGraphicsExtractor graphics, int slot, int x, int y, Component key) {
-        Component label = Component.translatable("screen.coi.ability" + (slot + 1) + "_label");
+    private void renderSlotInfo(GuiGraphicsExtractor graphics, int slot, int x, int y, Component key, boolean isWheel) {
+        Component label = Component.translatable(isWheel ? "screen.coi.wheel_slot" : "screen.coi.ability" + (slot + 1) + "_label");
+        if (isWheel) label = label.copy().append(" " + (slot + 1));
+        
         graphics.text(this.font, label, x, y, 0xA0A0A0);
 
-        graphics.text(this.font, "[" + key.tryCollapseToString() + "]", x + this.font.width(label) + 5, y, 0xFFFF55);
+        if (!isWheel) {
+            graphics.text(this.font, "[" + key.tryCollapseToString() + "]", x + this.font.width(label) + 5, y, 0xFFFF55);
+        }
 
-        String bound = CircleOfImaginationClient.getBoundAbility(slot);
+        String bound = isWheel ? CircleOfImaginationClient.getWheelAbility(slot) : CircleOfImaginationClient.getBoundAbility(slot);
         if (bound != null && bound.contains(" - ")) {
             String abilityName = bound.split(" - ")[1];
             Component boundText = Component.literal("→ " + abilityName).withStyle(ChatFormatting.GREEN);

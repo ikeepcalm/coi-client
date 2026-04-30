@@ -28,6 +28,7 @@ public class HudSettingsScreen extends Screen {
     private EditBox slotSizeField;
     private EditBox slotSpacingField;
     private EditBox hudScaleField;
+    private EditBox wheelSlotsField;
 
     private Button resetButton;
     private Button presetButton;
@@ -51,6 +52,7 @@ public class HudSettingsScreen extends Screen {
         to.showAbilityNames = from.showAbilityNames;
         to.showGlowEffect = from.showGlowEffect;
         to.hudScale = from.hudScale;
+        to.wheelSlots = from.wheelSlots;
     }
 
     @Override
@@ -223,6 +225,35 @@ public class HudSettingsScreen extends Screen {
         this.addRenderableWidget(hudScaleField);
         currentY += spacing;
 
+        AbstractSliderButton wheelSlotsSlider = new AbstractSliderButton(leftColumn, currentY, sliderWidth, 20, Component.literal("Wheel Slots: " + settings.wheelSlots), (settings.wheelSlots - 2) / 14.0) {
+            @Override
+            protected void updateMessage() {
+                settings.wheelSlots = 2 + (int) (this.value * 14);
+                this.setMessage(Component.literal("Wheel Slots: " + settings.wheelSlots));
+                wheelSlotsField.setValue(String.valueOf(settings.wheelSlots));
+            }
+
+            @Override
+            protected void applyValue() {
+                settings.wheelSlots = 2 + (int) (this.value * 14);
+                this.setMessage(Component.literal("Wheel Slots: " + settings.wheelSlots));
+                wheelSlotsField.setValue(String.valueOf(settings.wheelSlots));
+            }
+        };
+        this.addRenderableWidget(wheelSlotsSlider);
+
+        wheelSlotsField = new EditBox(this.font, rightColumn, currentY, fieldWidth, 20, Component.translatable("screen.coi.wheel_slots_field"));
+        wheelSlotsField.setValue(String.valueOf(settings.wheelSlots));
+        wheelSlotsField.setResponder(text -> {
+            try {
+                int value = Integer.parseInt(text);
+                settings.wheelSlots = Math.clamp(value, 2, 16);
+            } catch (NumberFormatException ignored) {
+            }
+        });
+        this.addRenderableWidget(wheelSlotsField);
+        currentY += spacing;
+
         showKeybindsCheckbox = Checkbox.builder(Component.translatable("screen.coi.show_keybinds"), Minecraft.getInstance().font)
                 .pos(leftColumn, currentY)
                 .maxWidth(200).onValueChange((checkbox, checked) -> settings.showKeybinds = checked).selected(settings.showKeybinds)
@@ -332,6 +363,7 @@ public class HudSettingsScreen extends Screen {
         slotSizeField.setValue(String.valueOf(settings.slotSize));
         slotSpacingField.setValue(String.valueOf(settings.slotSpacing));
         hudScaleField.setValue(String.format("%.1f", settings.hudScale));
+        wheelSlotsField.setValue(String.valueOf(settings.wheelSlots));
 
         presetButton.setMessage(Component.translatable("screen.coi.preset").append(": " + PRESETS[currentPreset]));
     }
@@ -372,6 +404,10 @@ public class HudSettingsScreen extends Screen {
         labelY += spacing;
 
         graphics.text(this.font, Component.translatable("screen.coi.hud_scale"),
+                leftColumn, labelY - 15, 0xA0A0A0);
+        labelY += spacing;
+
+        graphics.text(this.font, Component.translatable("screen.coi.wheel_slots"),
                 leftColumn, labelY - 15, 0xA0A0A0);
 
         if (!settings.enabled) {

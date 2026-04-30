@@ -5,6 +5,7 @@
   "key.coi.ability4": "Здібність 4",
   "key.coi.ability5": "Здібність 5",
   "key.coi.ability6": "Здібність 6",
+  "key.coi.ability_wheel": "Колесо Здібностей",
   "key.coi.hud_settings": "Налаштування HUD",
   "category.coi.abilities": "Коло Уяви",
   "screen.coi.ability_binding": "Прив'язка Здібностей",
@@ -37,6 +38,8 @@
   "screen.coi.ability_choose": "Обрати Здібність",
   "screen.coi.hud_scale": "Масштаб HUD",
   "screen.coi.hud_scale_field": "Масштаб",
+  "screen.coi.wheel_slots": "Слотів у Колесі",
+  "screen.coi.wheel_slots_field": "Слотів",
   "screen.coi.show_keybinds": "Показувати Клавіші",
   "screen.coi.show_ability_names": "Показувати Назви Здібностей",
   "screen.coi.show_glow_effect": "Показувати Ефекти Світіння",
@@ -46,5 +49,12 @@
   "screen.coi.preset.tooltip": "Застосувати попередньо налаштовані конфігурації HUD",
   "screen.coi.hud_disabled_warning": "HUD наразі вимкнено",
   "screen.coi.effect_debug": "Візуальні ефекти (налагодження)",
-  "key.coi.effect_debug": "Відкрити меню налагодження ефектів"
+  "key.coi.effect_debug": "Відкрити меню налагодження ефектів",
+  "screen.coi.show_keybinds_mode": "Перейти до Клавіш",
+  "screen.coi.show_wheel_mode": "Перейти до Колеса Здібностей",
+  "screen.coi.wheel_bindings": "Прив'язки Колеса Здібностей",
+  "screen.coi.key_bindings": "Прив'язки Клавіш",
+  "screen.coi.wheel_slot": "Слот Колеса",
+  "screen.coi.empty_slot": "Порожньо",
+  "screen.coi.select_ability": "Оберіть Здібність"
 }

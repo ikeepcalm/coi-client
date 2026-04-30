@@ -15,8 +15,6 @@ public class AbilityHudOverlay {
     private static AbilitySlotWidget[] abilitySlots;
 
     public static void initialize() {
-        HudConfig.load();
-
         int maxAbilities = CircleOfImaginationClient.MAX_ABILITIES;
         abilitySlots = new AbilitySlotWidget[maxAbilities];
 

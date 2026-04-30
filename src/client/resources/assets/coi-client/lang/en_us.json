@@ -5,6 +5,7 @@
   "key.coi.ability4": "Ability 4",
   "key.coi.ability5": "Ability 5",
   "key.coi.ability6": "Ability 6",
+  "key.coi.ability_wheel": "Ability Wheel",
   "key.coi.hud_settings": "HUD Settings",
   "category.coi.abilities": "Circle of Imagination",
   "screen.coi.ability_binding": "Ability Bindings",
@@ -38,6 +39,8 @@
   "screen.coi.no_abilities_available": "No abilities available",
   "screen.coi.hud_scale": "HUD Scale",
   "screen.coi.hud_scale_field": "Scale",
+  "screen.coi.wheel_slots": "Wheel Slots",
+  "screen.coi.wheel_slots_field": "Slots",
   "screen.coi.show_keybinds": "Show Keybinds",
   "screen.coi.show_ability_names": "Show Ability Names",
   "screen.coi.show_glow_effect": "Show Glow Effects",
@@ -47,5 +50,12 @@
   "screen.coi.preset.tooltip": "Apply predefined HUD configurations",
   "screen.coi.hud_disabled_warning": "HUD is currently disabled",
   "screen.coi.effect_debug": "Visual Effects (Debug)",
-  "key.coi.effect_debug": "Open Effects Debug Menu"
+  "key.coi.effect_debug": "Open Effects Debug Menu",
+  "screen.coi.show_keybinds_mode": "Switch to Keybinds",
+  "screen.coi.show_wheel_mode": "Switch to Ability Wheel",
+  "screen.coi.wheel_bindings": "Ability Wheel Bindings",
+  "screen.coi.key_bindings": "Key Bindings",
+  "screen.coi.wheel_slot": "Wheel Slot",
+  "screen.coi.empty_slot": "Empty",
+  "screen.coi.select_ability": "Select an Ability"
 }

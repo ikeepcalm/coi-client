@@ -165,11 +165,7 @@ public class AbilityDropdownWidget extends AbstractWidget {
 
     @Override
     public void onClick(@NonNull MouseButtonEvent click, boolean doubled) {
-        Minecraft client = Minecraft.getInstance();
-        double mouseX = client.mouseHandler.xpos() * (double) client.getWindow().getGuiScaledWidth() / (double) client.getWindow().getScreenWidth();
-        double mouseY = client.mouseHandler.ypos() * (double) client.getWindow().getGuiScaledHeight() / (double) client.getWindow().getScreenHeight();
-
-        handleClick(mouseX, mouseY);
+        handleClick(click.x(), click.y());
     }
 
     protected void handleClick(double mouseX, double mouseY) {

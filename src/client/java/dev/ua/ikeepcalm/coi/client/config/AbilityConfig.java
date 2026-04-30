@@ -17,10 +17,13 @@ public class AbilityConfig {
             .getConfigDir()
             .resolve("coi_abilities.json");
 
-    public static void saveBindings(String[] abilities) {
+    public static void saveBindings(String[] abilities, String[] wheelAbilities) {
         JsonObject json = new JsonObject();
         for (int i = 0; i < abilities.length; i++) {
             json.addProperty("ability" + (i + 1), abilities[i]);
+        }
+        for (int i = 0; i < wheelAbilities.length; i++) {
+            json.addProperty("wheel" + (i + 1), wheelAbilities[i]);
         }
 
         try {
@@ -50,5 +53,27 @@ public class AbilityConfig {
         }
 
         return abilities;
+    }
+
+    public static String[] loadWheelBindings() {
+        int wheelSize = CircleOfImaginationClient.MAX_WHEEL_SIZE;
+        String[] wheelAbilities = new String[wheelSize];
+
+        if (Files.exists(CONFIG_PATH)) {
+            try {
+                String content = Files.readString(CONFIG_PATH);
+                JsonObject json = GSON.fromJson(content, JsonObject.class);
+
+                for (int i = 0; i < wheelSize; i++) {
+                    String key = "wheel" + (i + 1);
+                    wheelAbilities[i] = json.has(key) && !json.get(key).isJsonNull() ?
+                            json.get(key).getAsString() : null;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return wheelAbilities;
     }
 }

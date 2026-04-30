@@ -3,10 +3,12 @@ package dev.ua.ikeepcalm.coi.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
 import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
 import dev.ua.ikeepcalm.coi.client.network.*;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
+import dev.ua.ikeepcalm.coi.client.screen.AbilityWheelScreen;
 import dev.ua.ikeepcalm.coi.client.screen.EffectDebugScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -29,21 +31,26 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
     // Configurable maximum number of abilities (change this to support more abilities)
     public static final int MAX_ABILITIES = 6;
+    public static final int MAX_WHEEL_SIZE = 16;
 
     private static final List<String> availableAbilities = new ArrayList<>();
     private static final Map<String, AbilityInfo> abilityInfoMap = new HashMap<>();
 
     private static String[] boundAbilities = new String[MAX_ABILITIES];
+    private static String[] wheelAbilities = new String[MAX_WHEEL_SIZE];
 
     public static KeyMapping[] abilityKeys = new KeyMapping[MAX_ABILITIES];
     public static KeyMapping abilityMenu;
+    public static KeyMapping abilityWheel;
     public static KeyMapping effectDebugMenu; // null when not in dev environment
 
-    private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 2];
+    private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 3];
 
     @Override
     public void onInitializeClient() {
+        HudConfig.load();
         boundAbilities = AbilityConfig.loadBindings();
+        wheelAbilities = AbilityConfig.loadWheelBindings();
         registerPayloads();
         registerKeybindings();
         registerTickHandler();
@@ -99,6 +106,13 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 category
         ));
 
+        abilityWheel = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.coi.ability_wheel",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_G,
+                category
+        ));
+
         if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
             effectDebugMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "screen.coi.effect_debug",
@@ -120,6 +134,13 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             handleKeyPress(MAX_ABILITIES, abilityMenu, client);
             if (effectDebugMenu != null) {
                 handleKeyPress(MAX_ABILITIES + 1, effectDebugMenu, client);
+            }
+
+            // Enhanced Ability Wheel trigger logic
+            if (abilityWheel.isDown()) {
+                if (client.screen == null) {
+                    client.setScreen(new AbilityWheelScreen());
+                }
             }
         });
     }
@@ -227,8 +248,27 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             }
         }
 
+        for (int i = 0; i < MAX_WHEEL_SIZE; i++) {
+            if (wheelAbilities[i] == null) continue;
+
+            String boundId = AbilityInfo.extractId(wheelAbilities[i]);
+            String freshEntry = availableAbilities.stream()
+                    .filter(a -> a.startsWith(boundId + " - "))
+                    .findFirst()
+                    .orElse(null);
+
+            if (freshEntry == null) {
+                System.out.println("COI Client: Clearing invalid wheel ability: " + wheelAbilities[i]);
+                wheelAbilities[i] = null;
+                needsSave = true;
+            } else if (!freshEntry.equals(wheelAbilities[i])) {
+                wheelAbilities[i] = freshEntry;
+                needsSave = true;
+            }
+        }
+
         if (needsSave) {
-            AbilityConfig.saveBindings(boundAbilities);
+            AbilityConfig.saveBindings(boundAbilities, wheelAbilities);
         }
     }
 
@@ -247,9 +287,49 @@ public class CircleOfImaginationClient implements ClientModInitializer {
     public static void setBoundAbility(int slot, String abilityId) {
         if (slot >= 0 && slot < MAX_ABILITIES) {
             boundAbilities[slot] = abilityId;
-            AbilityConfig.saveBindings(boundAbilities);
+            AbilityConfig.saveBindings(boundAbilities, wheelAbilities);
             AbilityHudOverlay.updateAbilitySlot(slot, abilityId);
         }
+    }
+
+    public static String getWheelAbility(int slot) {
+        if (slot >= 0 && slot < MAX_WHEEL_SIZE) {
+            return wheelAbilities[slot];
+        }
+        return null;
+    }
+
+    public static void setWheelAbility(int slot, String abilityId) {
+        if (slot >= 0 && slot < MAX_WHEEL_SIZE) {
+            wheelAbilities[slot] = abilityId;
+            AbilityConfig.saveBindings(boundAbilities, wheelAbilities);
+        }
+    }
+
+    public static int getWheelSize() {
+        return HudConfig.getSettings().wheelSlots;
+    }
+
+    public static boolean isKeyDown(KeyMapping keyBinding) {
+        if (keyBinding == null || keyBinding.isUnbound()) return false;
+
+        Minecraft client = Minecraft.getInstance();
+        if (client.getWindow() == null) return false;
+        
+        long window = client.getWindow().handle();
+        InputConstants.Key key = KeyMappingHelper.getBoundKeyOf(keyBinding);
+
+        if (key.getType() == InputConstants.Type.KEYSYM) {
+            return GLFW.glfwGetKey(window, key.getValue()) != GLFW.GLFW_RELEASE;
+        } else if (key.getType() == InputConstants.Type.MOUSE) {
+            return GLFW.glfwGetMouseButton(window, key.getValue()) != GLFW.GLFW_RELEASE;
+        }
+
+        return false;
+    }
+
+    public static void useAbilityById(String abilityIdWithName) {
+        useAbility(abilityIdWithName);
     }
 
     public static int getMaxAbilities() {
