@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.ua.ikeepcalm.coi.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LoadingOverlayMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

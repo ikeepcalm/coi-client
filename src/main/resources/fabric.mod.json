@@ -25,5 +25,9 @@
     "minecraft": "~26.1.2",
     "java": ">=25",
     "fabric-api": "*"
-  }
+  },
+  "mixins": [
+    "coi-client.mixins.json",
+    "coi-client.client.mixins.json"
+  ]
 }
