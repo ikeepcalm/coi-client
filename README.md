@@ -6,24 +6,26 @@ A Minecraft Fabric mod that adds a customizable ability system to Minecraft, all
 
 ## Features
 
-- **Ability System**: Bind up to 3 different abilities to customizable keybindings
+- **Ability System**: Bind up to 6 different abilities to customizable keybindings (Z, X, C, V, B, N)
+- **Ability Wheel**: Quick access to abilities via an interactive wheel (G)
 - **Visual HUD**: Displays your bound abilities with cooldown timers and visual effects
+- **Visual Effects System**: Supports server-triggered visual effects like vignettes, heartbeats, and screen cracks
 - **Customizable Interface**: Adjust the HUD position, size, spacing, and visual elements
 - **Easy Configuration**: Simple in-game menu for binding abilities and adjusting settings
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.4
-2. Download the latest version of Fabric API for 1.21.4
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.1+
+2. Download the latest version of Fabric API
 3. Download the latest version of COI Client
 4. Place both the Fabric API and COI Client jar files in your Minecraft `mods` folder
 5. Launch Minecraft with the Fabric profile
 
 ### Requirements
 
-- Minecraft 1.21.4
+- Minecraft 1.21.1+
 - Fabric Loader 0.16.10+
-- Fabric API 0.119.3+1.21.4
+- Fabric API 0.119.3+
 
 ## Usage
 
@@ -31,28 +33,27 @@ A Minecraft Fabric mod that adds a customizable ability system to Minecraft, all
 
 The mod comes with the following default keybindings:
 
-- **Z**: Use ability in slot 1
-- **X**: Use ability in slot 2
-- **C**: Use ability in slot 3
-- **K**: Open ability binding menu
+- **Z, X, C, V, B, N**: Use abilities in slots 1–6
+- **G**: Open Ability Wheel
+- **K**: Open Ability Binding menu
 
-You can change these keybindings in the Minecraft controls settings.
+You can change these keybindings in the Minecraft controls settings under the "Circle of Imagination" category.
 
 ### Binding Abilities
 
 1. Press **K** to open the ability binding menu
 2. Select an ability from the dropdown for each slot
-3. Click "Save" to apply your changes
-4. Use the abilities in-game with the corresponding keybindings
+3. Access HUD settings via the button in the binding menu to customize your interface
+4. Click "Save" to apply your changes
+5. Use the abilities in-game with the corresponding keybindings or the Ability Wheel (G)
 
-### HUD Display
+### Visual Effects
 
-The ability HUD displays:
-- Icons for each bound ability
-- Cooldown timers when abilities are on cooldown
-- Keybinding indicators
-- Ability names (optional)
-- Visual effects when abilities are ready (optional)
+The client supports various visual effects triggered by the server:
+- **Vignette & Heartbeat**: Health and status indicators
+- **Cracks & Glitch**: Damage and sanity effects
+- **Blood Rain & Frost**: Environmental and status effects
+- **Whispers & Tunnel**: Mental state effects
 
 ## Configuration
 
@@ -80,17 +81,11 @@ Allows customization of the HUD display:
 
 #### HUD Settings Screen
 
-Access the HUD settings screen through the game options menu. This screen provides:
+Access the HUD settings screen through the button in the **Ability Binding (K)** menu. This screen provides:
 
 - Sliders and input fields for precise adjustment of all HUD parameters
 - Toggles for visual elements (keybinds, ability names, glow effects)
-- Built-in presets for quick configuration:
-  - **Default**: Standard balanced layout
-  - **Compact**: Smaller, minimalist design for less screen space
-  - **Large**: Bigger elements for better visibility
-  - **Minimal**: Smallest possible footprint with minimal visual elements
-
-You can adjust these settings in-game through the HUD settings screen or manually edit the configuration files.
+- Built-in presets for quick configuration (Default, Compact, Large, Minimal)
 
 ## Development
 
@@ -109,7 +104,3 @@ Copyright (c) 2025 ikeepcaIm. All rights reserved.
 - Developed by ikeepcaIm
 - Built with [Fabric](https://fabricmc.net/)
 - Special thanks to the Minecraft modding community
-
-## Support
-
-If you encounter any issues or have suggestions, please open an issue on the project repository.

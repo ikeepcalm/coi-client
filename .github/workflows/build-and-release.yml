@@ -63,35 +63,34 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: 'Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}'
+          name: 'Circle of Imagination Client ${{ steps.version.outputs.VERSION }}'
           body: |
-            ## Circle of Imagination Client Mod ${{ steps.version.outputs.VERSION }}
+            ## Circle of Imagination Client ${{ steps.version.outputs.VERSION }}
             
             ### Features
-            - MOBA-style ability HUD overlay
-            - Configurable keybinds for abilities (Z, X, C keys, customizable)
-            - Real-time cooldown tracking and animations
-            - Customizable HUD positioning and appearance
-            - Support for all pathway ability types
-            
-            ### Installation
-            1. Install [Fabric Loader](https://fabricmc.net/use/)
-            2. Download and place this mod in your `mods` folder
-            3. Launch Minecraft and enjoy enhanced ability casting!
+            - **6 Ability Slots**: Now supports up to 6 bound abilities (Z, X, C, V, B, N).
+            - **Ability Wheel**: Quick access to your abilities using the **G** key.
+            - **Visual Effects**: Implemented a robust system for server-triggered effects (Vignette, Heartbeat, Cracks, Glitch, Blood Rain, Frost, etc.).
+            - **Customizable HUD**: Modern overlay with real-time cooldown tracking and smooth animations.
+            - **In-game Configuration**: Easy-to-use screens for ability binding and HUD customization.
             
             ### Controls
-            - **Z, X, C**: Cast bound abilities
-            - **K**: Open ability binding menu
-            - **H**: Open HUD settings
+            - **Z, X, C, V, B, N**: Use abilities in slots 1–6.
+            - **G**: Open the interactive Ability Wheel.
+            - **K**: Open the Ability Binding menu (where you can also access HUD settings).
+            
+            ### Installation
+            1. Ensure you have [Fabric Loader](https://fabricmc.net/use/) installed for Minecraft 1.21.1+.
+            2. Place this mod jar in your `.minecraft/mods` folder.
+            3. (Optional) Install Fabric API if not already present.
             
             ### Requirements
-            - Minecraft 1.21+
+            - Minecraft 1.21.1+
             - Fabric Loader
-            - Circle of Imagination server plugin
+            - Circle of Imagination server-side plugin/mod
             
             ---
-            
-            **Download:** `${{ steps.find_jar.outputs.JAR_NAME }}`
+            **Build Artifact:** `${{ steps.find_jar.outputs.JAR_NAME }}`
           files: ${{ steps.find_jar.outputs.JAR_PATH }}
           draft: false
           prerelease: false
