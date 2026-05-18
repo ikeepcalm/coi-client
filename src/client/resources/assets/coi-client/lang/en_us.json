@@ -44,6 +44,7 @@
   "screen.coi.show_keybinds": "Show Keybinds",
   "screen.coi.show_ability_names": "Show Ability Names",
   "screen.coi.show_glow_effect": "Show Glow Effects",
+  "screen.coi.epilepsy_mode": "Epilepsy Safe Mode",
   "screen.coi.reset_defaults": "Reset",
   "screen.coi.reset_defaults.tooltip": "Reset all settings to default values",
   "screen.coi.preset": "Preset",

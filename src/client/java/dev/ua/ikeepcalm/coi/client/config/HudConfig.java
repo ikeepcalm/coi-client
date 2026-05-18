@@ -29,6 +29,7 @@ public class HudConfig {
         public boolean showGlowEffect = true;
         public float hudScale = 1.0f;
         public int wheelSlots = 8;
+        public boolean epilepsyMode = false;
     }
 
     public static void load() {
@@ -47,6 +48,7 @@ public class HudConfig {
                 settings.showGlowEffect = !json.has("showGlowEffect") || json.get("showGlowEffect").getAsBoolean();
                 settings.hudScale = json.has("hudScale") ? json.get("hudScale").getAsFloat() : 1.0f;
                 settings.wheelSlots = json.has("wheelSlots") ? json.get("wheelSlots").getAsInt() : 8;
+                settings.epilepsyMode = json.has("epilepsyMode") && json.get("epilepsyMode").getAsBoolean();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -67,6 +69,7 @@ public class HudConfig {
         json.addProperty("showGlowEffect", settings.showGlowEffect);
         json.addProperty("hudScale", settings.hudScale);
         json.addProperty("wheelSlots", settings.wheelSlots);
+        json.addProperty("epilepsyMode", settings.epilepsyMode);
 
         try {
             Files.writeString(CONFIG_PATH, GSON.toJson(json));

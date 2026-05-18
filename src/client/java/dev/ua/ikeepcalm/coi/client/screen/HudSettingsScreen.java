@@ -22,6 +22,7 @@ public class HudSettingsScreen extends Screen {
     private Checkbox showKeybindsCheckbox;
     private Checkbox showAbilityNamesCheckbox;
     private Checkbox showGlowEffectCheckbox;
+    private Checkbox epilepsyModeCheckbox;
 
     private EditBox hudXField;
     private EditBox hudYOffsetField;
@@ -53,6 +54,7 @@ public class HudSettingsScreen extends Screen {
         to.showGlowEffect = from.showGlowEffect;
         to.hudScale = from.hudScale;
         to.wheelSlots = from.wheelSlots;
+        to.epilepsyMode = from.epilepsyMode;
     }
 
     @Override
@@ -276,6 +278,14 @@ public class HudSettingsScreen extends Screen {
                 .build();
 
         this.addRenderableWidget(showGlowEffectCheckbox);
+        currentY += 25;
+
+        epilepsyModeCheckbox = Checkbox.builder(Component.translatable("screen.coi.epilepsy_mode"), Minecraft.getInstance().font)
+                .pos(leftColumn, currentY)
+                .maxWidth(200).onValueChange((checkbox, checked) -> settings.epilepsyMode = checked).selected(settings.epilepsyMode)
+                .build();
+
+        this.addRenderableWidget(epilepsyModeCheckbox);
 
         int buttonY = this.height - Math.max(40, this.height / 10);
         int buttonWidth = Math.min(100, this.width / 8);
@@ -373,6 +383,7 @@ public class HudSettingsScreen extends Screen {
         settings.showKeybinds = showKeybindsCheckbox.selected();
         settings.showAbilityNames = showAbilityNamesCheckbox.selected();
         settings.showGlowEffect = showGlowEffectCheckbox.selected();
+        settings.epilepsyMode = epilepsyModeCheckbox.selected();
 
         HudConfig.setSettings(settings);
     }

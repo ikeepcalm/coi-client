@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.effects;
 
+import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.effects.impl.*;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -7,6 +8,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
+
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -34,12 +36,16 @@ public class EffectManager {
         REGISTRY.put(id, factory);
     }
 
+    private static final Set<String> PHOTOSENSITIVE_EFFECTS = Set.of(FlashEffect.ID, GlitchEffect.ID, HeartbeatEffect.ID);
+
     /**
      * Trigger an effect by id. Special cases:
      * params = "stop"   → remove this specific effect
      * effectId = "all"  → stop all active effects (params ignored)
      */
     public static void trigger(String effectId, String params) {
+        if (HudConfig.getSettings().epilepsyMode && PHOTOSENSITIVE_EFFECTS.contains(effectId)) return;
+
         if ("all".equals(effectId)) {
             stopAll();
             return;

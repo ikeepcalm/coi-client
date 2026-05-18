@@ -43,6 +43,7 @@
   "screen.coi.show_keybinds": "Показувати Клавіші",
   "screen.coi.show_ability_names": "Показувати Назви Здібностей",
   "screen.coi.show_glow_effect": "Показувати Ефекти Світіння",
+  "screen.coi.epilepsy_mode": "Режим безпеки без спалахів",
   "screen.coi.reset_defaults": "Скинути",
   "screen.coi.reset_defaults.tooltip": "Скинути всі налаштування до значень за замовчуванням",
   "screen.coi.preset": "Шаблон",
