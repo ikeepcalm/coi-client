@@ -12,7 +12,8 @@ import java.nio.file.Path;
 /**
  * Small persistent scratch state that survives sessions — the last-known
  * madness values (so the title screen remembers how corrupted the player
- * was when they logged off) and whether the first-join tour has been shown.
+ * was when they logged off), whether the first-join tour has been shown, and
+ * whether the inventory hint has been dismissed.
  * State, not preference: it deliberately survives resets of coi_hud.json.
  */
 public class ClientStateStore {
@@ -25,6 +26,7 @@ public class ClientStateStore {
     private static double lastPermanentMadness = 0.0;
     private static double lastMadness = 0.0;
     private static boolean tourCompleted = false;
+    private static boolean inventoryHintDismissed = false;
 
     public static void load() {
         if (!Files.exists(STATE_PATH)) return;
@@ -39,6 +41,9 @@ public class ClientStateStore {
             }
             if (json.has("tourCompleted")) {
                 tourCompleted = json.get("tourCompleted").getAsBoolean();
+            }
+            if (json.has("inventoryHintDismissed")) {
+                inventoryHintDismissed = json.get("inventoryHintDismissed").getAsBoolean();
             }
         } catch (Exception e) {
             System.err.println("COI Client: Failed to read client state");
@@ -80,8 +85,8 @@ public class ClientStateStore {
         return Math.max(lastMadness, lastPermanentMadness);
     }
 
-    public static boolean isTourCompleted() {
-        return tourCompleted;
+    public static boolean isTourNotCompleted() {
+        return !tourCompleted;
     }
 
     public static void setTourCompleted(boolean value) {
@@ -90,11 +95,27 @@ public class ClientStateStore {
         save();
     }
 
+    /**
+     * Whether the player has already been told the slot-9 shortcut item is
+     * gone. Answered once and then never again — which is why it lives here
+     * rather than in coi_hud.json, where a reset would bring the hint back.
+     */
+    public static boolean isInventoryHintDismissed() {
+        return inventoryHintDismissed;
+    }
+
+    public static void setInventoryHintDismissed(boolean value) {
+        if (inventoryHintDismissed == value) return;
+        inventoryHintDismissed = value;
+        save();
+    }
+
     private static void save() {
         JsonObject json = new JsonObject();
         json.addProperty("lastPermanentMadness", lastPermanentMadness);
         json.addProperty("lastMadness", lastMadness);
         json.addProperty("tourCompleted", tourCompleted);
+        json.addProperty("inventoryHintDismissed", inventoryHintDismissed);
         try {
             Files.writeString(STATE_PATH, GSON.toJson(json));
         } catch (IOException e) {

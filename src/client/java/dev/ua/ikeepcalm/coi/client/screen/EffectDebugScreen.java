@@ -1,10 +1,19 @@
 package dev.ua.ikeepcalm.coi.client.screen;
 
+import dev.ua.ikeepcalm.coi.client.ClientActingState;
+import dev.ua.ikeepcalm.coi.client.ClientActionBarState;
 import dev.ua.ikeepcalm.coi.client.ClientBeyonderState;
+import dev.ua.ikeepcalm.coi.client.ClientCogitationState;
+import dev.ua.ikeepcalm.coi.client.ClientNotificationState;
+import dev.ua.ikeepcalm.coi.client.ClientResourceState;
+import dev.ua.ikeepcalm.coi.client.ClientSheetState;
+import dev.ua.ikeepcalm.coi.client.ClientTargetState;
 import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
 import dev.ua.ikeepcalm.coi.client.effects.VisualEffect;
 import dev.ua.ikeepcalm.coi.client.effects.impl.ImpactFrameEffect;
 import dev.ua.ikeepcalm.coi.client.mcf.MythicalFormManager;
+import dev.ua.ikeepcalm.coi.client.menu.ClientMenuState;
+import dev.ua.ikeepcalm.coi.client.screen.menu.MenuScreen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -27,11 +36,20 @@ public class EffectDebugScreen extends Screen {
     private static final int ROW_H = 26;
     private static final int BTN_W = 80;
     private static final int PANEL_W = 440;
+    /**
+     * Default max for the debug bar, so the buttons do something useful before
+     * a server has ever sent a real one.
+     */
+    private static final int DEBUG_MAX_SPIRIT = 1000;
 
     private final Screen parent;
     private final List<EffectRow> rows = new ArrayList<>();
     private EditBox paramsField;
     private int madnessRowY;
+    private int spiritRowY;
+    private int actingRowY;
+    private int overlayRowY;
+    private int resourceRowY;
 
     public EffectDebugScreen(Screen parent) {
         super(Component.literal("Visual Effects — Debug"));
@@ -77,6 +95,43 @@ public class EffectDebugScreen extends Screen {
                 ClientBeyonderState.getFreezeStacks(),
                 ClientBeyonderState.getMentalPressure(),
                 ClientBeyonderState.getTiredness());
+    }
+
+    /**
+     * Fills every row the character plate can show, so it can be judged without
+     * a server: an identity for the header, a madness value for the sanity
+     * gauge with a permanent floor to cap it, an acting grant and its cooldown
+     * for the mask row, and the two fake resource meters for the reserves.
+     */
+    private static void seedPlate() {
+        if (!ClientBeyonderState.hasIdentity()) ClientBeyonderState.updateIdentity("fool", 5);
+        if (ClientBeyonderState.getMadness() <= 0) setMadness(38);
+        if (ClientBeyonderState.getPermanentMadness() <= 0) addPermMadness(12);
+        ClientActingState.debugGrant(10);
+        ClientActingState.debugCooldown(252);
+        ClientResourceState.debugInject();
+    }
+
+    /**
+     * A Sequence-0 sized pool, so the readout has to solve the four-digit
+     * fitting problem the bar was written for.
+     */
+    private static final double DEBUG_MAX_HEALTH = 1750;
+
+    private static int debugMaxSpirit() {
+        int max = ClientBeyonderState.getMaxSpirituality();
+        return max > 0 ? max : DEBUG_MAX_SPIRIT;
+    }
+
+    private static void addSpirit(int delta) {
+        int max = debugMaxSpirit();
+        int current = Math.clamp(ClientBeyonderState.getSpirituality() + delta, 0, max);
+        ClientBeyonderState.updateSpirituality(current, max, current < max);
+    }
+
+    private static void setSpiritMax(int max) {
+        int current = Math.min(ClientBeyonderState.getSpirituality(), max);
+        ClientBeyonderState.updateSpirituality(current, max, current < max);
     }
 
     @Override
@@ -149,6 +204,72 @@ public class EffectDebugScreen extends Screen {
                 .bounds(panelX + 246, madnessRowY, 50, 20).build());
         y += 26;
 
+        // Spirituality debug controls — drive the spirituality bar with no server
+        spiritRowY = y;
+        addRenderableWidget(Button.builder(Component.literal("Spirit -50"), btn -> addSpirit(-50))
+                .bounds(panelX, spiritRowY, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Spirit +50"), btn -> addSpirit(50))
+                .bounds(panelX + 74, spiritRowY, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Spirit Full"), btn -> addSpirit(debugMaxSpirit()))
+                .bounds(panelX + 148, spiritRowY, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Max 1000"), btn -> setSpiritMax(DEBUG_MAX_SPIRIT))
+                .bounds(panelX + 222, spiritRowY, 70, 20).build());
+        y += 26;
+
+        // Acting debug controls
+        actingRowY = y;
+        addRenderableWidget(Button.builder(Component.literal("Acting +10%"), btn -> ClientActingState.debugGrant(10))
+                .bounds(panelX, actingRowY, 80, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Acting CD 5m"), btn -> ClientActingState.debugCooldown(300))
+                .bounds(panelX + 84, actingRowY, 80, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Acting reset"), btn -> ClientActingState.reset())
+                .bounds(panelX + 168, actingRowY, 80, 20).build());
+        y += 26;
+
+        // Batch 3 overlays — action bar, target health, cogitation, toasts
+        overlayRowY = y;
+        addRenderableWidget(Button.builder(Component.literal("ActionBar"), btn -> ClientActionBarState.debugInject(3000))
+                .bounds(panelX, overlayRowY, 80, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Target"), btn -> ClientTargetState.debugHit())
+                .bounds(panelX + 84, overlayRowY, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Cogitate"), btn -> ClientCogitationState.debugPrompt())
+                .bounds(panelX + 158, overlayRowY, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Toast"), btn -> ClientNotificationState.debugToast())
+                .bounds(panelX + 232, overlayRowY, 60, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Sheet"), btn -> {
+            // Fake payload first, so the sheet has something to draw offline;
+            // CharacterSheetScreen itself never sends to a server we aren't on.
+            ClientSheetState.debugInject();
+            minecraft.gui.setScreen(new CharacterSheetScreen(this));
+        }).bounds(panelX + 296, overlayRowY, 60, 20).build());
+        // Same idea for the declarative menus: the sample document covers every
+        // component type, so the renderer can be judged with no server attached
+        addRenderableWidget(Button.builder(Component.literal("Menu"), btn -> {
+            ClientMenuState.debugInject();
+            minecraft.gui.setScreen(new MenuScreen(this));
+        }).bounds(panelX + 360, overlayRowY, 76, 20).build());
+        y += 26;
+
+        // Resource meters — the overlay row above is full, so these get their own
+        resourceRowY = y;
+        addRenderableWidget(Button.builder(Component.literal("Resource"), btn -> ClientResourceState.debugInject())
+                .bounds(panelX, resourceRowY, 80, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Res clear"), btn -> ClientResourceState.debugClear())
+                .bounds(panelX + 84, resourceRowY, 70, 20).build());
+        // The pool bar only replaces the hearts once a server has named a
+        // maximum; these two stand in for that one conditions key. The current
+        // value needs no button - it is derived from vanilla health, so taking
+        // real damage in the dev world moves the bar
+        addRenderableWidget(Button.builder(Component.literal("HP pool"), btn -> ClientBeyonderState.updateMaxHealth(DEBUG_MAX_HEALTH))
+                .bounds(panelX + 158, resourceRowY, 65, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("HP clear"), btn -> ClientBeyonderState.updateMaxHealth(0))
+                .bounds(panelX + 227, resourceRowY, 65, 20).build());
+        // The plate needs an identity, a madness value, acting and a resource
+        // before it draws more than a header, so one button seeds all four
+        addRenderableWidget(Button.builder(Component.literal("Plate sample"), btn -> seedPlate())
+                .bounds(panelX + 296, resourceRowY, 80, 20).build());
+        y += 26;
+
         int formY = y;
         java.util.List<String> forms = MythicalFormManager.getRegisteredPathwayNames();
         String currentForm = minecraft.player != null ? MythicalFormManager.getForm(minecraft.player.getUUID().toString()) : null;
@@ -201,7 +322,7 @@ public class EffectDebugScreen extends Screen {
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         // Semi-transparent panel behind controls (no blur — world is still rendering)
         int panelX = (this.width - PANEL_W) / 2;
-        int panelH = 50 + EffectManager.getRegistry().size() * ROW_H + 34 + 26 + 26 + 26;
+        int panelH = 50 + EffectManager.getRegistry().size() * ROW_H + 34 + 26 + 26 + 26 + 26 + 26 + 26 + 26;
         graphics.fill(panelX - 8, 8, panelX + PANEL_W + 8, 8 + panelH, 0xCC000000);
 
         super.extractRenderState(graphics, mouseX, mouseY, a);
@@ -230,6 +351,28 @@ public class EffectDebugScreen extends Screen {
                 m, stage, ClientBeyonderState.getPermanentMadness());
         graphics.text(font, Component.literal(madnessLabel).withStyle(ChatFormatting.LIGHT_PURPLE),
                 panelX + 300, madnessRowY + 6, 0xFFFFFFFF);
+
+        // Live spirituality readout next to its own row
+        String spiritLabel = ClientBeyonderState.hasSpiritualityData()
+                ? String.format("Spirit %d / %d", ClientBeyonderState.getSpirituality(), ClientBeyonderState.getMaxSpirituality())
+                : "Spirit — no data";
+        graphics.text(font, Component.literal(spiritLabel).withStyle(ChatFormatting.AQUA),
+                panelX + 300, spiritRowY + 6, 0xFFFFFFFF);
+
+        // Label for the overlay test row
+        graphics.text(font, Component.literal("Overlays").withStyle(ChatFormatting.GRAY),
+                panelX + 300, overlayRowY + 6, 0xFFFFFFFF);
+
+        // Live acting readout
+        String actingLabel = ClientActingState.hasData()
+                ? String.format("Acting %.1f%% \u00B7 CD %s", ClientActingState.getPercent(), ClientActingState.cooldownClock())
+                : "Acting \u2014 no data";
+        graphics.text(font, Component.literal(actingLabel).withStyle(ChatFormatting.GOLD),
+                panelX + 260, actingRowY + 6, 0xFFFFFFFF);
+
+        // Live resource-bar count
+        graphics.text(font, Component.literal("Resource bars: " + ClientResourceState.visible().size()).withStyle(ChatFormatting.GRAY),
+                panelX + 160, resourceRowY + 6, 0xFFFFFFFF);
     }
 
     @Override

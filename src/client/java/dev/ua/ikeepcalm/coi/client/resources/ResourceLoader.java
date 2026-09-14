@@ -4,6 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.ua.ikeepcalm.coi.client.hud.PlateSymbols;
+import dev.ua.ikeepcalm.coi.util.CoiIcons;
+import dev.ua.ikeepcalm.coi.util.IconModels;
 import net.minecraft.ChatFormatting;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.PreparableReloadListener;
@@ -55,6 +58,11 @@ public class ResourceLoader extends SimplePreparableReloadListener<Map<Identifie
     protected void apply(Map<Identifier, JsonElement> prepared, @NonNull ResourceManager resourceManager, @NonNull ProfilerFiller profiler) {
         ingredientLookup.clear();
         pathwayColors.clear();
+        // A different pack may define (or stop defining) per-ability item models
+        IconModels.clearCache();
+        // ...or the character plate's gauge symbols
+        PlateSymbols.clearCache();
+        CoiIcons.clearCache();
 
         prepared.forEach((_, element) -> {
             if (element.isJsonObject() && element.getAsJsonObject().has("pathways")) {

@@ -4,14 +4,18 @@ import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.effects.impl.EffectPaint;
+import dev.ua.ikeepcalm.coi.util.AbilityIcons;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+
+import java.util.Objects;
 
 public class AbilitySlotWidget {
 
@@ -27,10 +31,26 @@ public class AbilitySlotWidget {
     private static final int KEYBIND_BACKGROUND = 0xC0000000;
     private static final int ABILITY_NAME_COLOR = 0xFFE0E0E0;
     private static final int SHADOW_COLOR = 0x60000000;
+    private static final int TOGGLE_COLOR = 0xFF55FFFF;
+    private static final int LOCKED_TINT = 0x80FF3030;
+    private static final int LOCKED_NAME_COLOR = 0xFFFF5555;
     private final int slotIndex;
     private String abilityId;
     private String abilityName;
-    private String category;
+    /**
+     * Server-known metadata for the bound ability; null on protocol-1 servers
+     * and for ids the server has never described.
+     */
+    private AbilityInfo info;
+    /**
+     * Toggle state pushed by {@code coi-client:state} (or the v2 ability list).
+     */
+    private boolean toggled;
+    /**
+     * Localized name of the ability's current category, for the abilities that
+     * switch between several.
+     */
+    private String categoryLabel;
     private int cooldownTicks;
     private int maxCooldownTicks;
     private long lastUseTime;
@@ -97,6 +117,10 @@ public class AbilitySlotWidget {
 
         if (settings.showKeybinds) {
             renderKeybind(context, textRenderer, x, y, size);
+        }
+
+        if (toggled) {
+            renderToggleState(context, textRenderer, x, y, size, now, settings.epilepsyMode);
         }
 
         renderReadyFlash(context, x, y, size, now);
@@ -189,21 +213,38 @@ public class AbilitySlotWidget {
 
     private void renderAbilityIcon(GuiGraphicsExtractor context, int x, int y, int size) {
         if (abilityId == null) return;
-        String id = AbilityInfo.extractId(abilityId);
 
         int iconX = x + 3;
         int iconY = y + 3;
         int iconSize = size - 6;
 
-        // Pathway-colored background behind the icon
-        int pathwayColor = AbilityInfo.pathwayColor(id);
-        context.fill(iconX, iconY, iconX + iconSize, iconY + iconSize, pathwayColor);
+        AbilityIcons.draw(context, abilityId, iconX, iconY, iconSize, 255);
 
-        // Category texture
-        String cat = (category != null && !category.isEmpty()) ? category.toLowerCase() : "uncategorized";
-        String tier = AbilityInfo.tierOf(id);
-        Identifier texture = Identifier.fromNamespaceAndPath("coi-client", "textures/icons/" + cat + "/" + tier + ".png");
-        context.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0, 0, iconSize, iconSize, iconSize, iconSize);
+        // An ability the server says we may not cast reads as bloodied over
+        if (isUnavailable()) {
+            context.fill(iconX, iconY, iconX + iconSize, iconY + iconSize, LOCKED_TINT);
+        }
+    }
+
+    /**
+     * Cyan outline plus an "ON" tag for an ability the server reports as
+     * currently active - the HUD's answer to 405 STATUS action-bar messages.
+     */
+    private void renderToggleState(GuiGraphicsExtractor context, Font font, int x, int y, int size,
+                                   long now, boolean epilepsyMode) {
+        float pulse = epilepsyMode ? 1f : 0.72f + 0.28f * (float) Math.sin(now * 0.003);
+        int color = EffectPaint.argb(TOGGLE_COLOR, (int) (255 * pulse));
+        context.outline(x - 1, y - 1, size + 2, size + 2, color);
+        context.outline(x - 2, y - 2, size + 4, size + 4, EffectPaint.argb(TOGGLE_COLOR, (int) (90 * pulse)));
+
+        String tag = I18n.get("hud.coi.toggle_on");
+        int tagW = font.width(tag) + 4;
+        context.fill(x + 1, y + 1, x + 1 + tagW, y + 11, KEYBIND_BACKGROUND);
+        context.text(font, tag, x + 3, y + 2, color, true);
+    }
+
+    private boolean isUnavailable() {
+        return info != null && info.isUnavailable();
     }
 
 
@@ -266,6 +307,9 @@ public class AbilitySlotWidget {
         String displayName = AbilityInfo.extractDisplayName(abilityId);
         if (displayName == null) return;
 
+        if (categoryLabel != null && !categoryLabel.isEmpty()) {
+            displayName = displayName + " \u00B7 " + categoryLabel;
+        }
         if (displayName.length() > 12) {
             displayName = displayName.substring(0, 12) + "...";
         }
@@ -275,7 +319,12 @@ public class AbilitySlotWidget {
         int textY = y + size + 3;
 
         context.text(textRenderer, displayName, textX + 1, textY + 1, 0x80000000, false);
-        context.text(textRenderer, displayName, textX, textY, ABILITY_NAME_COLOR, true);
+        if (isUnavailable()) {
+            Component struck = Component.literal(displayName).withStyle(ChatFormatting.STRIKETHROUGH);
+            context.text(textRenderer, struck, textX, textY, LOCKED_NAME_COLOR, true);
+        } else {
+            context.text(textRenderer, displayName, textX, textY, ABILITY_NAME_COLOR, true);
+        }
     }
 
     private void renderKeybind(GuiGraphicsExtractor context, Font textRenderer, int x, int y, int size) {
@@ -313,13 +362,15 @@ public class AbilitySlotWidget {
 
     public void setAbility(String abilityId) {
         this.abilityId = abilityId;
+        this.categoryLabel = null;
         if (abilityId != null && abilityId.contains(" - ")) {
-            AbilityInfo info = CircleOfImaginationClient.getAbilityInfo(AbilityInfo.extractId(abilityId));
+            this.info = CircleOfImaginationClient.getAbilityInfo(AbilityInfo.extractId(abilityId));
             this.abilityName = AbilityInfo.extractDisplayName(abilityId);
-            this.category = info != null ? info.category() : "uncategorized";
+            this.toggled = info != null && info.active();
         } else {
+            this.info = null;
             this.abilityName = null;
-            this.category = "uncategorized";
+            this.toggled = false;
         }
     }
 
@@ -329,8 +380,32 @@ public class AbilitySlotWidget {
         this.lastUseTime = System.currentTimeMillis();
     }
 
+    /**
+     * Server-authoritative cooldown: back-dates {@code lastUseTime} so the
+     * local countdown picks up mid-cooldown instead of restarting it.
+     */
+    public void setCooldown(int remainingTicks, int maxTicks) {
+        this.cooldownTicks = Math.max(0, remainingTicks);
+        this.maxCooldownTicks = Math.max(this.cooldownTicks, maxTicks);
+        this.lastUseTime = this.cooldownTicks > 0
+                ? System.currentTimeMillis() - (long) (this.maxCooldownTicks - this.cooldownTicks) * 50L
+                : 0;
+    }
+
+    public void setToggled(boolean toggled) {
+        this.toggled = toggled;
+    }
+
+    public void setCategoryLabel(String categoryLabel) {
+        this.categoryLabel = categoryLabel;
+    }
+
+    /**
+     * Exact-id match - {@code contains} used to let {@code sun-9-0} light up
+     * {@code sun-9-01} as well.
+     */
     public boolean hasAbility(String abilityId) {
-        return this.abilityId != null && this.abilityId.contains(abilityId);
+        return Objects.equals(AbilityInfo.extractId(this.abilityId), abilityId);
     }
 
     public boolean isEmpty() {

@@ -3,6 +3,7 @@ package dev.ua.ikeepcalm.coi.client.hud;
 import dev.ua.ikeepcalm.coi.client.ClientBeyonderState;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.effects.impl.EffectPaint;
+import dev.ua.ikeepcalm.coi.client.hud.layout.HudLayout;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.DeltaTracker;
@@ -20,6 +21,19 @@ public class MadnessHudOverlay {
 
     private static final String GLITCH_GLYPHS = "#%&@!?/\\";
 
+    /**
+     * Geometry shared with {@code TourScreen}'s spotlight and the layout
+     * editor: the bar is always 182×6, and {@code madnessYOffset} places it
+     * for both anchor families (from the top edge for TOP_*, from the bottom
+     * for BOTTOM_*), so it can be dragged either way.
+     */
+    public static final int BAR_WIDTH = 182;
+    public static final int BAR_HEIGHT = 6;
+    /**
+     * Where a TOP-anchored bar sits out of the box.
+     */
+    public static final int DEFAULT_TOP_Y = 20;
+
     // Smoothed display value so the bar glides toward the target instead of snapping
     private static double shownMadness = -1;
     private static long lastFrameMs = 0;
@@ -32,7 +46,8 @@ public class MadnessHudOverlay {
         Minecraft client = Minecraft.getInstance();
         HudConfig.HudSettings settings = HudConfig.getSettings();
 
-        if (client.player == null || client.gui.hud.isHidden() || !settings.enabled || !settings.showMadnessBar) {
+        if (client.player == null || client.gui.hud.isHidden() || HudLayout.editing()
+                || !settings.enabled || !settings.showMadnessBar) {
             return;
         }
 
@@ -52,11 +67,20 @@ public class MadnessHudOverlay {
         else if (madness >= 50.0) stage = 2;
         else if (madness >= 25.0) stage = 1;
 
-        // 2. Render Screen-wide Effects based on Stage
+        // 2. Screen-wide effects cover the whole window, so they stay
+        // outside the bar's scale push
         renderScreenEffects(ctx, w, h, stage);
 
-        // 3. Render the Madness Bar
-        renderMadnessBar(ctx, client, w, h, settings, madness, permMadness, freezeStacks, mentalPressure, tiredness, stage);
+        // 3. The character plate carries madness as its sanity gauge, so the
+        // bar stands down for it — but only the bar. The stage effects above
+        // are the world reacting to the player, not a readout, and run either way
+        if (settings.showCharacterPlate) return;
+
+        // 4. Render the Madness Bar, scaled about its own fill origin
+        int[] pos = anchor(w, h, settings);
+        HudScale.push(ctx, pos[0], pos[1], settings.madnessScale);
+        renderMadnessBar(ctx, client, pos, madness, permMadness, freezeStacks, mentalPressure, tiredness, stage);
+        HudScale.pop(ctx);
     }
 
     private static void renderScreenEffects(GuiGraphicsExtractor ctx, int w, int h, int stage) {
@@ -119,7 +143,7 @@ public class MadnessHudOverlay {
         }
     }
 
-    private static void renderMadnessBar(GuiGraphicsExtractor ctx, Minecraft client, int w, int h, HudConfig.HudSettings settings,
+    private static void renderMadnessBar(GuiGraphicsExtractor ctx, Minecraft client, int[] pos,
                                          double madness, double permMadness, int freezeStacks, int mentalPressure, double tiredness, int stage) {
         Font textRenderer = client.font;
         long time = System.currentTimeMillis();
@@ -132,31 +156,11 @@ public class MadnessHudOverlay {
         if (Math.abs(shownMadness - madness) < 0.05) shownMadness = madness;
 
         // Position coordinates
-        int barWidth = 182;
-        int barHeight = 6;
-        int barX;
-        int barY;
+        int barWidth = BAR_WIDTH;
+        int barHeight = BAR_HEIGHT;
 
-        String anchor = settings.madnessAnchor != null ? settings.madnessAnchor.toUpperCase() : "TOP_LEFT";
-        switch (anchor) {
-            case "TOP_LEFT" -> {
-                barX = 10;
-                barY = 20;
-            }
-            case "TOP_CENTER" -> {
-                barX = (w - barWidth) / 2;
-                barY = 20;
-            }
-            case "BOTTOM_LEFT" -> {
-                barX = 10;
-                barY = h - settings.madnessYOffset;
-            }
-            default -> { // BOTTOM_CENTER
-                barX = (w - barWidth) / 2;
-                barY = h - settings.madnessYOffset;
-            }
-        }
-        barX = Mth.clamp(barX + settings.madnessXOffset, 0, Math.max(0, w - barWidth));
+        int barX = pos[0];
+        int barY = pos[1];
 
         // The whole bar trembles at high madness
         if (stage >= 3) {
@@ -174,71 +178,18 @@ public class MadnessHudOverlay {
             barY += (int) ((rand.nextFloat() * 2 - 1) * 3 * flash);
         }
 
-        // Determine colors based on stage and animations
-        int mainColorTop;
-        int mainColorBottom;
-        int textColor;
-        int borderColor;
-        String statusName;
-
-        switch (stage) {
-            case 1 -> {
-                // Stage 1: Warning (Yellow/Orange) - gentle pulse
-                float pulse = (float) Math.sin(time * 0.003) * 0.15f + 0.85f;
-                int r = (int) (255 * pulse);
-                int g = (int) (170 * pulse);
-                mainColorTop = (255 << 24) | (r << 16) | (g << 8);
-                mainColorBottom = (255 << 24) | ((int) (204 * pulse) << 16) | ((int) (119 * pulse) << 8);
-                textColor = 0xFFFFAA00;
-                borderColor = 0xCC000000;
-                statusName = "Sane";
-            }
-            case 2 -> {
-                // Stage 2: Partial Loss (Red) - static dark red
-                mainColorTop = 0xFFDD2222;
-                mainColorBottom = 0xFF991111;
-                textColor = 0xFFDD2222;
-                borderColor = 0xCC1A0000;
-                statusName = "Unstable";
-            }
-            case 3 -> {
-                // Stage 3: Critical (Deep Crimson) - fast pulse
-                float pulse = (float) Math.sin(time * 0.01) * 0.2f + 0.8f;
-                int r = (int) (255 * pulse);
-                mainColorTop = (255 << 24) | (r << 16);
-                mainColorBottom = (255 << 24) | ((int) (139 * pulse) << 16);
-                textColor = 0xFFFF0055;
-                borderColor = 0xCC330000;
-                statusName = "Unhinged";
-            }
-            case 4 -> {
-                // MAX: Rampager (Dark Purple/Black)
-                float pulse = (float) Math.sin(time * 0.015) * 0.15f + 0.85f;
-                int r = (int) (153 * pulse);
-                int b = (int) (153 * pulse);
-                mainColorTop = (255 << 24) | (r << 16) | (51 << 8) | b;
-                mainColorBottom = (255 << 24) | ((int) (58 * pulse) << 16) | ((int) (58 * pulse));
-                textColor = 0xFF993399;
-                borderColor = 0xCC1A0520;
-                statusName = "Gone Mad";
-            }
-            default -> {
-                // Stage 0: Stable (Green/Cyan)
-                mainColorTop = 0xFF00FFCC;
-                mainColorBottom = 0xFF00AA88;
-                textColor = 0xFF00FFCC;
-                borderColor = 0xCC000000;
-                statusName = "Stable";
-            }
-        }
+        Style style = style(stage, time);
+        int mainColorTop = style.top();
+        int mainColorBottom = style.bottom();
+        int textColor = style.text();
+        int borderColor = style.border();
+        String statusName = style.status();
 
         // 1. Border + background with a subtle depth gradient
-        ctx.fill(barX - 1, barY - 1, barX + barWidth + 1, barY + barHeight + 1, borderColor);
-        ctx.fillGradient(barX, barY, barX + barWidth, barY + barHeight, 0xFF1B1B1E, 0xFF0F0F11);
+        CoiBar.frame(ctx, barX, barY, barWidth, barHeight, borderColor);
 
         // 2. permanentMadness region (Min Floor)
-        int permWidth = (int) (barWidth * (permMadness / 100.0));
-        permWidth = Mth.clamp(permWidth, 0, barWidth);
+        int permWidth = CoiBar.lerpWidth(permMadness, 100.0, barWidth);
         if (permWidth > 0) {
             // 50% opacity of top color
             int permColor = (mainColorTop & 0x00FFFFFF) | (0x60 << 24);
@@ -246,8 +197,7 @@ public class MadnessHudOverlay {
         }
 
         // 3. Primary filled region for current (smoothed) madness
-        int madnessWidth = (int) (barWidth * (shownMadness / 100.0));
-        madnessWidth = Mth.clamp(madnessWidth, 0, barWidth);
+        int madnessWidth = CoiBar.lerpWidth(shownMadness, 100.0, barWidth);
 
         // Unstable minds can't hold a steady edge
         if (stage >= 2 && madnessWidth > 2 && madnessWidth < barWidth - 2) {
@@ -263,26 +213,11 @@ public class MadnessHudOverlay {
             ctx.fill(barX + 1, barY, barX + 1 + Math.min(madnessWidth, barWidth - 1), barY + barHeight, 0x5033EEFF);
         }
 
-        if (madnessWidth > 0) {
-            ctx.fillGradient(barX, barY, barX + madnessWidth, barY + barHeight, mainColorTop, mainColorBottom);
-            // Bevel: top highlight, bottom shade
-            ctx.fill(barX, barY, barX + madnessWidth, barY + 1, 0x40FFFFFF);
-            ctx.fill(barX, barY + barHeight - 1, barX + madnessWidth, barY + barHeight, 0x40000000);
-        }
+        CoiBar.fill(ctx, barX, barY, barHeight, madnessWidth, mainColorTop, mainColorBottom);
 
         // 4. Calm stages get a slow shimmer sweeping across the fill
-        if (stage <= 1 && madnessWidth > 8) {
-            float sweep = (time % 3000) / 3000f;
-            int bandX = barX - 16 + (int) ((madnessWidth + 32) * sweep);
-            int[] offs = {0, 4, 8};
-            int[] alphas = {30, 70, 30};
-            for (int i = 0; i < offs.length; i++) {
-                int x0 = Math.max(barX, bandX + offs[i]);
-                int x1 = Math.min(barX + madnessWidth, bandX + offs[i] + 4);
-                if (x1 > x0) {
-                    ctx.fill(x0, barY + 1, x1, barY + barHeight - 1, (alphas[i] << 24) | 0xFFFFFF);
-                }
-            }
+        if (stage <= 1) {
+            CoiBar.shimmer(ctx, barX, barY, barHeight, madnessWidth, time, 3000);
         }
 
         // 5. Glitch slices tear slivers out of the bar at high madness
@@ -326,10 +261,7 @@ public class MadnessHudOverlay {
         }
 
         // 8. Threshold notches at 25 / 50 / 75
-        for (int q = 1; q <= 3; q++) {
-            int nx = barX + barWidth * q / 4;
-            ctx.fill(nx, barY, nx + 1, barY + barHeight, 0x50000000);
-        }
+        CoiBar.notches(ctx, barX, barY, barWidth, barHeight, 4, 0x50000000);
 
         // 9. permanentMadness marker line — blinks once the mind starts slipping
         if (permWidth > 0 && permWidth <= barWidth) {
@@ -351,10 +283,7 @@ public class MadnessHudOverlay {
         if (stage == 4 && burst) {
             text = corruptText(text, time);
         }
-        int textWidth = textRenderer.width(text);
-        int textX = barX + (barWidth - textWidth) / 2;
-        int textY = barY - 10;
-        ctx.text(textRenderer, text, textX, textY, textColor, true);
+        CoiBar.label(ctx, textRenderer, text, barX, barY, barWidth, textColor);
 
         // 12. Render other conditions (Freeze, Mental Pressure, Tiredness) below the bar
         StringBuilder extraInfo = new StringBuilder();
@@ -374,6 +303,104 @@ public class MadnessHudOverlay {
             int extraY = barY + barHeight + 3;
             ctx.text(textRenderer, extraText, extraX, extraY, 0xFF77AADD, true);
         }
+    }
+
+    /**
+     * Top-left corner of the bar. {@code madnessYOffset} feeds both anchor
+     * families, so the layout editor can drag the bar in either one.
+     */
+    public static int[] anchor(int screenW, int screenH, HudConfig.HudSettings s) {
+        return HudAnchor.parse(s.madnessAnchor).resolve(
+                screenW, screenH, HudScale.size(BAR_WIDTH, s.madnessScale),
+                s.madnessXOffset, s.madnessYOffset, s.madnessYOffset);
+    }
+
+    /**
+     * Madness stage (0-4) for a value, on the 25/50/75/100 thresholds.
+     */
+    public static int stageOf(double madness) {
+        if (madness >= 100.0) return 4;
+        if (madness >= 75.0) return 3;
+        if (madness >= 50.0) return 2;
+        if (madness >= 25.0) return 1;
+        return 0;
+    }
+
+    /**
+     * The bar's palette for a stage, with the pulses that animate it.
+     */
+    private record Style(int top, int bottom, int text, int border, String status) {
+    }
+
+    private static Style style(int stage, long time) {
+        switch (stage) {
+            case 1 -> {
+                // Stage 1: Warning (Yellow/Orange) - gentle pulse
+                float pulse = (float) Math.sin(time * 0.003) * 0.15f + 0.85f;
+                int r = (int) (255 * pulse);
+                int g = (int) (170 * pulse);
+                return new Style((255 << 24) | (r << 16) | (g << 8),
+                        (255 << 24) | ((int) (204 * pulse) << 16) | ((int) (119 * pulse) << 8),
+                        0xFFFFAA00, 0xCC000000, "Sane");
+            }
+            case 2 -> {
+                // Stage 2: Partial Loss (Red) - static dark red
+                return new Style(0xFFDD2222, 0xFF991111, 0xFFDD2222, 0xCC1A0000, "Unstable");
+            }
+            case 3 -> {
+                // Stage 3: Critical (Deep Crimson) - fast pulse
+                float pulse = (float) Math.sin(time * 0.01) * 0.2f + 0.8f;
+                return new Style((255 << 24) | ((int) (255 * pulse) << 16),
+                        (255 << 24) | ((int) (139 * pulse) << 16),
+                        0xFFFF0055, 0xCC330000, "Unhinged");
+            }
+            case 4 -> {
+                // MAX: Rampager (Dark Purple/Black)
+                float pulse = (float) Math.sin(time * 0.015) * 0.15f + 0.85f;
+                int r = (int) (153 * pulse);
+                int b = (int) (153 * pulse);
+                return new Style((255 << 24) | (r << 16) | (51 << 8) | b,
+                        (255 << 24) | ((int) (58 * pulse) << 16) | ((int) (58 * pulse)),
+                        0xFF993399, 0xCC1A0520, "Gone Mad");
+            }
+            default -> {
+                // Stage 0: Stable (Green/Cyan)
+                return new Style(0xFF00FFCC, 0xFF00AA88, 0xFF00FFCC, 0xCC000000, "Stable");
+            }
+        }
+    }
+
+    /**
+     * The bar as it reads when nothing is wrong with it: frame, permanent
+     * floor, fill, notches and label — no tremor, glitch slices, cracks,
+     * static or gaslighting. Used by the layout editor's preview, which must
+     * stay legible and must not touch the smoothing state.
+     */
+    public static void drawBarAt(GuiGraphicsExtractor ctx, int barX, int barY,
+                                 double shownValue, double permanentValue, long time) {
+        Font font = Minecraft.getInstance().font;
+        int stage = stageOf(shownValue);
+        Style style = style(stage, time);
+
+        CoiBar.frame(ctx, barX, barY, BAR_WIDTH, BAR_HEIGHT, style.border());
+
+        int permWidth = CoiBar.lerpWidth(permanentValue, 100.0, BAR_WIDTH);
+        if (permWidth > 0) {
+            ctx.fill(barX, barY, barX + permWidth, barY + BAR_HEIGHT, (style.top() & 0x00FFFFFF) | (0x60 << 24));
+        }
+
+        int fillWidth = CoiBar.lerpWidth(shownValue, 100.0, BAR_WIDTH);
+        CoiBar.fill(ctx, barX, barY, BAR_HEIGHT, fillWidth, style.top(), style.bottom());
+        CoiBar.shimmer(ctx, barX, barY, BAR_HEIGHT, fillWidth, time, 3000);
+        CoiBar.notches(ctx, barX, barY, BAR_WIDTH, BAR_HEIGHT, 4, 0x50000000);
+
+        if (permWidth > 0 && permWidth <= BAR_WIDTH) {
+            ctx.fill(barX + permWidth - 1, barY - 1, barX + permWidth + 1, barY + BAR_HEIGHT + 1, 0xDDFFFFFF);
+        }
+
+        String text = String.format("Madness: %.1f%% / 100%% (%s, Min: %.1f%%)",
+                shownValue, style.status(), permanentValue);
+        CoiBar.label(ctx, font, text, barX, barY, BAR_WIDTH, style.text());
     }
 
     /**

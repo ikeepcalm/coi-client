@@ -37,12 +37,18 @@ public final class DiscordPresenceManager {
     private static final String WEBSITE_URL = "https://mysterria.net";
 
     private static final Set<String> PATHWAY_ASSET_KEYS = Set.of(
-            "abyss", "eternalaeon", "chained", "darkness", "death",
+            "abyss", "aeon", "eternalaeon", "chained", "darkness", "death",
             "demoness", "door", "emperor", "error", "fool", "fortune",
             "giant", "hanged", "hermit", "justiciar", "moon", "mother",
             "paragon", "patriarch", "priest", "sublunary", "sun", "tower",
             "tyrant", "visionary"
     );
+
+    /**
+     * Pathway names the Discord app art is keyed under differently from the
+     * name the plugin uses.
+     */
+    private static final Map<String, String> ASSET_ALIASES = Map.of("aeon", "eternalaeon");
 
     private static Core core;
     private static boolean everJoined = false;
@@ -102,7 +108,7 @@ public final class DiscordPresenceManager {
         String pathway = inWorld ? dominantPathway() : null;
         String details = inWorld ? serverDetails() : "In the menus";
         String state = inWorld ? buildStateLine(pathway) : "Circle of Imagination";
-        String imageKey = pathway != null ? pathway : "logo";
+        String imageKey = pathway != null ? assetKey(pathway) : "logo";
         String imageText = pathway != null ? pathwayLabel(pathway) : "Circle of Imagination";
 
         String signature = details + "\n" + state + "\n" + imageKey;
@@ -153,13 +159,22 @@ public final class DiscordPresenceManager {
         }
     }
 
+    private static String assetKey(String pathway) {
+        return ASSET_ALIASES.getOrDefault(pathway, pathway);
+    }
+
     private static String buildStateLine(String pathway) {
         if (pathway == null) {
             return "Ordinary Human";
         }
         String label = pathwayLabel(pathway);
+        // The server knows the exact sequence; the binding heuristic never did
+        int sequence = ClientBeyonderState.getSequence();
+        if (sequence >= 0) {
+            label = "Seq " + sequence + " \u00B7 " + label;
+        }
         if (inWorld && HudConfig.getSettings().presenceShowMadness) {
-            return label + " — " + madnessFlavor(ClientBeyonderState.getMadness());
+            return label + " \u2014 " + madnessFlavor(ClientBeyonderState.getMadness());
         }
         return label;
     }
@@ -186,6 +201,10 @@ public final class DiscordPresenceManager {
      * abilities, or null when nothing is bound.
      */
     private static String dominantPathway() {
+        // A protocol-2 server names the pathway outright; guessing is the fallback
+        if (ClientBeyonderState.hasIdentity()) {
+            return ClientBeyonderState.getPathway();
+        }
         Map<String, Integer> counts = new HashMap<>();
         countPathways(CircleOfImaginationClient.getBoundAbilitiesSnapshot(), counts);
         countPathways(CircleOfImaginationClient.getWheelAbilitiesSnapshot(), counts);

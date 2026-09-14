@@ -3,6 +3,8 @@ package dev.ua.ikeepcalm.coi.client.screen;
 import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
 import dev.ua.ikeepcalm.coi.client.config.ClientStateStore;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+import dev.ua.ikeepcalm.coi.client.hud.layout.HudElements;
+import dev.ua.ikeepcalm.coi.util.CoiIcons;
 import dev.ua.ikeepcalm.coi.util.CoiStyle;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -12,6 +14,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -24,20 +27,35 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 
 /**
- * HUD settings in the mod's dark/gold card style: three tabs (Ability HUD,
- * Madness, Display) over a scrollable content card, so the screen stays usable
- * at every gui scale — rows that don't fit simply scroll. Settings edit a
- * working copy; Done persists it, Cancel discards.
+ * HUD settings in the mod's dark/gold card style, over a scrollable content
+ * card so the screen stays usable at every gui scale.
+ * <p>
+ * Three tabs, split by what a setting <em>is</em> rather than by which overlay
+ * happens to draw it:
+ * <ul>
+ *   <li><b>Ability HUD</b> — everything about the ability slots themselves.</li>
+ *   <li><b>Elements</b> — one uniform block per bar/overlay: show it, scale it,
+ *       align it, plus the handful of knobs that only that element has.</li>
+ *   <li><b>General</b> — the master switch, accessibility, sound, integrations.</li>
+ * </ul>
+ * Placement lives <em>only</em> in {@link HudLayoutScreen}: every positional
+ * control here is an <em>Align</em> button that opens the editor on this
+ * screen's working copy, so Done still decides whether anything persists.
  */
 public class HudSettingsScreen extends Screen {
 
-    private static final String[] PRESETS = {"Default", "Compact", "Large", "Minimal"};
-    private static final String[] ANCHORS = {"TOP_LEFT", "TOP_CENTER", "BOTTOM_LEFT", "BOTTOM_CENTER"};
     private static final int TAB_H = 22;
     private static final int ROW_STRIDE = 26;
     private static final int FIELD_WIDTH = 52;
+    private static final int ALIGN_W = 60;
+    /**
+     * Left inset of a normal row, and of a row that belongs to the element
+     * above it.
+     */
+    private static final int INDENT = 10;
+    private static final int SUB_INDENT = 22;
 
-    private enum Tab {HUD, MADNESS, DISPLAY}
+    private enum Tab {HUD, ELEMENTS, GENERAL}
 
     /**
      * A widget inside the scrollable card with its Y offset from the viewport top.
@@ -49,42 +67,17 @@ public class HudSettingsScreen extends Screen {
     private HudConfig.HudSettings settings;
     private Tab currentTab = Tab.HUD;
     private double scrollOffset = 0;
-    private int currentPreset = 0;
 
     private final List<ContentWidget> contentWidgets = new ArrayList<>();
     private int rowCursor;
     private int contentX, contentW, viewportTop, viewportBottom, tabContentH, buttonY;
-    private Button presetButton;
     private Button resetButton;
 
     public HudSettingsScreen(Screen parent) {
         super(Component.translatable("screen.coi.hud_settings"));
         this.parent = parent;
         this.settings = new HudConfig.HudSettings();
-        copySettings(HudConfig.getSettings(), this.settings);
-    }
-
-    private void copySettings(HudConfig.HudSettings from, HudConfig.HudSettings to) {
-        to.enabled = from.enabled;
-        to.hudX = from.hudX;
-        to.hudYOffset = from.hudYOffset;
-        to.slotSize = from.slotSize;
-        to.slotSpacing = from.slotSpacing;
-        to.showKeybinds = from.showKeybinds;
-        to.showAbilityNames = from.showAbilityNames;
-        to.showGlowEffect = from.showGlowEffect;
-        to.hudScale = from.hudScale;
-        to.wheelSlots = from.wheelSlots;
-        to.activeAbilitySlots = from.activeAbilitySlots;
-        to.epilepsyMode = from.epilepsyMode;
-        to.showMadnessBar = from.showMadnessBar;
-        to.madnessXOffset = from.madnessXOffset;
-        to.madnessYOffset = from.madnessYOffset;
-        to.madnessAnchor = from.madnessAnchor;
-        to.effectSoundVolume = from.effectSoundVolume;
-        to.enableHallucinations = from.enableHallucinations;
-        to.enableDiscordPresence = from.enableDiscordPresence;
-        to.presenceShowMadness = from.presenceShowMadness;
+        HudConfig.copySettings(HudConfig.getSettings(), this.settings);
     }
 
     private boolean compact() {
@@ -105,27 +98,36 @@ public class HudSettingsScreen extends Screen {
         contentX = (this.width - contentW) / 2;
         viewportTop = tabY() + TAB_H + 6 + 8;
 
+        int arrangeW = Math.min(150, contentW / 2);
+        int arrangeH = compact() ? 14 : 16;
+        this.addRenderableWidget(Button.builder(Component.translatable("screen.coi.layout_open"),
+                        b -> openLayout(null))
+                .bounds(contentX + contentW - arrangeW, compact() ? 2 : 8, arrangeW, arrangeH).build());
+
         int tabW = (contentW - 8) / 3;
         addTab(contentX, tabW, Tab.HUD, "screen.coi.settings_tab_hud", (g, x, y, size, color) -> {
             // Ability slot glyph: outlined square with a dot inside
             g.outline(x, y, size, size, color);
             g.fill(x + 3, y + 3, x + size - 3, y + size - 3, color);
         });
-        addTab(contentX + tabW + 4, tabW, Tab.MADNESS, "screen.coi.settings_tab_madness", (g, x, y, size, color) -> {
-            // Madness bar glyph: outlined bar, partially filled
-            g.outline(x, y + 2, size, size - 4, color);
-            g.fill(x + 2, y + 4, x + size - 4, y + size - 4, color);
+        addTab(contentX + tabW + 4, tabW, Tab.ELEMENTS, "screen.coi.settings_tab_elements", (g, x, y, size, color) -> {
+            // Elements glyph: a bar above a smaller card
+            g.outline(x, y, size, size / 2, color);
+            g.fill(x, y + size / 2 + 2, x + size - 2, y + size, color);
         });
-        addTab(contentX + (tabW + 4) * 2, tabW, Tab.DISPLAY, "screen.coi.settings_tab_display", (g, x, y, size, color) -> {
-            // Display glyph: three stacked lines
+        addTab(contentX + (tabW + 4) * 2, tabW, Tab.GENERAL, "screen.coi.settings_tab_general", (g, x, y, size, color) -> {
+            // Sliders glyph: two tracks with handles at different positions.
+            // Deliberately drawn rather than blitted — the cog artwork is
+            // detailed 64px art and turns to mush in a 9px tab slot
             g.fill(x, y + 1, x + size, y + 2, color);
-            g.fill(x, y + 4, x + size, y + 5, color);
-            g.fill(x, y + 7, x + size - 3, y + 8, color);
+            g.fill(x + size - 4, y, x + size - 2, y + 3, color);
+            g.fill(x, y + 6, x + size, y + 7, color);
+            g.fill(x + 2, y + 5, x + 4, y + 8, color);
         });
 
         switch (currentTab) {
-            case MADNESS -> buildMadnessTab();
-            case DISPLAY -> buildDisplayTab();
+            case ELEMENTS -> buildElementsTab();
+            case GENERAL -> buildGeneralTab();
             default -> buildHudTab();
         }
         tabContentH = Math.max(0, rowCursor - (ROW_STRIDE - 20));
@@ -135,37 +137,32 @@ public class HudSettingsScreen extends Screen {
         viewportBottom = Math.min(this.height - (compact() ? 34 : 44), viewportTop + tabContentH);
         buttonY = Math.min(this.height - (compact() ? 24 : 30), viewportBottom + 14);
 
-        int buttonW = (contentW - 12) / 4;
-        presetButton = Button.builder(presetLabel(),
-                button -> {
-                    currentPreset = (currentPreset + 1) % PRESETS.length;
-                    applyPreset(currentPreset);
-                    this.init();
-                }).bounds(contentX, buttonY, buttonW, 20).build();
-        this.addRenderableWidget(presetButton);
-
+        int buttonW = (contentW - 8) / 3;
         resetButton = Button.builder(Component.translatable("screen.coi.reset_defaults"),
                 button -> {
                     settings = new HudConfig.HudSettings();
-                    currentPreset = 0;
                     this.init();
-                }).bounds(contentX + buttonW + 4, buttonY, buttonW, 20).build();
+                }).bounds(contentX, buttonY, buttonW, 20).build();
         this.addRenderableWidget(resetButton);
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), button -> this.onClose())
-                .bounds(contentX + (buttonW + 4) * 2, buttonY, buttonW, 20).build());
+                .bounds(contentX + buttonW + 4, buttonY, buttonW, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.done"),
                 button -> {
                     HudConfig.setSettings(settings);
                     this.onClose();
-                }).bounds(contentX + (buttonW + 4) * 3, buttonY, buttonW, 20).build());
+                }).bounds(contentX + (buttonW + 4) * 2, buttonY, buttonW, 20).build());
 
         applyScroll();
     }
 
-    private Component presetLabel() {
-        return Component.translatable("screen.coi.preset").append(": " + PRESETS[currentPreset]);
+    /**
+     * Hands the working copy to the layout editor, so arranging and the rows
+     * on this screen edit the same settings and Done still decides.
+     */
+    private void openLayout(String elementId) {
+        this.minecraft.gui.setScreen(new HudLayoutScreen(this, elementId, settings));
     }
 
     private void addTab(int x, int tabW, Tab tab, String labelKey, CoiTabButton.IconPainter icon) {
@@ -182,66 +179,120 @@ public class HudSettingsScreen extends Screen {
     // --- Tab content ---
 
     private void buildHudTab() {
-        addCheckboxRow(Component.translatable("screen.coi.hud_enabled"), settings.enabled,
-                checked -> settings.enabled = checked);
-        addIntRow(Component.translatable("screen.coi.hud_x"), Component.translatable("screen.coi.hud_x_field"),
-                0, 500, settings.hudX, value -> settings.hudX = value);
-        addIntRow(Component.translatable("screen.coi.hud_y_offset"), Component.translatable("screen.coi.hud_y_offset_field"),
-                0, 200, settings.hudYOffset, value -> settings.hudYOffset = value);
-        addIntRow(Component.translatable("screen.coi.slot_size"), Component.translatable("screen.coi.slot_size_field"),
-                20, 100, settings.slotSize, value -> settings.slotSize = value);
-        addIntRow(Component.translatable("screen.coi.slot_spacing"), Component.translatable("screen.coi.slot_spacing_field"),
-                30, 100, settings.slotSpacing, value -> settings.slotSpacing = value);
-        addDecimalRow(Component.translatable("screen.coi.hud_scale"), Component.translatable("screen.coi.hud_scale_field"),
-                0.5, 2.0, settings.hudScale, value -> settings.hudScale = (float) value);
-        addIntRow(Component.translatable("screen.coi.key_slots"), Component.translatable("screen.coi.key_slots_field"),
+        addHeaderRow(Component.translatable("screen.coi.layout_el_ability_slots"), HudElements.ABILITY_SLOTS);
+        // The single size knob: it scales the whole slot, and the row's spacing
+        // follows it, so there is nothing left for a separate scale or spacing
+        // slider to disagree about
+        addIntRow(INDENT, Component.translatable("screen.coi.slot_size"), Component.translatable("screen.coi.slot_size_field"),
+                HudConfig.MIN_SLOT_SIZE, HudConfig.MAX_SLOT_SIZE, settings.slotSize, value -> settings.slotSize = value);
+        addIntRow(INDENT, Component.translatable("screen.coi.key_slots"), Component.translatable("screen.coi.key_slots_field"),
                 1, CircleOfImaginationClient.MAX_ABILITIES, settings.activeAbilitySlots, value -> settings.activeAbilitySlots = value);
-        addIntRow(Component.translatable("screen.coi.wheel_slots"), Component.translatable("screen.coi.wheel_slots_field"),
+        addIntRow(INDENT, Component.translatable("screen.coi.wheel_slots"), Component.translatable("screen.coi.wheel_slots_field"),
                 2, 16, settings.wheelSlots, value -> settings.wheelSlots = value);
-    }
 
-    private void buildMadnessTab() {
-        addCheckboxRow(Component.translatable("screen.coi.show_madness_bar"), settings.showMadnessBar,
-                checked -> settings.showMadnessBar = checked);
-
-        Button anchorButton = Button.builder(anchorLabel(),
-                button -> {
-                    int idx = 0;
-                    for (int i = 0; i < ANCHORS.length; i++) {
-                        if (ANCHORS[i].equalsIgnoreCase(settings.madnessAnchor)) {
-                            idx = i;
-                            break;
-                        }
-                    }
-                    settings.madnessAnchor = ANCHORS[(idx + 1) % ANCHORS.length];
-                    button.setMessage(anchorLabel());
-                }).bounds(contentX + 10, 0, contentW - 20, 20).build();
-        addContentRow(anchorButton);
-
-        addIntRow(Component.translatable("screen.coi.madness_x_offset"), Component.translatable("screen.coi.madness_x_offset_field"),
-                -500, 500, settings.madnessXOffset, value -> settings.madnessXOffset = value);
-        addIntRow(Component.translatable("screen.coi.madness_y_offset"), Component.translatable("screen.coi.madness_y_offset_field"),
-                0, 200, settings.madnessYOffset, value -> settings.madnessYOffset = value);
-    }
-
-    private Component anchorLabel() {
-        return Component.translatable("screen.coi.madness_anchor").copy().append(": " + settings.madnessAnchor);
-    }
-
-    private void buildDisplayTab() {
-        addCheckboxRow(Component.translatable("screen.coi.show_keybinds"), settings.showKeybinds,
+        addHeaderRow(Component.translatable("screen.coi.slot_decoration_section"));
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.show_keybinds"), settings.showKeybinds,
                 checked -> settings.showKeybinds = checked);
-        addCheckboxRow(Component.translatable("screen.coi.show_ability_names"), settings.showAbilityNames,
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.show_ability_names"), settings.showAbilityNames,
                 checked -> settings.showAbilityNames = checked);
-        addCheckboxRow(Component.translatable("screen.coi.show_glow_effect"), settings.showGlowEffect,
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.show_glow_effect"), settings.showGlowEffect,
                 checked -> settings.showGlowEffect = checked);
-        addCheckboxRow(Component.translatable("screen.coi.epilepsy_mode"), settings.epilepsyMode,
+    }
+
+    /**
+     * Every bar and overlay in the same shape — a show/hide checkbox carrying
+     * the element's own name, an Align button, and, <em>only while it is
+     * switched on</em>, its scale slider and whatever knobs it alone has.
+     * <p>
+     * Collapsing the switched-off ones keeps the tab readable: a player who
+     * hides half the HUD should see a short list of what is left, not eight
+     * blocks of controls that do nothing.
+     */
+    private void buildElementsTab() {
+        addHintRow(Component.translatable("screen.coi.elements_hint"));
+
+        // The plate absorbs sanity, acting and the reserve meters, so while it
+        // is on those three get no rows at all — showing controls for a bar the
+        // plate has taken over is exactly the clutter this was meant to end.
+        // Spirituality is deliberately not part of that trade.
+        if (addElementRow(HudElements.CHARACTER_PLATE, settings.showCharacterPlate,
+                checked -> settings.showCharacterPlate = checked)) {
+            addScaleRow(settings.characterPlateScale, value -> settings.characterPlateScale = value);
+            addHintRow(Component.translatable("screen.coi.plate_supersedes"));
+        }
+
+        // Not part of the plate's either/or: this one replaces the vanilla
+        // hearts rather than another COI bar, so it stands on its own
+        if (addElementRow(HudElements.BEYONDER_HEALTH, settings.showBeyonderHealth,
+                checked -> settings.showBeyonderHealth = checked)) {
+            addScaleRow(settings.beyonderHealthScale, value -> settings.beyonderHealthScale = value);
+            addHintRow(Component.translatable("screen.coi.health_supersedes"));
+        }
+
+        if (!settings.showCharacterPlate
+                && addElementRow(HudElements.MADNESS, settings.showMadnessBar, checked -> settings.showMadnessBar = checked)) {
+            addScaleRow(settings.madnessScale, value -> settings.madnessScale = value);
+        }
+
+        if (addElementRow(HudElements.SPIRITUALITY, settings.showSpiritualityBar, checked -> settings.showSpiritualityBar = checked)) {
+            addScaleRow(settings.spiritualityScale, value -> settings.spiritualityScale = value);
+            addCheckboxRow(SUB_INDENT, Component.translatable("screen.coi.spirituality_hide_when_full"),
+                    settings.spiritualityHideWhenFull, checked -> settings.spiritualityHideWhenFull = checked);
+        }
+
+        if (!settings.showCharacterPlate
+                && addElementRow(HudElements.ACTING, settings.showActingBar, checked -> settings.showActingBar = checked)) {
+            addScaleRow(settings.actingScale, value -> settings.actingScale = value);
+        }
+
+        if (settings.showCharacterPlate) {
+            // The plate still draws the reserve rows, so their cap stays reachable
+            addIntRow(SUB_INDENT, Component.translatable("screen.coi.resource_max_bars"),
+                    Component.translatable("screen.coi.resource_max_bars_field"),
+                    1, 8, settings.resourceMaxBars, value -> settings.resourceMaxBars = value);
+        } else if (addElementRow(HudElements.RESOURCES, settings.showResourceBars, checked -> settings.showResourceBars = checked)) {
+            addScaleRow(settings.resourceScale, value -> settings.resourceScale = value);
+            addIntRow(SUB_INDENT, Component.translatable("screen.coi.resource_max_bars"),
+                    Component.translatable("screen.coi.resource_max_bars_field"),
+                    1, 8, settings.resourceMaxBars, value -> settings.resourceMaxBars = value);
+        }
+
+        if (addElementRow(HudElements.ACTION_BAR, settings.showActionBar, checked -> settings.showActionBar = checked)) {
+            addScaleRow(settings.actionBarScale, value -> settings.actionBarScale = value);
+            addIntRow(SUB_INDENT, Component.translatable("screen.coi.action_bar_lines"),
+                    Component.translatable("screen.coi.action_bar_lines_field"),
+                    0, 4, settings.actionBarLines, value -> settings.actionBarLines = value);
+        }
+
+        if (addElementRow(HudElements.TARGET_HEALTH, settings.showTargetHealth, checked -> settings.showTargetHealth = checked)) {
+            addScaleRow(settings.targetHealthScale, value -> settings.targetHealthScale = value);
+        }
+
+        if (addElementRow(HudElements.COGITATION, settings.showCogitationOverlay, checked -> settings.showCogitationOverlay = checked)) {
+            addScaleRow(settings.cogitationScale, value -> settings.cogitationScale = value);
+        }
+
+        if (addElementRow(HudElements.NOTIFICATIONS, settings.showNotifications, checked -> settings.showNotifications = checked)) {
+            addScaleRow(settings.notificationScale, value -> settings.notificationScale = value);
+        }
+    }
+
+    private void buildGeneralTab() {
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.hud_enabled"), settings.enabled,
+                checked -> settings.enabled = checked);
+
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.menu_use_server"), settings.useServerMenus,
+                checked -> settings.useServerMenus = checked);
+        addHintRow(Component.translatable("screen.coi.menu_use_server_hint"));
+
+        addHeaderRow(Component.translatable("screen.coi.accessibility_section"));
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.epilepsy_mode"), settings.epilepsyMode,
                 checked -> settings.epilepsyMode = checked);
-        addCheckboxRow(Component.translatable("screen.coi.enable_hallucinations"), settings.enableHallucinations,
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.enable_hallucinations"), settings.enableHallucinations,
                 checked -> settings.enableHallucinations = checked);
 
         int initialVolume = Math.round(Math.clamp(settings.effectSoundVolume, 0f, 1f) * 100);
-        AbstractSliderButton volumeSlider = new AbstractSliderButton(contentX + 10, 0, contentW - 20, 20,
+        AbstractSliderButton volumeSlider = new AbstractSliderButton(contentX + INDENT, 0, contentW - INDENT * 2, 20,
                 Component.translatable("screen.coi.effect_sound_volume").append(": " + initialVolume + "%"), initialVolume / 100.0) {
             @Override
             protected void updateMessage() {
@@ -257,18 +308,20 @@ public class HudSettingsScreen extends Screen {
         };
         addContentRow(volumeSlider);
 
-        addCheckboxRow(Component.translatable("screen.coi.enable_discord_presence"), settings.enableDiscordPresence,
+        addHeaderRow(Component.translatable("screen.coi.integrations_section"));
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.enable_discord_presence"), settings.enableDiscordPresence,
                 checked -> settings.enableDiscordPresence = checked);
-        addCheckboxRow(Component.translatable("screen.coi.presence_show_madness"), settings.presenceShowMadness,
+        addCheckboxRow(INDENT, Component.translatable("screen.coi.presence_show_madness"), settings.presenceShowMadness,
                 checked -> settings.presenceShowMadness = checked);
 
+        addHeaderRow(Component.translatable("screen.coi.help_section"));
         addContentRow(Button.builder(Component.translatable("screen.coi.show_tour"),
                 _ -> {
                     ClientStateStore.setTourCompleted(false);
                     if (this.minecraft.player != null) {
                         this.minecraft.gui.setScreen(new TourScreen());
                     }
-                }).bounds(contentX + 10, 0, contentW - 20, 20).build());
+                }).bounds(contentX + INDENT, 0, contentW - INDENT * 2, 20).build());
     }
 
     // --- Row builders ---
@@ -279,23 +332,87 @@ public class HudSettingsScreen extends Screen {
         rowCursor += ROW_STRIDE;
     }
 
-    private void addCheckboxRow(Component label, boolean selected, Consumer<Boolean> setter) {
+    private void addHeaderRow(Component label) {
+        addContentRow(new StringWidget(contentX + INDENT, 0, contentW - INDENT * 2, 20, label, this.font));
+    }
+
+    /**
+     * Section header with an Align button that opens the layout editor on this
+     * element — the ability slots' only positional control.
+     */
+    private void addHeaderRow(Component label, String elementId) {
+        StringWidget title = new StringWidget(contentX + INDENT, 0, contentW - INDENT * 2 - ALIGN_W - 4, 20, label, this.font);
+        contentWidgets.add(new ContentWidget(title, rowCursor));
+        this.addRenderableWidget(title);
+        addContentRow(alignButton(elementId));
+    }
+
+    /**
+     * One line of explanatory text above a tab's rows, on a tighter stride than
+     * a real row so it reads as a caption rather than a setting.
+     */
+    private void addHintRow(Component label) {
+        StringWidget hint = new StringWidget(contentX + INDENT, 0, contentW - INDENT * 2, 14,
+                label.copy().withStyle(ChatFormatting.GRAY), this.font);
+        contentWidgets.add(new ContentWidget(hint, rowCursor));
+        this.addRenderableWidget(hint);
+        rowCursor += 18;
+    }
+
+    /**
+     * A bar/overlay's header line: the show/hide checkbox is the element's
+     * name, so one row carries both what it is and whether it draws.
+     * <p>
+     * Toggling rebuilds the tab, since the rows below this one appear and
+     * disappear with it.
+     *
+     * @return whether the element is on, i.e. whether its own rows follow
+     */
+    private boolean addElementRow(String elementId, boolean selected, Consumer<Boolean> setter) {
+        Checkbox checkbox = Checkbox.builder(Component.translatable("screen.coi.layout_el_" + elementId), this.font)
+                .pos(contentX + INDENT, 0)
+                .maxWidth(contentW - INDENT * 2 - ALIGN_W - 4)
+                .onValueChange((box, checked) -> {
+                    setter.accept(checked);
+                    this.init();
+                })
+                .selected(selected)
+                .build();
+        contentWidgets.add(new ContentWidget(checkbox, rowCursor));
+        this.addRenderableWidget(checkbox);
+        addContentRow(alignButton(elementId));
+        return selected;
+    }
+
+    private Button alignButton(String elementId) {
+        return Button.builder(Component.translatable("screen.coi.layout_align"), b -> openLayout(elementId))
+                .bounds(contentX + contentW - INDENT - ALIGN_W, 0, ALIGN_W, 20).build();
+    }
+
+    private void addScaleRow(float current, Consumer<Float> setter) {
+        addDecimalRow(SUB_INDENT, Component.translatable("screen.coi.element_scale"),
+                Component.translatable("screen.coi.element_scale_field"),
+                HudConfig.MIN_ELEMENT_SCALE, HudConfig.MAX_ELEMENT_SCALE, current,
+                value -> setter.accept((float) value));
+    }
+
+    private void addCheckboxRow(int indent, Component label, boolean selected, Consumer<Boolean> setter) {
         Checkbox checkbox = Checkbox.builder(label, Minecraft.getInstance().font)
-                .pos(contentX + 10, 0)
-                .maxWidth(contentW - 20)
+                .pos(contentX + indent, 0)
+                .maxWidth(contentW - indent - INDENT)
                 .onValueChange((box, checked) -> setter.accept(checked))
                 .selected(selected)
                 .build();
         addContentRow(checkbox);
     }
 
-    private void addIntRow(Component label, Component fieldLabel, int min, int max, int initialValue, IntConsumer setter) {
+    private void addIntRow(int indent, Component label, Component fieldLabel, int min, int max, int initialValue, IntConsumer setter) {
         final EditBox[] fieldRef = new EditBox[1];
         int clampedInitial = Math.clamp(initialValue, min, max);
         double sliderValue = (clampedInitial - min) / (double) (max - min);
-        int sliderW = contentW - 20 - FIELD_WIDTH - 6;
+        int sliderW = contentW - indent - INDENT - FIELD_WIDTH - 6;
 
-        AbstractSliderButton slider = new AbstractSliderButton(contentX + 10, 0, sliderW, 20,
+        AbstractSliderButton slider = new AbstractSliderButton(contentX + indent, 0, sliderW, 20,
                 label.copy().append(": " + clampedInitial), sliderValue) {
             @Override
             protected void updateMessage() {
@@ -313,7 +430,7 @@ public class HudSettingsScreen extends Screen {
             }
         };
 
-        EditBox field = new EditBox(this.font, contentX + 10 + sliderW + 6, 0, FIELD_WIDTH, 20, fieldLabel);
+        EditBox field = new EditBox(this.font, contentX + indent + sliderW + 6, 0, FIELD_WIDTH, 20, fieldLabel);
         field.setValue(String.valueOf(clampedInitial));
         field.setResponder(text -> {
             try {
@@ -328,13 +445,14 @@ public class HudSettingsScreen extends Screen {
         addContentRow(field); // advances rowCursor for the pair
     }
 
-    private void addDecimalRow(Component label, Component fieldLabel, double min, double max, double initialValue, DoubleConsumer setter) {
+    private void addDecimalRow(int indent, Component label, Component fieldLabel, double min, double max,
+                               double initialValue, DoubleConsumer setter) {
         final EditBox[] fieldRef = new EditBox[1];
         double clampedInitial = Math.clamp(initialValue, min, max);
         double sliderValue = (clampedInitial - min) / (max - min);
-        int sliderW = contentW - 20 - FIELD_WIDTH - 6;
+        int sliderW = contentW - indent - INDENT - FIELD_WIDTH - 6;
 
-        AbstractSliderButton slider = new AbstractSliderButton(contentX + 10, 0, sliderW, 20,
+        AbstractSliderButton slider = new AbstractSliderButton(contentX + indent, 0, sliderW, 20,
                 label.copy().append(": " + String.format("%.1f", clampedInitial)), sliderValue) {
             @Override
             protected void updateMessage() {
@@ -353,7 +471,7 @@ public class HudSettingsScreen extends Screen {
             }
         };
 
-        EditBox field = new EditBox(this.font, contentX + 10 + sliderW + 6, 0, FIELD_WIDTH, 20, fieldLabel);
+        EditBox field = new EditBox(this.font, contentX + indent + sliderW + 6, 0, FIELD_WIDTH, 20, fieldLabel);
         field.setValue(String.format("%.1f", clampedInitial));
         field.setResponder(text -> {
             try {
@@ -398,71 +516,15 @@ public class HudSettingsScreen extends Screen {
         return true;
     }
 
-    private void applyPreset(int preset) {
-        switch (preset) {
-            case 0: // Default - Safe values that work on all GUI scales
-                settings.hudX = 10;
-                settings.hudYOffset = 60;
-                settings.slotSize = 40;
-                settings.slotSpacing = 50;
-                settings.hudScale = 1.0f;
-                settings.showKeybinds = true;
-                settings.showAbilityNames = true;
-                settings.showGlowEffect = true;
-                settings.showMadnessBar = true;
-                settings.madnessXOffset = 0;
-                settings.madnessYOffset = 55;
-                settings.madnessAnchor = "TOP_LEFT";
-                break;
-            case 1: // Compact - Small and minimal
-                settings.hudX = 5;
-                settings.hudYOffset = 40;
-                settings.slotSize = 30;
-                settings.slotSpacing = 35;
-                settings.hudScale = 0.8f;
-                settings.showKeybinds = true;
-                settings.showAbilityNames = false;
-                settings.showGlowEffect = false;
-                settings.showMadnessBar = true;
-                settings.madnessXOffset = 0;
-                settings.madnessYOffset = 35;
-                settings.madnessAnchor = "TOP_LEFT";
-                break;
-            case 2: // Large - Bigger but still safe
-                settings.hudX = 15;
-                settings.hudYOffset = 80;
-                settings.slotSize = 55;
-                settings.slotSpacing = 65;
-                settings.hudScale = 1.2f;
-                settings.showKeybinds = true;
-                settings.showAbilityNames = true;
-                settings.showGlowEffect = true;
-                settings.showMadnessBar = true;
-                settings.madnessXOffset = 0;
-                settings.madnessYOffset = 70;
-                settings.madnessAnchor = "TOP_LEFT";
-                break;
-            case 3: // Minimal - Very small and clean
-                settings.hudX = 3;
-                settings.hudYOffset = 30;
-                settings.slotSize = 25;
-                settings.slotSpacing = 30;
-                settings.hudScale = 0.7f;
-                settings.showKeybinds = false;
-                settings.showAbilityNames = false;
-                settings.showGlowEffect = false;
-                settings.showMadnessBar = false;
-                settings.madnessXOffset = 0;
-                settings.madnessYOffset = 25;
-                settings.madnessAnchor = "TOP_LEFT";
-                break;
-        }
-    }
-
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         graphics.fill(0, 0, this.width, this.height, 0x90000000);
-        graphics.centeredText(this.font, this.title, this.width / 2, compact() ? 5 : 12, CoiStyle.ACCENT);
+        int titleY = compact() ? 5 : 12;
+        graphics.centeredText(this.font, this.title, this.width / 2, titleY, CoiStyle.ACCENT);
+        // Sits in the gap the centred title leaves, so it never crowds the text
+        CoiIcons.draw(graphics, CoiIcons.COG,
+                this.width / 2 - this.font.width(this.title) / 2 - CoiIcons.COG_SIZE - 5,
+                titleY - (CoiIcons.COG_SIZE - this.font.lineHeight) / 2 - 1, CoiIcons.COG_SIZE);
 
         int cardTop = tabY() + TAB_H + 6;
         CoiStyle.drawCard(graphics, contentX, cardTop, contentW, viewportBottom + 8 - cardTop);
@@ -485,8 +547,6 @@ public class HudSettingsScreen extends Screen {
 
         if (resetButton.isHovered()) {
             graphics.setTooltipForNextFrame(this.font, Component.translatable("screen.coi.reset_defaults.tooltip"), mouseX, mouseY);
-        } else if (presetButton.isHovered()) {
-            graphics.setTooltipForNextFrame(this.font, Component.translatable("screen.coi.preset.tooltip"), mouseX, mouseY);
         }
     }
 

@@ -1,5 +1,8 @@
 package dev.ua.ikeepcalm.coi.client;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
@@ -10,17 +13,33 @@ import dev.ua.ikeepcalm.coi.client.effects.HallucinationManager;
 import dev.ua.ikeepcalm.coi.client.gesture.GestureScreen;
 import dev.ua.ikeepcalm.coi.client.gesture.GestureType;
 import dev.ua.ikeepcalm.coi.client.hud.AbilityHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.ActingHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.ActionBarHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.BeyonderHealthOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.CharacterPlateOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.CogitationOverlay;
 import dev.ua.ikeepcalm.coi.client.hud.MadnessHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.NotificationOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.ResourceHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.SpiritualityHudOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.TargetHealthOverlay;
 import dev.ua.ikeepcalm.coi.client.mcf.CoiModelLayers;
 import dev.ua.ikeepcalm.coi.client.mcf.MythicalFormManager;
+import dev.ua.ikeepcalm.coi.client.menu.ClientMenuState;
+import dev.ua.ikeepcalm.coi.client.menu.MenuDocument;
+import dev.ua.ikeepcalm.coi.client.menu.MenuParser;
 import dev.ua.ikeepcalm.coi.client.network.*;
 import dev.ua.ikeepcalm.coi.client.presence.DiscordPresenceManager;
 import dev.ua.ikeepcalm.coi.client.resources.IngredientInfo;
 import dev.ua.ikeepcalm.coi.client.resources.ResourceLoader;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityBindingScreen;
 import dev.ua.ikeepcalm.coi.client.screen.AbilityWheelScreen;
+import dev.ua.ikeepcalm.coi.client.screen.CharacterSheetScreen;
 import dev.ua.ikeepcalm.coi.client.screen.EffectDebugScreen;
+import dev.ua.ikeepcalm.coi.client.screen.InventoryHint;
 import dev.ua.ikeepcalm.coi.client.screen.TourScreen;
+import dev.ua.ikeepcalm.coi.client.screen.menu.MenuScreen;
+import dev.ua.ikeepcalm.coi.util.IconModels;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -85,10 +104,22 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             Map.entry("tyrant", ""),
             Map.entry("visionary", "")
     );
+    /**
+     * The pathway's emblem glyph from the {@code pathway_icons} font, or null
+     * when that pathway has none. Shared by the tooltip decorators and the
+     * character sheet header.
+     */
+    public static Component pathwayEmblem(String pathway) {
+        String icon = PATHWAY_ICONS.get(AbilityInfo.normalizePathway(pathway));
+        if (icon == null) return null;
+        return Component.literal(icon).withStyle(Style.EMPTY.withFont(new FontDescription.Resource(PATHWAY_ICONS_FONT)));
+    }
+
     private static final boolean[] keyPressed = new boolean[MAX_ABILITIES + 3];
     public static KeyMapping[] abilityKeys = new KeyMapping[MAX_ABILITIES];
     public static KeyMapping abilityMenu;
     public static KeyMapping abilityWheel;
+    public static KeyMapping openMenu;
     public static KeyMapping gestureCast;
     public static KeyMapping effectDebugMenu; // null when not in dev environment
     private static String[] boundAbilities = new String[MAX_ABILITIES];
@@ -106,13 +137,6 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         ClientPlayNetworking.send(new AbilityUsePayload(abilityId, action));
         AbilityHudOverlay.onAbilityCast(abilityId);
-
-        AbilityInfo info = getAbilityInfo(abilityId);
-        String displayName = info != null ? info.englishName() : AbilityInfo.extractDisplayName(abilityIdWithName);
-        Minecraft client = Minecraft.getInstance();
-        if (client.player != null && AbilityInfo.ACTION_EXECUTE.equals(action)) {
-            client.player.sendOverlayMessage(Component.translatable("notification.coi.ability_used", displayName));
-        }
     }
 
     public static void handleAbilityData(String data) {
@@ -142,7 +166,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                     if (hasLeftClick) {
                         availableAbilities.add(AbilityInfo.formatStored(id, englishName + " (Left Click)", AbilityInfo.ACTION_LEFT_CLICK));
                     }
-                    abilityInfoMap.put(id, new AbilityInfo(id, localizedName, englishName, category, hasLeftClick));
+                    abilityInfoMap.put(id, AbilityInfo.of(id, localizedName, englishName, category, hasLeftClick));
                     System.out.println("COI Client: Added ability: " + formatted);
                 }
             }
@@ -150,8 +174,122 @@ public class CircleOfImaginationClient implements ClientModInitializer {
 
         System.out.println("COI Client: Total abilities loaded: " + availableAbilities.size());
         updateHudWithCurrentBindings();
+        scheduleTourIfFirstList();
+    }
 
-        if (!availableAbilities.isEmpty() && !ClientStateStore.isTourCompleted() && tourPendingAt == 0) {
+    /**
+     * Protocol-2 ability list: same two collections as {@link #handleAbilityData},
+     * plus the metadata the delimited format had no room for. Cooldowns and
+     * toggle state are applied after the slots have been rebound, so a slot
+     * that was already showing this ability picks them up too.
+     */
+    public static void handleAbilityDataV2(String json) {
+        availableAbilities.clear();
+        abilityInfoMap.clear();
+
+        if (json == null || json.isBlank()) {
+            System.out.println("COI Client: Received empty ability data (v2)");
+            return;
+        }
+
+        Map<String, Integer> cooldowns = new HashMap<>();
+        try {
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            if (!root.has("abilities")) return;
+            for (JsonElement element : root.getAsJsonArray("abilities")) {
+                JsonObject entry = element.getAsJsonObject();
+                AbilityInfo info = parseAbility(entry);
+                if (info == null) continue;
+                storeAbility(info);
+                int remaining = num(entry, "cooldownRemainingTicks");
+                if (remaining > 0) cooldowns.put(info.abilityId(), remaining);
+            }
+        } catch (Exception e) {
+            System.err.println("COI Client: malformed abilities_v2 payload: " + e.getMessage());
+            return;
+        }
+
+        System.out.println("COI Client: Total abilities loaded (v2): " + availableAbilities.size());
+        updateHudWithCurrentBindings();
+        applyServerAbilityState(cooldowns);
+        scheduleTourIfFirstList();
+    }
+
+    private static AbilityInfo parseAbility(JsonObject json) {
+        String id = str(json, "id", "");
+        if (id.isEmpty()) return null;
+        String localizedName = str(json, "name", id);
+        int sequence = json.has("sequence") ? json.get("sequence").getAsInt() : AbilityInfo.sequenceOf(id);
+        String pathway = str(json, "pathway", AbilityInfo.pathwayOf(id));
+        return new AbilityInfo(id, localizedName, str(json, "englishName", localizedName),
+                str(json, "category", "uncategorized"), bool(json, "hasLeftClick"),
+                str(json, "kind", AbilityInfo.KIND_ACTIVE), str(json, "description", ""),
+                num(json, "cost"), json.has("drainPerSecond") ? json.get("drainPerSecond").getAsDouble() : 0.0,
+                num(json, "cooldownSeconds"), AbilityInfo.normalizePathway(pathway), sequence,
+                bool(json, "active"), bool(json, "locked"), bool(json, "blocked"),
+                str(json, "blockedBy", ""), str(json, "icon", ""));
+    }
+
+    private static void storeAbility(AbilityInfo info) {
+        if (info == null) return;
+        availableAbilities.add(AbilityInfo.formatStored(info.abilityId(), info.englishName(), AbilityInfo.ACTION_EXECUTE));
+        if (info.hasLeftClick()) {
+            availableAbilities.add(AbilityInfo.formatStored(info.abilityId(),
+                    info.englishName() + " (Left Click)", AbilityInfo.ACTION_LEFT_CLICK));
+        }
+        abilityInfoMap.put(info.abilityId(), info);
+    }
+
+    /**
+     * Pushes toggle state and the cooldowns that were already running when the
+     * list arrived onto the slots.
+     */
+    private static void applyServerAbilityState(Map<String, Integer> cooldowns) {
+        for (AbilityInfo info : abilityInfoMap.values()) {
+            AbilityHudOverlay.setActive(info.abilityId(), info.active());
+            Integer remaining = cooldowns.get(info.abilityId());
+            if (remaining != null) {
+                AbilityHudOverlay.setCooldown(info.abilityId(), remaining,
+                        Math.max(remaining, info.cooldownSeconds() * 20));
+            }
+        }
+    }
+
+    /**
+     * Single-ability update from {@code coi-client:state}: either a toggle or
+     * a category switch.
+     */
+    public static void handleAbilityState(String json) {
+        if (json == null || json.isBlank()) return;
+        try {
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            String id = str(root, "id", "");
+            if (id.isEmpty()) return;
+            if (root.has("active")) {
+                AbilityHudOverlay.setActive(id, root.get("active").getAsBoolean());
+            }
+            if (root.has("category") || root.has("categoryName")) {
+                AbilityHudOverlay.setCategoryLabel(id, str(root, "categoryName", str(root, "category", "")));
+            }
+        } catch (Exception e) {
+            System.err.println("COI Client: malformed ability state payload: " + json);
+        }
+    }
+
+    private static String str(JsonObject json, String key, String fallback) {
+        return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsString() : fallback;
+    }
+
+    private static int num(JsonObject json, String key) {
+        return json.has(key) && !json.get(key).isJsonNull() ? json.get(key).getAsInt() : 0;
+    }
+
+    private static boolean bool(JsonObject json, String key) {
+        return json.has(key) && !json.get(key).isJsonNull() && json.get(key).getAsBoolean();
+    }
+
+    private static void scheduleTourIfFirstList() {
+        if (!availableAbilities.isEmpty() && ClientStateStore.isTourNotCompleted() && tourPendingAt == 0) {
             tourPendingAt = System.currentTimeMillis() + 3000;
         }
     }
@@ -307,6 +445,31 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         return Character.toUpperCase(pathway.charAt(0)) + pathway.substring(1);
     }
 
+    /**
+     * Capability handshake — always first, so the server knows which surfaces
+     * this client can render before it starts feeding any of them.
+     */
+    public static void sendHello() {
+        if (Minecraft.getInstance().player == null) return;
+        ClientPlayNetworking.send(new HelloPayload(ClientFeatures.helloJson()));
+    }
+
+    /**
+     * Asks the server to open the Beyonder menu that used to live on the
+     * slot-9 shortcut item. Servers that never advertised {@code menu_action}
+     * have nothing listening, so say so instead of sending into the void.
+     */
+    private static void openServerMenu(Minecraft client) {
+        if (client.player == null) return;
+        if (ServerCapabilities.has("character_sheet")) {
+            client.gui.setScreen(new CharacterSheetScreen(null));
+        } else if (ServerCapabilities.has("menu_action")) {
+            ClientPlayNetworking.send(ActionPayload.of("open_menu"));
+        } else {
+            client.player.sendOverlayMessage(Component.translatable("notification.coi.menu_unsupported"));
+        }
+    }
+
     public static void requestAbilitiesFromServer() {
         Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
@@ -337,11 +500,25 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         registerKeybindings();
         registerTickHandler();
         AbilityHudOverlay.initialize();
+        // Replaces the vanilla hearts rather than attaching beside them, so it
+        // has to be registered like every other element but reads differently
+        BeyonderHealthOverlay.initialize();
+        CharacterPlateOverlay.initialize();
         MadnessHudOverlay.initialize();
+        SpiritualityHudOverlay.initialize();
+        ActingHudOverlay.initialize();
+        ResourceHudOverlay.initialize();
+        ActionBarHudOverlay.initialize();
+        TargetHealthOverlay.initialize();
+        CogitationOverlay.initialize();
+        NotificationOverlay.initialize();
         EffectManager.initialize();
+        // Explains the hotbar slot the plugin empties for modded clients
+        InventoryHint.register();
         CoiModelLayers.register();
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            sendHello();
             requestAbilitiesFromServer();
             var server = client.getCurrentServer();
             DiscordPresenceManager.onServerJoin(
@@ -354,7 +531,20 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             // Remember how mad we were — the title screen holds a grudge
             ClientStateStore.setLastMadness(ClientBeyonderState.getMadness());
             ClientBeyonderState.reset();
+            ClientActingState.reset();
+            ClientResourceState.reset();
+            ClientActionBarState.reset();
+            ClientTargetState.reset();
+            ClientCogitationState.reset();
+            ClientNotificationState.reset();
+            ClientSheetState.reset();
+            ClientMenuState.reset();
             ClientAppearanceState.reset();
+            ServerCapabilities.reset();
+            SpiritualityHudOverlay.reset();
+            BeyonderHealthOverlay.reset();
+            // The next server may key its ability icons against a different pack
+            IconModels.clearCache();
             EffectManager.stopAll();
             MythicalFormManager.clearAll();
             tourPendingAt = 0;
@@ -435,6 +625,9 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         // C2S (client → server = serverboundPlay)
         PayloadTypeRegistry.serverboundPlay().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HelloPayload.ID, HelloPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ActionPayload.ID, ActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(MenuActionPayload.ID, MenuActionPayload.CODEC);
         // S2C (server → client = clientboundPlay)
         PayloadTypeRegistry.clientboundPlay().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(CooldownPayload.ID, CooldownPayload.CODEC);
@@ -442,6 +635,17 @@ public class CircleOfImaginationClient implements ClientModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(MythicalFormPayload.ID, MythicalFormPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ConditionsPayload.ID, ConditionsPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(AppearancePayload.ID, AppearancePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ServerInfoPayload.ID, ServerInfoPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(AbilitiesV2Payload.ID, AbilitiesV2Payload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(AbilityStatePayload.ID, AbilityStatePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ActingPayload.ID, ActingPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ResourcePayload.ID, ResourcePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ActionBarPayload.ID, ActionBarPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(TargetHealthPayload.ID, TargetHealthPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(CogitationPayload.ID, CogitationPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(NotifyPayload.ID, NotifyPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SheetPayload.ID, SheetPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(MenuPayload.ID, MenuPayload.CODEC);
 
         // S2C receivers
         ClientPlayNetworking.registerGlobalReceiver(AbilitiesPayload.ID,
@@ -456,6 +660,82 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 (payload, context) -> context.client().execute(() -> ClientBeyonderState.parseAndUpdate(payload.data())));
         ClientPlayNetworking.registerGlobalReceiver(AppearancePayload.ID,
                 (payload, context) -> context.client().execute(() -> ClientAppearanceState.handlePacket(payload.targetUuid(), payload.traits())));
+        ClientPlayNetworking.registerGlobalReceiver(ServerInfoPayload.ID,
+                (payload, context) -> context.client().execute(() -> ServerCapabilities.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(AbilitiesV2Payload.ID,
+                (payload, context) -> context.client().execute(() -> handleAbilityDataV2(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(AbilityStatePayload.ID,
+                (payload, context) -> context.client().execute(() -> handleAbilityState(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(ActingPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientActingState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(ResourcePayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientResourceState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(ActionBarPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientActionBarState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(TargetHealthPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientTargetState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(CogitationPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientCogitationState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(NotifyPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientNotificationState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(SheetPayload.ID,
+                (payload, context) -> context.client().execute(() -> ClientSheetState.handle(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(MenuPayload.ID,
+                (payload, context) -> context.client().execute(() -> handleMenu(payload.json())));
+    }
+
+    /**
+     * A menu document: open the screen, refresh the open one, or take it away.
+     * <p>
+     * Refreshing is just adopting the document — {@link MenuScreen} re-reads
+     * {@link ClientMenuState} and rebuilds itself — so a push that lands while
+     * a different screen is open still replaces that screen, which is what the
+     * server asked for by sending it.
+     */
+    private static void handleMenu(String json) {
+        MenuDocument document = MenuParser.parse(json);
+        if (document == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (document.closed()) {
+            // A close carrying "back" is the back arrow at the root of the
+            // server's stack: there is nothing underneath on its side, but the
+            // character sheet may be what the player came from on ours.
+            boolean toSheet = readBack(json)
+                    && ClientMenuState.openedFromSheet()
+                    && ServerCapabilities.has("character_sheet");
+            ClientMenuState.clear();
+            // The server already knows the menu is gone; echoing __close back
+            // would only race its next open
+            if (client.gui.screen() instanceof MenuScreen menu) menu.closeQuietly();
+            if (toSheet) client.gui.setScreen(new CharacterSheetScreen(null));
+            return;
+        }
+        ClientMenuState.adopt(document);
+        if (!(client.gui.screen() instanceof MenuScreen)) {
+            client.gui.setScreen(new MenuScreen(null));
+        }
+    }
+
+    /**
+     * The {@code back} flag off the raw document, read here rather than in
+     * {@link MenuParser} because it says something about the *transition*, not
+     * about the screen — a closed document has no screen to describe.
+     * <p>
+     * Defensive like everything else on this channel: absent, null or any
+     * non-boolean reads as false, so an older plugin (or a newer one that
+     * repurposes the name) simply closes the menu as it always did.
+     */
+    private static boolean readBack(String json) {
+        if (json == null || json.isBlank()) return false;
+        try {
+            JsonElement root = JsonParser.parseString(json);
+            if (!root.isJsonObject()) return false;
+            JsonElement back = root.getAsJsonObject().get("back");
+            return back != null && back.isJsonPrimitive()
+                    && back.getAsJsonPrimitive().isBoolean() && back.getAsBoolean();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void registerKeybindings() {
@@ -496,6 +776,13 @@ public class CircleOfImaginationClient implements ClientModInitializer {
                 category
         ));
 
+        openMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.coi.open_menu",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_M,
+                category
+        ));
+
         gestureCast = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.coi.gesture",
                 InputConstants.Type.KEYSYM,
@@ -524,7 +811,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             // screen is in the way (stays pending until the way is clear)
             if (tourPendingAt > 0 && System.currentTimeMillis() >= tourPendingAt && client.gui.screen() == null) {
                 tourPendingAt = 0;
-                if (!ClientStateStore.isTourCompleted()) {
+                if (ClientStateStore.isTourNotCompleted()) {
                     client.gui.setScreen(new TourScreen());
                 }
             }
@@ -534,6 +821,7 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             }
 
             handleKeyPress(MAX_ABILITIES, abilityMenu, client);
+            handleKeyPress(MAX_ABILITIES + 2, openMenu, client);
             if (effectDebugMenu != null) {
                 handleKeyPress(MAX_ABILITIES + 1, effectDebugMenu, client);
             }
@@ -562,6 +850,10 @@ public class CircleOfImaginationClient implements ClientModInitializer {
             }
             if (index == MAX_ABILITIES + 1) {
                 Minecraft.getInstance().gui.setScreen(new EffectDebugScreen(null));
+                return;
+            }
+            if (index == MAX_ABILITIES + 2) {
+                openServerMenu(client);
                 return;
             }
 

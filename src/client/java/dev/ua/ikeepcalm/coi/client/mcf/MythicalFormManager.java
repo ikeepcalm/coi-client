@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.client.mcf;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.effects.EffectManager;
 import dev.ua.ikeepcalm.coi.client.effects.impl.ImpactFrameEffect;
 import dev.ua.ikeepcalm.coi.client.mcf.forms.*;
@@ -112,30 +113,12 @@ public class MythicalFormManager {
         }
     }
 
+    /**
+     * Delegates to the mod-wide pathway colour table so the transformation
+     * burst matches the HUD and the picker.
+     */
     private static int formAccentColor(String pathway) {
-        return switch (pathway.toLowerCase().replace("_", " ")) {
-            case "fool" -> 0xB347CC;
-            case "door" -> 0x5B7FE6;
-            case "sun" -> 0xFFE55C;
-            case "tyrant" -> 0x4AA3FF;
-            case "demoness" -> 0xB22222;
-            case "priest" -> 0xFF6B35;
-            case "error" -> 0x999999;
-            case "tower" -> 0x7788AA;
-            case "visionary" -> 0x44CCBB;
-            case "hanged" -> 0x3A6E4F;
-            case "darkness" -> 0x4A1A6E;
-            case "death" -> 0xC8D0E8;
-            case "giant" -> 0xC08840;
-            case "paragon" -> 0xE8E8FF;
-            case "hermit" -> 0x8855CC;
-            case "fortune" -> 0xFFD700;
-            case "chained" -> 0x666677;
-            case "abyss" -> 0x551133;
-            case "justiciar" -> 0xEEDD88;
-            case "emperor" -> 0xDD9922;
-            default -> 0xCCCCFF;
-        };
+        return AbilityInfo.pathwayRgb(pathway);
     }
 
     public static boolean isTransformed(AbstractClientPlayer player) {
