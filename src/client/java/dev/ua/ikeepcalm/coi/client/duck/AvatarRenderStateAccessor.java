@@ -1,4 +1,4 @@
-package dev.ua.ikeepcalm.coi.client.mixin.duck;
+package dev.ua.ikeepcalm.coi.client.duck;
 
 /**
  * Duck interface for the player-UUID field {@code AvatarRenderStateMixin} adds to the vanilla

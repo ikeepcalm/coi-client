@@ -137,6 +137,10 @@ final class SettingsTabs {
                 checked -> settings.useServerMenus = checked);
         rows.hintRow(Component.translatable("screen.coi.menu_use_server_hint"));
 
+        rows.checkboxRow(SettingsRows.INDENT, Component.translatable("screen.coi.coi_title_screen"), settings.coiTitleScreen,
+                checked -> settings.coiTitleScreen = checked);
+        rows.hintRow(Component.translatable("screen.coi.coi_title_screen_hint"));
+
         rows.headerRow(Component.translatable("screen.coi.accessibility_section"));
         rows.checkboxRow(SettingsRows.INDENT, Component.translatable("screen.coi.epilepsy_mode"), settings.epilepsyMode,
                 checked -> settings.epilepsyMode = checked);

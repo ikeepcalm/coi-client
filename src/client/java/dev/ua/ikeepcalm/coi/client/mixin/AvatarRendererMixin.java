@@ -2,7 +2,7 @@ package dev.ua.ikeepcalm.coi.client.mixin;
 
 import dev.ua.ikeepcalm.coi.client.appearance.AppearanceTraitLayer;
 import dev.ua.ikeepcalm.coi.client.form.PartialFormLayer;
-import dev.ua.ikeepcalm.coi.client.mixin.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
 
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;

@@ -1,6 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.mixin;
 
-import dev.ua.ikeepcalm.coi.client.mixin.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
 
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.spongepowered.asm.mixin.Mixin;

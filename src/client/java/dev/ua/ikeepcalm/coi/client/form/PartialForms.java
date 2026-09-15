@@ -1,6 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.form;
 
-import dev.ua.ikeepcalm.coi.client.mixin.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

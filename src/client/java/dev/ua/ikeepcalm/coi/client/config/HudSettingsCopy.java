@@ -106,6 +106,7 @@ final class HudSettingsCopy {
         to.enableDiscordPresence = from.enableDiscordPresence;
         to.presenceShowMadness = from.presenceShowMadness;
         to.useServerMenus = from.useServerMenus;
+        to.coiTitleScreen = from.coiTitleScreen;
         to.layoutVersion = from.layoutVersion;
     }
 

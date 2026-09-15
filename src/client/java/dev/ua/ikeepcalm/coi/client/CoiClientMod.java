@@ -134,8 +134,10 @@ public class CoiClientMod implements ClientModInitializer {
      * next one, so the list is deliberately exhaustive rather than clever.
      */
     private static void onDisconnect() {
-        // Remember how mad we were — the title screen holds a grudge
+        // Remember how mad we were and whose pathway we walked — the title
+        // screen holds a grudge, and lights that emblem on its wheel
         ClientStateStore.setLastMadness(BeyonderState.getMadness());
+        ClientStateStore.setLastPathway(BeyonderState.getPathway());
         BeyonderState.reset();
         ActingState.reset();
         ResourceState.reset();

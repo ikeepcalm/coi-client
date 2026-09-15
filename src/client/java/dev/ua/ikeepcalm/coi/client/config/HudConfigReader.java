@@ -124,6 +124,7 @@ final class HudConfigReader {
         s.enableDiscordPresence = flag(json, "enableDiscordPresence", true);
         s.presenceShowMadness = flag(json, "presenceShowMadness", true);
         s.useServerMenus = flag(json, "useServerMenus", false);
+        s.coiTitleScreen = flag(json, "coiTitleScreen", true);
     }
 
     /**

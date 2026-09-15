@@ -14,8 +14,9 @@ import net.fabricmc.loader.api.FabricLoader;
 /**
  * Small persistent scratch state that survives sessions — the last-known
  * madness values (so the title screen remembers how corrupted the player
- * was when they logged off), whether the first-join tour has been shown, and
- * whether the inventory hint has been dismissed.
+ * was when they logged off), the pathway it lights on its wheel, whether the
+ * first-join tour has been shown, and whether the inventory hint has been
+ * dismissed.
  * State, not preference: it deliberately survives resets of coi_hud.json.
  */
 public class ClientStateStore {
@@ -29,6 +30,7 @@ public class ClientStateStore {
     private static double lastMadness = 0.0;
     private static boolean tourCompleted = false;
     private static boolean inventoryHintDismissed = false;
+    private static String lastPathway = "";
 
     public static void load() {
         if (!Files.exists(STATE_PATH)) return;
@@ -39,6 +41,7 @@ public class ClientStateStore {
             lastMadness = JsonRead.dbl(json, "lastMadness", lastMadness);
             tourCompleted = JsonRead.bool(json, "tourCompleted");
             inventoryHintDismissed = JsonRead.bool(json, "inventoryHintDismissed");
+            lastPathway = JsonRead.string(json, "lastPathway", lastPathway);
         } catch (Exception e) {
             CoiLog.LOG.warn("Failed to read client state", e);
         }
@@ -104,6 +107,22 @@ public class ClientStateStore {
     }
 
     /**
+     * The pathway the player was walking when last seen, so the title screen
+     * can light their own emblem on the wheel before any server has spoken.
+     * Empty for a fresh install, which is the correct "nothing lit" state.
+     */
+    public static String getLastPathway() {
+        return lastPathway;
+    }
+
+    public static void setLastPathway(String value) {
+        String next = value == null ? "" : value;
+        if (lastPathway.equals(next)) return;
+        lastPathway = next;
+        save();
+    }
+
+    /**
      * Rewrites the whole file. Every setter above calls this only when its
      * value actually changed, so a session that touches nothing never writes.
      */
@@ -113,6 +132,7 @@ public class ClientStateStore {
         json.addProperty("lastMadness", lastMadness);
         json.addProperty("tourCompleted", tourCompleted);
         json.addProperty("inventoryHintDismissed", inventoryHintDismissed);
+        json.addProperty("lastPathway", lastPathway);
         try {
             Files.writeString(STATE_PATH, GSON.toJson(json));
         } catch (IOException e) {

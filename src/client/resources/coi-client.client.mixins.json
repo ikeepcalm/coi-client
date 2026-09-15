@@ -14,7 +14,10 @@
     "PlayerModelMixin",
     "LivingEntityRendererMixin",
     "OnlineServerEntryMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "LogoRendererMixin",
+    "SplashRendererMixin",
+    "AbstractButtonMixin"
   ],
   "injectors": {
     "defaultRequire": 1

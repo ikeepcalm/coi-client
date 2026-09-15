@@ -232,6 +232,12 @@ public class HudConfig {
          */
         public boolean useServerMenus = false;
         /**
+         * The Lord of the Mysteries main menu. Off falls the whole takeover
+         * through to vanilla — panorama, logo, splash placement and button
+         * sprites — leaving only the title-screen haunting, which predates it.
+         */
+        public boolean coiTitleScreen = true;
+        /**
          * Layout schema of the file this was read from; see
          * {@link HudConfigMigrations}.
          */

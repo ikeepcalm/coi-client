@@ -117,6 +117,7 @@ final class HudConfigWriter {
         json.addProperty("enableDiscordPresence", s.enableDiscordPresence);
         json.addProperty("presenceShowMadness", s.presenceShowMadness);
         json.addProperty("useServerMenus", s.useServerMenus);
+        json.addProperty("coiTitleScreen", s.coiTitleScreen);
     }
 
     /**

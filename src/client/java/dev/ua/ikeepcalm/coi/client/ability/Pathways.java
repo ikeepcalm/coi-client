@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.ability;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import net.minecraft.network.chat.Component;
@@ -48,6 +49,34 @@ public class Pathways {
             Map.entry("tyrant", ""),
             Map.entry("visionary", "")
     );
+
+    /**
+     * Every pathway that belongs on the title screen's wheel: the emblem keys
+     * minus {@code error}, which is the unknown-pathway fallback rather than a
+     * pathway anyone walks. Sorted so the ring's order is the same on every
+     * launch — {@link #PATHWAY_ICONS} is a {@code Map.ofEntries} and its
+     * iteration order is not.
+     */
+    public static final List<String> RING = PATHWAY_ICONS.keySet().stream()
+            .filter(key -> !"error".equals(key))
+            .sorted()
+            .toList();
+
+    /**
+     * The 64x64 emblem artwork for a pathway, for anything that wants the
+     * picture rather than the {@link #pathwayEmblem} font glyph — the glyph is
+     * a 9px bitmap and turns to mush above its own size.
+     * <p>
+     * {@link #normalizePathway} folds {@code eternalaeon} onto {@code aeon},
+     * but the file on disk is still {@code eternalaeon.png}; the fold is undone
+     * here rather than at every call site, and here only.
+     */
+    public static Identifier emblemTexture(String pathway) {
+        String key = normalizePathway(pathway);
+        if (!PATHWAY_ICONS.containsKey(key)) return null;
+        return Identifier.fromNamespaceAndPath("coi-client",
+                "textures/pathways/" + ("aeon".equals(key) ? "eternalaeon" : key) + ".png");
+    }
 
     /**
      * The pathway's emblem glyph from the {@code pathway_icons} font, or null
