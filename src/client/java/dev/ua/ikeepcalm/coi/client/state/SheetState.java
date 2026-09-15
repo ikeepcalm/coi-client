@@ -65,6 +65,24 @@ public final class SheetState {
     public record Actions(boolean church, boolean abilities, boolean mythical, boolean uniqueness,
                           boolean honorific, boolean map, boolean seat, boolean terrainDamage) {
         public static final Actions NONE = new Actions(false, false, false, false, false, false, false, false);
+
+        /**
+         * The gate for a wire target, which is how both the sheet's cards and
+         * the direct-open keybinds name a destination. An unknown target is
+         * treated as open — it is the server's to refuse, not ours.
+         */
+        public boolean unlocked(String target) {
+            return switch (target) {
+                case "church" -> church;
+                case "abilities" -> abilities;
+                case "mythical" -> mythical;
+                case "uniqueness" -> uniqueness;
+                case "honorific" -> honorific;
+                case "map" -> map;
+                case "seat" -> seat;
+                default -> true;
+            };
+        }
     }
 
     /**

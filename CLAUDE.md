@@ -988,6 +988,7 @@ v2 ability list (`active`, `cooldownRemainingTicks`) or live on `coi-client:stat
 | G (hold)        | Ability wheel — radial picker, open while the key is held, `wheelSlots` slots                                             |
 | K               | Open Ability Binding screen                                                                                              |
 | M               | Open the character sheet (`character_sheet`), else the server Beyonder menu (`menu_action`), else an unsupported message |
+| *(unbound × 7)* | Open one of the sheet's destinations directly (`church`, `abilities`, `mythical`, `uniqueness`, `honorific`, `map`, `seat`) — `ActionPayload.ofOpen`, no sheet behind it, so the menu's back arrow means "close" |
 | Left Alt (hold) | Gesture casting — draw a shape, release to cast (only when a gesture is bound)                                           |
 | F8 *(dev only)* | Open Effect Debug screen                                                                                                 |
 

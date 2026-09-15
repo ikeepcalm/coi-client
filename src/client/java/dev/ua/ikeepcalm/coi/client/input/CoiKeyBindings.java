@@ -11,6 +11,8 @@ import dev.ua.ikeepcalm.coi.client.screen.ability.AbilityBindingScreen;
 import dev.ua.ikeepcalm.coi.client.screen.ability.AbilityWheelScreen;
 import dev.ua.ikeepcalm.coi.client.screen.debug.EffectDebugScreen;
 import dev.ua.ikeepcalm.coi.client.screen.sheet.CharacterSheetScreen;
+import dev.ua.ikeepcalm.coi.client.state.MenuState;
+import dev.ua.ikeepcalm.coi.client.state.SheetState;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -37,13 +39,27 @@ import org.lwjgl.glfw.GLFW;
 public final class CoiKeyBindings {
 
     /**
+     * The character sheet's seven destinations, in its own order — the same
+     * wire targets {@code SheetDestinations} lays out as cards, and the stem of
+     * every lang key that describes one.
+     */
+    private static final String[] MENU_TARGETS = {
+            "church", "abilities", "mythical", "uniqueness", "honorific", "map", "seat"
+    };
+
+    /**
      * Slots in {@link #keyPressed} past the ability keys. They are indices into
      * the same edge-trigger array, not ability slots.
      */
     private static final int PRESS_BINDING_SCREEN = AbilityBindings.MAX_ABILITIES;
     private static final int PRESS_DEBUG_SCREEN = AbilityBindings.MAX_ABILITIES + 1;
     private static final int PRESS_OPEN_MENU = AbilityBindings.MAX_ABILITIES + 2;
-    private static final int TRACKED_KEYS = AbilityBindings.MAX_ABILITIES + 3;
+    /**
+     * First of {@link #MENU_TARGETS}{@code .length} consecutive slots, one per
+     * destination key.
+     */
+    private static final int PRESS_MENU_TARGET = AbilityBindings.MAX_ABILITIES + 3;
+    private static final int TRACKED_KEYS = PRESS_MENU_TARGET + MENU_TARGETS.length;
 
     /**
      * Ability slots 1-6 default to Z, X, C, V, B, N. Slots 7+ default unbound —
@@ -60,6 +76,7 @@ public final class CoiKeyBindings {
 
     private static final boolean[] keyPressed = new boolean[TRACKED_KEYS];
     private static final KeyMapping[] abilityKeys = new KeyMapping[AbilityBindings.MAX_ABILITIES];
+    private static final KeyMapping[] menuTargetKeys = new KeyMapping[MENU_TARGETS.length];
 
     public static KeyMapping abilityMenu;
     public static KeyMapping abilityWheel;
@@ -88,6 +105,13 @@ public final class CoiKeyBindings {
         openMenu = register("key.coi.open_menu", GLFW.GLFW_KEY_M, category);
         gestureCast = register("key.coi.gesture", GLFW.GLFW_KEY_LEFT_ALT, category);
 
+        // Straight into one of the sheet's destinations. All unbound by
+        // default: seven more keys claimed up front would collide with
+        // whatever the player already uses.
+        for (int i = 0; i < MENU_TARGETS.length; i++) {
+            menuTargetKeys[i] = register("key.coi.open_" + MENU_TARGETS[i], GLFW.GLFW_KEY_UNKNOWN, category);
+        }
+
         if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
             effectDebugMenu = register("screen.coi.effect_debug", GLFW.GLFW_KEY_F8, category);
         }
@@ -110,6 +134,12 @@ public final class CoiKeyBindings {
 
         onPress(PRESS_BINDING_SCREEN, abilityMenu, () -> client.gui.setScreen(new AbilityBindingScreen(null)));
         onPress(PRESS_OPEN_MENU, openMenu, () -> openServerMenu(client));
+
+        for (int i = 0; i < MENU_TARGETS.length; i++) {
+            String target = MENU_TARGETS[i];
+            onPress(PRESS_MENU_TARGET + i, menuTargetKeys[i], () -> openTarget(client, target));
+        }
+
         if (effectDebugMenu != null) {
             onPress(PRESS_DEBUG_SCREEN, effectDebugMenu, () -> client.gui.setScreen(new EffectDebugScreen(null)));
         }
@@ -166,6 +196,30 @@ public final class CoiKeyBindings {
         } else {
             client.player.sendOverlayMessage(Component.translatable("notification.coi.menu_unsupported"));
         }
+    }
+
+    /**
+     * One of the character sheet's destinations, opened without the sheet: ask
+     * the server for it and let it answer with a menu document or its own chest
+     * GUI, exactly as a destination card does.
+     * <p>
+     * Deliberately <em>not</em> marked as coming from the sheet — there is no
+     * page behind a keybind for the menu's back arrow to return to.
+     */
+    private static void openTarget(Minecraft client, String target) {
+        if (client.player == null) return;
+        if (!ServerCapabilities.has("menu_action")) {
+            client.player.sendOverlayMessage(Component.translatable("notification.coi.menu_unsupported"));
+            return;
+        }
+        // The gates only exist once the server has pushed a sheet; before that
+        // the server is the only one who knows, so let it refuse
+        if (SheetState.hasData() && !SheetState.actions().unlocked(target)) {
+            client.player.sendOverlayMessage(Component.translatable("screen.coi.sheet_lock_" + target));
+            return;
+        }
+        MenuState.markDirect();
+        ClientPlayNetworking.send(ActionPayload.ofOpen(target));
     }
 
     /**

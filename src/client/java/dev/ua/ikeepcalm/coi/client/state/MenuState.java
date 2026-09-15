@@ -55,6 +55,17 @@ public final class MenuState {
         fromSheet = true;
     }
 
+    /**
+     * The other half of {@link #markFromSheet()}: this session was opened
+     * straight from the world — a direct keybind or the menu key — so the back
+     * arrow at the root keeps meaning "close". Said out loud rather than
+     * trusted to already be false, because the flag outlives the document that
+     * set it until the menu is closed.
+     */
+    public static void markDirect() {
+        fromSheet = false;
+    }
+
     public static boolean openedFromSheet() {
         return fromSheet;
     }

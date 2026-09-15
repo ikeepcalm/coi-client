@@ -59,10 +59,14 @@ public final class AbilitySlotWidget {
     private static final int CHIP_H = 10;
     private static final int CHIP_PAD = 2;
     /**
-     * A keybind label longer than this is clipped — the chip has to stay inside
-     * the box next to the toggle tag.
+     * Inset of a chip from the box's edge, on the side it is anchored to.
      */
-    private static final int KEY_LABEL_MAX = 3;
+    private static final int CHIP_MARGIN = 2;
+    /**
+     * Clearance between the keybind chip and the {@code ON} tag, which share
+     * the box's top row from opposite ends.
+     */
+    private static final int CHIP_GAP = 2;
     /**
      * The name line is clipped to this many characters before the ellipsis;
      * past it, two neighbouring slots' names run together.
@@ -206,10 +210,17 @@ public final class AbilitySlotWidget {
         context.outline(x - 1, y - 1, size + 2, size + 2, color);
         context.outline(x - 2, y - 2, size + 4, size + 4, EffectPaint.argb(TOGGLE_COLOR, (int) (90 * pulse)));
 
-        String tag = I18n.get("hud.coi.toggle_on");
-        int tagW = font.width(tag) + 4;
+        int tagW = toggleTagWidth(font);
         context.fill(x + 1, y + 1, x + 1 + tagW, y + 1 + CHIP_H, KEYBIND_BACKGROUND);
-        context.text(font, tag, x + 3, y + 2, color, true);
+        context.text(font, I18n.get("hud.coi.toggle_on"), x + 3, y + 2, color, true);
+    }
+
+    /**
+     * Width of the {@code ON} tag's chip. Measured rather than assumed because
+     * the keybind chip has to stay clear of it and the word is translated.
+     */
+    private static int toggleTagWidth(Font font) {
+        return font.width(I18n.get("hud.coi.toggle_on")) + 4;
     }
 
     private boolean isUnavailable() {
@@ -289,20 +300,28 @@ public final class AbilitySlotWidget {
         }
     }
 
+    /**
+     * The keybind chip, or nothing at all. Slots past the six defaults ship
+     * unbound, and a chip reading "Not bound" is noise on a box this small —
+     * an absent chip says the same thing and leaves the room to the icon.
+     */
     private void renderKeybind(GuiGraphicsExtractor context, Font textRenderer, int x, int y, int size) {
         KeyMapping keyBinding = getKeyBinding();
-        if (keyBinding == null) return;
+        if (keyBinding == null || keyBinding.isUnbound()) return;
 
-        String keyText = KeyMappingHelper.getBoundKeyOf(keyBinding).getName();
-        if (keyText.length() > KEY_LABEL_MAX) {
-            keyText = keyText.substring(0, KEY_LABEL_MAX);
+        String keyText = HudGaslight.corruptKeybind(slotIndex, KeyMappingHelper.getBoundKeyOf(keyBinding).getDisplayName().getString());
+
+        int budget = keyLabelBudget(textRenderer, size);
+        if (budget <= 0) return;
+        if (textRenderer.width(keyText) > budget) {
+            keyText = textRenderer.plainSubstrByWidth(keyText, budget);
+            if (keyText.isEmpty()) return;
         }
-        keyText = HudGaslight.corruptKeybind(slotIndex, keyText);
 
         int textWidth = textRenderer.width(keyText);
         int bgWidth = textWidth + CHIP_PAD * 2;
 
-        int bgX = x + size - bgWidth - 2;
+        int bgX = x + size - bgWidth - CHIP_MARGIN;
         int bgY = y + 2;
         int textX = bgX + CHIP_PAD;
         int textY = bgY + 1;
@@ -310,6 +329,18 @@ public final class AbilitySlotWidget {
         context.fill(bgX, bgY, bgX + bgWidth, bgY + CHIP_H, KEYBIND_BACKGROUND);
         context.fill(bgX, bgY, bgX + bgWidth, bgY + 1, 0xFF555555);
         context.text(textRenderer, keyText, textX, textY, KEYBIND_COLOR, true);
+    }
+
+    /**
+     * How wide the chip's label may be: the box's top row, less a margin at
+     * each end and the chip's own padding, and less the {@code ON} tag when one
+     * is being drawn from the other end. The old three-character cap measured
+     * the wrong thing — {@code LALT} is four characters and fits, {@code BUTTON
+     * 4} is eight and never could.
+     */
+    private int keyLabelBudget(Font font, int size) {
+        int budget = size - CHIP_MARGIN * 2 - CHIP_PAD * 2;
+        return toggled ? budget - toggleTagWidth(font) - CHIP_GAP : budget;
     }
 
     private KeyMapping getKeyBinding() {

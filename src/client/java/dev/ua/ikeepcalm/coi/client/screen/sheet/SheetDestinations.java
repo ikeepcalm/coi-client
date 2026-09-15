@@ -74,8 +74,11 @@ final class SheetDestinations {
 
     private static boolean[] gates() {
         SheetState.Actions actions = SheetState.actions();
-        return new boolean[]{actions.church(), actions.abilities(), actions.mythical(), actions.uniqueness(),
-                actions.honorific(), actions.map(), actions.seat()};
+        boolean[] gates = new boolean[NAV.length];
+        for (int i = 0; i < NAV.length; i++) {
+            gates[i] = actions.unlocked(NAV[i].target());
+        }
+        return gates;
     }
 
     /**
