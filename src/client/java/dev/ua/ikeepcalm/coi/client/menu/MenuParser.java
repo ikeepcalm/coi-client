@@ -1,10 +1,10 @@
 package dev.ua.ikeepcalm.coi.client.menu;
 
-import com.google.gson.JsonArray;
+import dev.ua.ikeepcalm.coi.CoiLog;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -19,35 +19,11 @@ import java.util.Locale;
  * wrong JSON types and missing keys are therefore all "skip it and carry on",
  * and only a body that is not a JSON object at all gives up entirely.
  * <p>
- * The caps below are not a security boundary — the payload is already capped at
- * 1 MiB — they keep a runaway server-side loop from laying out a card a hundred
- * thousand pixels tall.
+ * The document's shape is parsed here; the pieces every component shares live
+ * in {@link MenuParts}, the reads themselves in {@link MenuJson}, the enum
+ * words in {@link MenuStyles} and the ceilings in {@link MenuLimits}.
  */
 public final class MenuParser {
-
-    private static final int MAX_SECTIONS = 32;
-    private static final int MAX_COMPONENTS = 96;
-    private static final int MAX_ROWS = 400;
-    private static final int MAX_KV_ROWS = 64;
-    private static final int MAX_CHECKS = 64;
-    private static final int MAX_BUTTONS = 24;
-    private static final int MAX_TOOLTIP_LINES = 10;
-
-    /**
-     * Vocabulary v2 caps. A chip row and a step rail are read top to bottom, so
-     * the ceilings are low on purpose: past a dozen the component is the wrong
-     * one and the server should have sent a list.
-     */
-    private static final int MAX_CHIPS = 12;
-    private static final int MAX_STEPS = 12;
-    private static final int MAX_PANEL_CELLS = 12;
-    private static final int MAX_DETAILS_BLOCKS = 8;
-    private static final int MAX_HERO_CHIPS = 4;
-
-    private static final int MAX_TITLE = 128;
-    private static final int MAX_LABEL = 160;
-    private static final int MAX_TEXT = 2000;
-    private static final int MAX_ID = 96;
 
     private MenuParser() {
     }
@@ -61,25 +37,25 @@ public final class MenuParser {
             JsonElement root = JsonParser.parseString(json);
             if (!root.isJsonObject()) return null;
             JsonObject node = root.getAsJsonObject();
-            String session = string(node, "session", MAX_ID);
-            if (bool(node, "closed")) return MenuDocument.closed(session);
+            String session = MenuJson.string(node, "session", MenuLimits.MAX_ID);
+            if (MenuJson.bool(node, "closed")) return MenuDocument.closed(session);
 
             return new MenuDocument(
                     session,
-                    intOf(node, "version", 0),
-                    string(node, "screen", MAX_ID),
-                    string(node, "title", MAX_TITLE),
-                    string(node, "subtitle", MAX_TITLE),
-                    hex(string(node, "accent", 8)),
+                    MenuJson.intOf(node, "version", 0),
+                    MenuJson.string(node, "screen", MenuLimits.MAX_ID),
+                    MenuJson.string(node, "title", MenuLimits.MAX_TITLE),
+                    MenuJson.string(node, "subtitle", MenuLimits.MAX_TITLE),
+                    MenuJson.color(node, "accent"),
                     MenuIcon.parse(node.get("icon")),
-                    bool(node, "back"),
-                    !node.has("closable") || bool(node, "closable"),
+                    MenuJson.bool(node, "back"),
+                    !node.has("closable") || MenuJson.bool(node, "closable"),
                     toast(node.get("toast")),
                     sections(node.get("sections")),
-                    buttons(node.get("footer"), MAX_BUTTONS),
+                    MenuParts.buttons(node.get("footer"), MenuLimits.MAX_BUTTONS),
                     false);
         } catch (Exception e) {
-            System.err.println("COI Client: malformed menu payload: " + e);
+            CoiLog.LOG.warn("Malformed menu payload", e);
             return null;
         }
     }
@@ -87,9 +63,9 @@ public final class MenuParser {
     private static MenuDocument.Toast toast(JsonElement element) {
         if (element == null || !element.isJsonObject()) return null;
         JsonObject node = element.getAsJsonObject();
-        String text = string(node, "text", MAX_TEXT);
+        String text = MenuJson.string(node, "text", MenuLimits.MAX_TEXT);
         if (text.isEmpty()) return null;
-        return new MenuDocument.Toast(string(node, "style", 16).toLowerCase(Locale.ROOT), text);
+        return new MenuDocument.Toast(MenuStyles.word(node, "style"), text);
     }
 
     /**
@@ -102,8 +78,8 @@ public final class MenuParser {
     private static List<MenuDocument.Section> sections(JsonElement element) {
         List<MenuDocument.Section> sections = new ArrayList<>();
         int index = 0;
-        for (JsonObject node : objects(element, MAX_SECTIONS)) {
-            String title = string(node, "title", MAX_TITLE);
+        for (JsonObject node : MenuJson.objects(element, MenuLimits.MAX_SECTIONS)) {
+            String title = MenuJson.string(node, "title", MenuLimits.MAX_TITLE);
             List<MenuComponent> components = components(node.get("components"));
             MenuComponent.Heading heading = heading(node, title, index);
             if (heading != null) {
@@ -126,358 +102,128 @@ public final class MenuParser {
     private static MenuComponent.Heading heading(JsonObject node, String title, int index) {
         boolean collapsible = node.has("collapsed");
         MenuIcon icon = MenuIcon.parse(node.get("icon"));
-        String badge = string(node, "badge", 32);
+        String badge = MenuJson.string(node, "badge", MenuLimits.MAX_BADGE);
         if (!collapsible && !icon.present() && badge.isEmpty()) return null;
-        String id = string(node, "id", MAX_ID);
+        String id = MenuJson.string(node, "id", MenuLimits.MAX_ID);
         return new MenuComponent.Heading(id.isEmpty() ? "#section" + index : id, title, icon, badge,
-                hex(string(node, "badgeColor", 8)), collapsible, bool(node, "collapsed"));
+                MenuJson.color(node, "badgeColor"), collapsible, MenuJson.bool(node, "collapsed"));
     }
 
     private static List<MenuComponent> components(JsonElement element) {
         List<MenuComponent> components = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_COMPONENTS)) {
+        for (JsonObject node : MenuJson.objects(element, MenuLimits.MAX_COMPONENTS)) {
             MenuComponent component = component(node);
             if (component != null) components.add(component);
         }
         return List.copyOf(components);
     }
 
+    /**
+     * @return null for a {@code type} this client has never heard of — a newer
+     * plugin's problem to notice, not a reason to lose the screen
+     */
     private static MenuComponent component(JsonObject node) {
-        return switch (string(node, "type", 24).toLowerCase(Locale.ROOT)) {
-            case "text" -> new MenuComponent.Text(string(node, "text", MAX_TEXT),
-                    textStyle(string(node, "style", 16)), align(string(node, "align", 16)));
-            case "note" -> new MenuComponent.Note(textStyle(string(node, "style", 16)),
-                    string(node, "title", MAX_TITLE), string(node, "text", MAX_TEXT),
+        return switch (MenuJson.string(node, "type", MenuLimits.MAX_TYPE).toLowerCase(Locale.ROOT)) {
+            case "text" -> new MenuComponent.Text(MenuJson.string(node, "text", MenuLimits.MAX_TEXT),
+                    MenuStyles.text(MenuStyles.word(node, "style")),
+                    MenuStyles.align(MenuStyles.word(node, "align")));
+            case "note" -> new MenuComponent.Note(MenuStyles.text(MenuStyles.word(node, "style")),
+                    MenuJson.string(node, "title", MenuLimits.MAX_TITLE),
+                    MenuJson.string(node, "text", MenuLimits.MAX_TEXT),
                     MenuIcon.parse(node.get("icon")));
-            case "stat" -> new MenuComponent.Stat(string(node, "label", MAX_LABEL),
-                    string(node, "value", MAX_LABEL),
-                    Math.clamp(dbl(node, "fraction"), 0.0, 1.0), node.has("fraction"),
-                    hex(string(node, "color", 8)), string(node, "hint", MAX_TEXT),
-                    MenuIcon.parse(node.get("icon")), gaugeStyle(string(node, "style", 16)),
-                    Math.clamp(dbl(node, "cap"), 0.0, 1.0), node.has("cap"),
-                    string(node, "delta", 32));
-            case "kv" -> new MenuComponent.Kv(kvRows(node.get("rows")));
-            case "checklist" -> new MenuComponent.Checklist(checks(node.get("items")));
-            case "button" -> button(node);
-            case "buttons" -> new MenuComponent.Buttons(buttons(node.get("buttons"), MAX_BUTTONS),
-                    Math.clamp(intOf(node, "columns", 1), 1, 4));
-            case "toggle" -> new MenuComponent.Toggle(string(node, "id", MAX_ID),
-                    string(node, "label", MAX_LABEL), bool(node, "on"), enabled(node),
-                    string(node, "desc", MAX_TEXT), string(node, "onText", 32), string(node, "offText", 32),
-                    string(node, "disabledReason", MAX_TEXT), MenuIcon.parse(node.get("icon")));
-            case "list" -> new MenuComponent.ListView(string(node, "id", MAX_ID), rows(node.get("rows")),
-                    bool(node, "searchable"), intOf(node, "maxVisible", 0), string(node, "empty", MAX_TEXT));
-            case "grid" -> new MenuComponent.Grid(rows(node.get("cells")),
-                    Math.clamp(intOf(node, "columns", 6), 1, 12), tileSize(string(node, "size", 16)));
-            case "input" -> new MenuComponent.Input(string(node, "id", MAX_ID),
-                    string(node, "label", MAX_LABEL), string(node, "placeholder", MAX_LABEL),
-                    string(node, "value", MAX_LABEL), Math.clamp(intOf(node, "maxLength", 64), 1, 256),
-                    string(node, "submit", MAX_ID), string(node, "submitLabel", MAX_LABEL),
-                    string(node, "hint", MAX_TEXT));
-            case "divider" -> new MenuComponent.Divider(string(node, "label", MAX_LABEL));
-            case "spacer" -> new MenuComponent.Spacer(Math.clamp(intOf(node, "size", 6), 1, 48));
+            case "stat" -> stat(node);
+            case "kv" -> new MenuComponent.Kv(MenuParts.kvRows(node.get("rows")));
+            case "checklist" -> new MenuComponent.Checklist(MenuParts.checks(node.get("items")));
+            case "button" -> MenuParts.button(node);
+            case "buttons" -> new MenuComponent.Buttons(
+                    MenuParts.buttons(node.get("buttons"), MenuLimits.MAX_BUTTONS),
+                    Math.clamp(MenuJson.intOf(node, "columns", 1), 1, 4));
+            case "toggle" -> toggle(node);
+            case "list" -> new MenuComponent.ListView(MenuJson.string(node, "id", MenuLimits.MAX_ID),
+                    MenuParts.rows(node.get("rows")), MenuJson.bool(node, "searchable"),
+                    MenuJson.intOf(node, "maxVisible", 0),
+                    MenuJson.string(node, "empty", MenuLimits.MAX_TEXT));
+            case "grid" -> new MenuComponent.Grid(MenuParts.rows(node.get("cells")),
+                    Math.clamp(MenuJson.intOf(node, "columns", 6), 1, 12),
+                    MenuStyles.tile(MenuStyles.word(node, "size")));
+            case "input" -> input(node);
+            case "divider" -> new MenuComponent.Divider(MenuJson.string(node, "label", MenuLimits.MAX_LABEL));
+            case "spacer" -> new MenuComponent.Spacer(Math.clamp(MenuJson.intOf(node, "size", 6), 1, 48));
             case "hero" -> hero(node);
             case "details" -> details(node);
-            case "steps" -> new MenuComponent.Steps(stepStyle(string(node, "style", 16)),
-                    steps(node.get("items")));
-            case "chips" -> new MenuComponent.Chips(chips(node.get("items"), MAX_CHIPS));
-            case "panels" -> new MenuComponent.Panels(Math.clamp(intOf(node, "columns", 2), 1, 3),
-                    panelCells(node.get("cells")));
-            // A component this client has never heard of: a newer plugin's
-            // problem to notice, not a reason to lose the screen
+            case "steps" -> new MenuComponent.Steps(MenuStyles.step(MenuStyles.word(node, "style")),
+                    MenuParts.steps(node.get("items")));
+            case "chips" -> new MenuComponent.Chips(MenuParts.chips(node.get("items"), MenuLimits.MAX_CHIPS));
+            case "panels" -> new MenuComponent.Panels(Math.clamp(MenuJson.intOf(node, "columns", 2), 1, 3),
+                    MenuParts.panelCells(node.get("cells")));
             default -> null;
         };
+    }
+
+    private static MenuComponent.Stat stat(JsonObject node) {
+        return new MenuComponent.Stat(
+                MenuJson.string(node, "label", MenuLimits.MAX_LABEL),
+                MenuJson.string(node, "value", MenuLimits.MAX_LABEL),
+                MenuJson.fraction(node, "fraction"), node.has("fraction"),
+                MenuJson.color(node, "color"),
+                MenuJson.string(node, "hint", MenuLimits.MAX_TEXT),
+                MenuIcon.parse(node.get("icon")),
+                MenuStyles.gauge(MenuStyles.word(node, "style")),
+                MenuJson.fraction(node, "cap"), node.has("cap"),
+                MenuJson.string(node, "delta", MenuLimits.MAX_BADGE));
+    }
+
+    private static MenuComponent.Toggle toggle(JsonObject node) {
+        return new MenuComponent.Toggle(
+                MenuJson.string(node, "id", MenuLimits.MAX_ID),
+                MenuJson.string(node, "label", MenuLimits.MAX_LABEL),
+                MenuJson.bool(node, "on"),
+                MenuJson.enabled(node),
+                MenuJson.string(node, "desc", MenuLimits.MAX_TEXT),
+                MenuJson.string(node, "onText", MenuLimits.MAX_BADGE),
+                MenuJson.string(node, "offText", MenuLimits.MAX_BADGE),
+                MenuJson.string(node, "disabledReason", MenuLimits.MAX_TEXT),
+                MenuIcon.parse(node.get("icon")));
+    }
+
+    private static MenuComponent.Input input(JsonObject node) {
+        return new MenuComponent.Input(
+                MenuJson.string(node, "id", MenuLimits.MAX_ID),
+                MenuJson.string(node, "label", MenuLimits.MAX_LABEL),
+                MenuJson.string(node, "placeholder", MenuLimits.MAX_LABEL),
+                MenuJson.string(node, "value", MenuLimits.MAX_LABEL),
+                Math.clamp(MenuJson.intOf(node, "maxLength", 64), 1, 256),
+                MenuJson.string(node, "submit", MenuLimits.MAX_ID),
+                MenuJson.string(node, "submitLabel", MenuLimits.MAX_LABEL),
+                MenuJson.string(node, "hint", MenuLimits.MAX_TEXT));
     }
 
     private static MenuComponent.Hero hero(JsonObject node) {
         return new MenuComponent.Hero(
                 MenuIcon.parse(node.get("icon")),
-                string(node, "title", MAX_TITLE),
-                string(node, "subtitle", MAX_TITLE),
-                string(node, "badge", 32),
-                hex(string(node, "badgeColor", 8)),
-                heroStyle(string(node, "style", 16)),
-                Math.clamp(dbl(node, "fraction"), 0.0, 1.0), node.has("fraction"),
-                string(node, "fractionLabel", 32),
-                hex(string(node, "color", 8)),
-                chips(node.get("chips"), MAX_HERO_CHIPS));
+                MenuJson.string(node, "title", MenuLimits.MAX_TITLE),
+                MenuJson.string(node, "subtitle", MenuLimits.MAX_TITLE),
+                MenuJson.string(node, "badge", MenuLimits.MAX_BADGE),
+                MenuJson.color(node, "badgeColor"),
+                MenuStyles.hero(MenuStyles.word(node, "style")),
+                MenuJson.fraction(node, "fraction"), node.has("fraction"),
+                MenuJson.string(node, "fractionLabel", MenuLimits.MAX_BADGE),
+                MenuJson.color(node, "color"),
+                MenuParts.chips(node.get("chips"), MenuLimits.MAX_HERO_CHIPS));
     }
 
+    /**
+     * The prose of a menu lives here, collapsed by default — which is why an
+     * absent {@code style} is MUTED rather than the usual BODY.
+     */
     private static MenuComponent.Details details(JsonObject node) {
         return new MenuComponent.Details(
-                string(node, "id", MAX_ID),
-                string(node, "summary", MAX_LABEL),
-                strings(node.get("text"), MAX_DETAILS_BLOCKS),
-                node.has("style") ? textStyle(string(node, "style", 16)) : MenuComponent.TextStyle.MUTED,
+                MenuJson.string(node, "id", MenuLimits.MAX_ID),
+                MenuJson.string(node, "summary", MenuLimits.MAX_LABEL),
+                MenuJson.strings(node.get("text"), MenuLimits.MAX_DETAILS_BLOCKS),
+                node.has("style") ? MenuStyles.text(MenuStyles.word(node, "style"))
+                        : MenuComponent.TextStyle.MUTED,
                 MenuIcon.parse(node.get("icon")),
-                bool(node, "open"));
-    }
-
-    private static List<MenuComponent.Chip> chips(JsonElement element, int cap) {
-        List<MenuComponent.Chip> chips = new ArrayList<>();
-        for (JsonObject node : objects(element, cap)) {
-            chips.add(new MenuComponent.Chip(string(node, "label", MAX_LABEL),
-                    string(node, "value", MAX_LABEL), hex(string(node, "color", 8)),
-                    MenuIcon.parse(node.get("icon")), string(node, "hint", MAX_TEXT)));
-        }
-        return List.copyOf(chips);
-    }
-
-    private static List<MenuComponent.Step> steps(JsonElement element) {
-        List<MenuComponent.Step> steps = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_STEPS)) {
-            // Boxed on purpose: an absent "done" is "not yet", which is neither
-            // of the two things a boolean could say
-            Boolean done = node.has("done") && node.get("done").isJsonPrimitive()
-                    ? bool(node, "done") : null;
-            steps.add(new MenuComponent.Step(string(node, "title", MAX_LABEL),
-                    string(node, "text", MAX_TEXT), done, MenuIcon.parse(node.get("icon"))));
-        }
-        return List.copyOf(steps);
-    }
-
-    private static List<MenuComponent.PanelCell> panelCells(JsonElement element) {
-        List<MenuComponent.PanelCell> cells = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_PANEL_CELLS)) {
-            cells.add(new MenuComponent.PanelCell(
-                    string(node, "id", MAX_ID),
-                    MenuIcon.parse(node.get("icon")),
-                    string(node, "title", MAX_LABEL),
-                    string(node, "value", MAX_LABEL),
-                    string(node, "subtitle", MAX_TEXT),
-                    hex(string(node, "color", 8)),
-                    Math.clamp(dbl(node, "fraction"), 0.0, 1.0), node.has("fraction"),
-                    string(node, "badge", 32),
-                    hex(string(node, "badgeColor", 8)),
-                    tooltip(node.get("tooltip")),
-                    string(node, "action", MAX_ID),
-                    enabled(node),
-                    string(node, "disabledReason", MAX_TEXT)));
-        }
-        return List.copyOf(cells);
-    }
-
-    private static MenuComponent.Button button(JsonObject node) {
-        return new MenuComponent.Button(
-                string(node, "id", MAX_ID),
-                string(node, "label", MAX_LABEL),
-                string(node, "desc", MAX_TEXT),
-                buttonStyle(string(node, "style", 16)),
-                enabled(node),
-                string(node, "disabledReason", MAX_TEXT),
-                confirm(node.get("confirm")),
-                MenuIcon.parse(node.get("icon")));
-    }
-
-    private static MenuComponent.Confirm confirm(JsonElement element) {
-        if (element == null || !element.isJsonObject()) return null;
-        JsonObject node = element.getAsJsonObject();
-        return new MenuComponent.Confirm(string(node, "title", MAX_TITLE),
-                string(node, "body", MAX_TEXT), string(node, "confirmLabel", MAX_LABEL));
-    }
-
-    private static List<MenuComponent.Button> buttons(JsonElement element, int cap) {
-        List<MenuComponent.Button> buttons = new ArrayList<>();
-        for (JsonObject node : objects(element, cap)) {
-            buttons.add(button(node));
-        }
-        return List.copyOf(buttons);
-    }
-
-    private static List<MenuComponent.KvRow> kvRows(JsonElement element) {
-        List<MenuComponent.KvRow> rows = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_KV_ROWS)) {
-            rows.add(new MenuComponent.KvRow(string(node, "label", MAX_LABEL),
-                    string(node, "value", MAX_LABEL), hex(string(node, "color", 8)),
-                    string(node, "hint", MAX_TEXT), MenuIcon.parse(node.get("icon"))));
-        }
-        return List.copyOf(rows);
-    }
-
-    private static List<MenuComponent.Check> checks(JsonElement element) {
-        List<MenuComponent.Check> checks = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_CHECKS)) {
-            checks.add(new MenuComponent.Check(checkState(node), string(node, "label", MAX_LABEL),
-                    string(node, "detail", MAX_TEXT), MenuIcon.parse(node.get("icon")),
-                    hex(string(node, "color", 8))));
-        }
-        return List.copyOf(checks);
-    }
-
-    private static List<MenuComponent.Row> rows(JsonElement element) {
-        List<MenuComponent.Row> rows = new ArrayList<>();
-        for (JsonObject node : objects(element, MAX_ROWS)) {
-            rows.add(new MenuComponent.Row(
-                    string(node, "id", MAX_ID),
-                    string(node, "title", MAX_LABEL),
-                    string(node, "subtitle", MAX_LABEL),
-                    MenuIcon.parse(node.get("icon")),
-                    string(node, "badge", 32),
-                    hex(string(node, "badgeColor", 8)),
-                    tooltip(node.get("tooltip")),
-                    string(node, "action", MAX_ID),
-                    enabled(node),
-                    hex(string(node, "color", 8)),
-                    Math.clamp(dbl(node, "fraction"), 0.0, 1.0), node.has("fraction"),
-                    string(node, "meta", MAX_LABEL),
-                    string(node, "disabledReason", MAX_TEXT)));
-        }
-        return List.copyOf(rows);
-    }
-
-    private static List<String> tooltip(JsonElement element) {
-        return strings(element, MAX_TOOLTIP_LINES);
-    }
-
-    private static List<String> strings(JsonElement element, int cap) {
-        if (element == null || !element.isJsonArray()) return List.of();
-        List<String> lines = new ArrayList<>();
-        for (JsonElement line : element.getAsJsonArray()) {
-            if (lines.size() >= cap) break;
-            if (line.isJsonPrimitive()) lines.add(trim(line.getAsString(), MAX_TEXT));
-        }
-        return List.copyOf(lines);
-    }
-
-    // --- Enums (an unknown word is the default, never a failure) ---
-
-    private static MenuComponent.TextStyle textStyle(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "muted" -> MenuComponent.TextStyle.MUTED;
-            case "heading" -> MenuComponent.TextStyle.HEADING;
-            case "warn", "warning" -> MenuComponent.TextStyle.WARN;
-            case "danger", "error" -> MenuComponent.TextStyle.DANGER;
-            case "success" -> MenuComponent.TextStyle.SUCCESS;
-            default -> MenuComponent.TextStyle.BODY;
-        };
-    }
-
-    private static MenuComponent.ButtonStyle buttonStyle(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "primary" -> MenuComponent.ButtonStyle.PRIMARY;
-            case "danger" -> MenuComponent.ButtonStyle.DANGER;
-            case "success" -> MenuComponent.ButtonStyle.SUCCESS;
-            case "ghost" -> MenuComponent.ButtonStyle.GHOST;
-            default -> MenuComponent.ButtonStyle.SECONDARY;
-        };
-    }
-
-    private static MenuComponent.Align align(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "center", "centre" -> MenuComponent.Align.CENTER;
-            case "right" -> MenuComponent.Align.RIGHT;
-            default -> MenuComponent.Align.LEFT;
-        };
-    }
-
-    private static MenuComponent.GaugeStyle gaugeStyle(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "ring" -> MenuComponent.GaugeStyle.RING;
-            case "segments", "segmented" -> MenuComponent.GaugeStyle.SEGMENTS;
-            default -> MenuComponent.GaugeStyle.BAR;
-        };
-    }
-
-    private static MenuComponent.HeroStyle heroStyle(String value) {
-        return "ring".equals(value.toLowerCase(Locale.ROOT))
-                ? MenuComponent.HeroStyle.RING : MenuComponent.HeroStyle.PLAIN;
-    }
-
-    private static MenuComponent.StepStyle stepStyle(String value) {
-        return "timeline".equals(value.toLowerCase(Locale.ROOT))
-                ? MenuComponent.StepStyle.TIMELINE : MenuComponent.StepStyle.NUMBERED;
-    }
-
-    private static MenuComponent.TileSize tileSize(String value) {
-        return switch (value.toLowerCase(Locale.ROOT)) {
-            case "small" -> MenuComponent.TileSize.SMALL;
-            case "large" -> MenuComponent.TileSize.LARGE;
-            default -> MenuComponent.TileSize.MEDIUM;
-        };
-    }
-
-    /**
-     * The tri-state, folded down once here. An unknown word is not a third
-     * answer: it falls back to the {@code ok} boolean the wire has always
-     * carried, which is also what an absent {@code state} does.
-     */
-    private static MenuComponent.CheckState checkState(JsonObject node) {
-        return switch (string(node, "state", 16).toLowerCase(Locale.ROOT)) {
-            case "ok", "yes", "done" -> MenuComponent.CheckState.OK;
-            case "no", "fail", "failed" -> MenuComponent.CheckState.NO;
-            case "pending", "wait", "waiting" -> MenuComponent.CheckState.PENDING;
-            default -> bool(node, "ok") ? MenuComponent.CheckState.OK : MenuComponent.CheckState.NO;
-        };
-    }
-
-    // --- Scalars (every read tolerates a missing key or the wrong type) ---
-
-    private static List<JsonObject> objects(JsonElement element, int cap) {
-        if (element == null || !element.isJsonArray()) return List.of();
-        JsonArray array = element.getAsJsonArray();
-        List<JsonObject> objects = new ArrayList<>();
-        for (JsonElement item : array) {
-            if (objects.size() >= cap) break;
-            if (item.isJsonObject()) objects.add(item.getAsJsonObject());
-        }
-        return objects;
-    }
-
-    /**
-     * Absent means enabled: most components are, and a server that has to spell
-     * out {@code "enabled":true} on every button will eventually forget one.
-     */
-    private static boolean enabled(JsonObject node) {
-        return !node.has("enabled") || bool(node, "enabled");
-    }
-
-    static String string(JsonObject node, String key, int max) {
-        if (node == null || !node.has(key)) return "";
-        JsonElement element = node.get(key);
-        if (!element.isJsonPrimitive()) return "";
-        return trim(element.getAsString(), max);
-    }
-
-    private static String trim(String value, int max) {
-        if (value == null) return "";
-        return value.length() <= max ? value : value.substring(0, max);
-    }
-
-    private static int intOf(JsonObject node, String key, int fallback) {
-        try {
-            return node.has(key) && node.get(key).isJsonPrimitive() ? node.get(key).getAsInt() : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static double dbl(JsonObject node, String key) {
-        try {
-            return node.has(key) && node.get(key).isJsonPrimitive() ? node.get(key).getAsDouble() : 0;
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private static boolean bool(JsonObject node, String key) {
-        try {
-            return node.has(key) && node.get(key).isJsonPrimitive() && node.get(key).getAsBoolean();
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * Six hex digits with no {@code #} to 0xRRGGBB; 0 means "unspecified", which
-     * every caller reads as "use the document's accent or the default".
-     */
-    private static int hex(String value) {
-        String clean = value.startsWith("#") ? value.substring(1) : value;
-        if (clean.length() != 6) return 0;
-        try {
-            return Integer.parseInt(clean, 16);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
+                MenuJson.bool(node, "open"));
     }
 }

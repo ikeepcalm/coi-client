@@ -1,13 +1,15 @@
 package dev.ua.ikeepcalm.coi.client.config;
 
+import dev.ua.ikeepcalm.coi.CoiLog;
+import dev.ua.ikeepcalm.coi.client.json.JsonRead;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import net.fabricmc.loader.api.FabricLoader;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * Small persistent scratch state that survives sessions — the last-known
@@ -33,21 +35,12 @@ public class ClientStateStore {
         try {
             JsonObject json = GSON.fromJson(Files.readString(STATE_PATH), JsonObject.class);
             if (json == null) return;
-            if (json.has("lastPermanentMadness")) {
-                lastPermanentMadness = json.get("lastPermanentMadness").getAsDouble();
-            }
-            if (json.has("lastMadness")) {
-                lastMadness = json.get("lastMadness").getAsDouble();
-            }
-            if (json.has("tourCompleted")) {
-                tourCompleted = json.get("tourCompleted").getAsBoolean();
-            }
-            if (json.has("inventoryHintDismissed")) {
-                inventoryHintDismissed = json.get("inventoryHintDismissed").getAsBoolean();
-            }
+            lastPermanentMadness = JsonRead.dbl(json, "lastPermanentMadness", lastPermanentMadness);
+            lastMadness = JsonRead.dbl(json, "lastMadness", lastMadness);
+            tourCompleted = JsonRead.bool(json, "tourCompleted");
+            inventoryHintDismissed = JsonRead.bool(json, "inventoryHintDismissed");
         } catch (Exception e) {
-            System.err.println("COI Client: Failed to read client state");
-            e.printStackTrace();
+            CoiLog.LOG.warn("Failed to read client state", e);
         }
     }
 
@@ -110,6 +103,10 @@ public class ClientStateStore {
         save();
     }
 
+    /**
+     * Rewrites the whole file. Every setter above calls this only when its
+     * value actually changed, so a session that touches nothing never writes.
+     */
     private static void save() {
         JsonObject json = new JsonObject();
         json.addProperty("lastPermanentMadness", lastPermanentMadness);
@@ -119,7 +116,7 @@ public class ClientStateStore {
         try {
             Files.writeString(STATE_PATH, GSON.toJson(json));
         } catch (IOException e) {
-            e.printStackTrace();
+            CoiLog.LOG.warn("Failed to write client state", e);
         }
     }
 }

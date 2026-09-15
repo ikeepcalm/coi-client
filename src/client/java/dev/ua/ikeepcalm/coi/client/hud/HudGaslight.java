@@ -1,7 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud;
 
-import dev.ua.ikeepcalm.coi.client.ClientBeyonderState;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+import dev.ua.ikeepcalm.coi.client.state.BeyonderState;
 
 import java.util.List;
 import java.util.Random;
@@ -14,7 +14,7 @@ import java.util.Random;
  * <p>
  * Gated behind the same toggle as the rest of the hallucination family.
  */
-public class HudGaslight {
+public final class HudGaslight {
 
     private enum Lie {NONE, COOLDOWN, KEYBIND, SWAP}
 
@@ -30,6 +30,9 @@ public class HudGaslight {
     private static String fakeCooldownText = "";
     private static int glitchCharIndex = 0;
 
+    private HudGaslight() {
+    }
+
     /**
      * Called once per HUD frame with the bind-slot indices currently visible.
      * Drives the episode state machine.
@@ -37,7 +40,7 @@ public class HudGaslight {
     public static void update(List<Integer> visibleSlots) {
         long now = System.currentTimeMillis();
 
-        double madness = ClientBeyonderState.getMadness();
+        double madness = BeyonderState.getMadness();
         boolean enabled = HudConfig.getSettings().enableHallucinations
                 && madness >= MIN_MADNESS
                 && !visibleSlots.isEmpty();

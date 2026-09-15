@@ -48,8 +48,10 @@ Names below are Mojang mappings (Mojmap), as used by the client sources.
 | S→C | `coi-client:sheet` | `SheetPayload` | `String json` (1 MiB cap) |
 | S→C | `coi-client:menu` | `MenuPayload` | `String json` (1 MiB cap) |
 
-All payload records live in `client/network/`; they are registered (and the S→C receivers attached)
-in `CircleOfImaginationClient.registerPayloads`.
+All payload records live in `client/network/payload/`, built from the shared type/codec shapes in
+`CoiPayloads` (the namespace, the 1 MiB / 32 KiB caps and the read/write pair are spelled out once
+there, not 22 times). They are registered — and the S→C receivers attached — in
+`CoiNetworking.registerPayloads`.
 
 ---
 
@@ -274,7 +276,7 @@ madness=42.50;permanentMadness=5.00;freezeStacks=0;mentalPressure=0;tiredness=0.
 
 A payload without `spirituality` never enables the spirituality bar, and one without `maxHealth`
 leaves the vanilla hearts untouched, so old servers simply keep their boss bars and hearts. Parsed
-by `ClientBeyonderState.parseAndUpdate`.
+by `state/ConditionsParser`, into `state/BeyonderState` (`parseAndUpdate` is the entry point).
 
 **Why only the ceiling.** The server never sends current HP. Vanilla health is a proportional
 mirror of the pool, and the plugin recomputes the pool *from* vanilla health after every hit, so the
@@ -318,10 +320,10 @@ advertised `ability_meta`, and never alongside v1. The client codec reads with
 
 Passives are included in this list (v1 excludes them). `icon` is only honoured when the loaded
 resource pack actually defines `assets/<namespace>/items/<path>.json`; otherwise the client falls
-back to its bundled category/tier icon. `util/IconModels` caches that answer per icon string and
+back to its bundled category/tier icon. `ui/IconModels` caches that answer per icon string and
 clears it on resource reload and on disconnect.
 
-Parsed by `CircleOfImaginationClient.handleAbilityDataV2`.
+Parsed by `AbilityRegistry.handleAbilityDataV2`.
 
 ### `coi-client:state`
 
@@ -338,7 +340,7 @@ or a category switch:
 ```
 
 An active ability outlines its HUD slot in cyan with an `ON` tag; a category label is appended to
-the slot's name line. Parsed by `CircleOfImaginationClient.handleAbilityState`.
+the slot's name line. Parsed by `AbilityRegistry.handleAbilityState`.
 
 ### `coi-client:acting`
 
@@ -360,7 +362,7 @@ One JSON string — acting progress for the local player.
 
 An empty object (`{}`) means the player has no pathway and clears the state. Sent after hello, on
 `coi-client:request`, every 60 ticks, and immediately after any grant. Parsed by
-`ClientActingState`.
+`ActingState`.
 
 ### `coi-client:resource`
 
@@ -388,7 +390,7 @@ Removal is its own form:
 ```
 
 Bars stack in arrival order, capped by the player's `resourceMaxBars` setting. Parsed by
-`ClientResourceState`, drawn by `ResourceHudOverlay`.
+`ResourceState`, drawn by `ResourceOverlay`.
 
 ### `coi-client:actionbar`
 
@@ -411,7 +413,7 @@ capable players.
 
 Each payload replaces the whole list; an empty `entries` array clears it. Only COI's own entries
 move — vanilla action bars from other plugins still render normally. Parsed by
-`ClientActionBarState`, drawn by `hud/ActionBarHudOverlay`.
+`ActionBarState`, drawn by `hud/overlay/ActionBarOverlay`.
 
 ### `coi-client:target`
 
@@ -424,7 +426,7 @@ One JSON string per ability hit, replacing the server's 60 one-tick action-bar p
 
 `before` / `after` are 0..1 fractions. The bar sits under the crosshair for 3 s; the chunk between
 `before` and `after` flashes white for 600 ms before settling to dark red. `kind` is reserved for a
-later `creature` variant. Parsed by `ClientTargetState`, drawn by `hud/TargetHealthOverlay`.
+later `creature` variant. Parsed by `TargetState`, drawn by `hud/overlay/TargetHealthOverlay`.
 
 ### `coi-client:cogitation`
 
@@ -439,7 +441,7 @@ One JSON string per session event, replacing the vanilla titles.
 
 `stop` clears everything. The server only sweeps for timeouts every 40 ticks, so the client's time
 bar can hold at 0 for up to two seconds before a `fail` arrives. Parsed by
-`ClientCogitationState`, drawn by `hud/CogitationOverlay`.
+`CogitationState`, drawn by `hud/overlay/CogitationOverlay`.
 
 ### `coi-client:notify`
 
@@ -452,7 +454,7 @@ One JSON string per toast.
 
 `title` and `body` are already resolved in the player's locale server-side; `color` is `RRGGBB`
 (the accent bar and title colour). At most three toasts show at once in the top-right corner; the
-rest queue. Parsed by `ClientNotificationState`, drawn by `hud/NotificationOverlay`.
+rest queue. Parsed by `NotificationState`, drawn by `hud/overlay/NotificationOverlay`.
 
 ### `coi-client:sheet`
 
@@ -477,7 +479,7 @@ every 60 ticks while the sheet is open.
    "honorific":false,"map":true,"seat":false,"terrainDamage":true}}
 ```
 
-- `pathwayColor` is six hex characters with no `#`; the client falls back to `AbilityInfo.pathwayRgb`
+- `pathwayColor` is six hex characters with no `#`; the client falls back to `Pathways.pathwayRgb`
   when it is missing or unparseable.
 - `madnessStage` and `tirednessStage` are 0–4 and pick the `screen.coi.sheet_stage_*` /
   `screen.coi.sheet_tired_*` names.
@@ -490,8 +492,9 @@ every 60 ticks while the sheet is open.
 - All strings arrive already resolved in the player's locale. Spirituality here uses the GUI's
   three-way fallback (Influence → Concealment → real), which can legitimately differ from the
   spirituality HUD bar fed by `conditions`.
-- Every field may be missing: `ClientSheetState` parses defensively and defaults. Parsed by
-  `ClientSheetState`, drawn by `screen/CharacterSheetScreen`, reset on disconnect.
+- Every field may be missing: the parse is defensive throughout and every absent value defaults.
+  Parsed by `state/SheetParser` into a `SheetState.Snapshot`, held by `state/SheetState`, drawn by
+  `screen/sheet/CharacterSheetScreen` and its `Sheet*` sections, reset on disconnect.
 
 ### `coi-client:menu`
 
@@ -514,8 +517,10 @@ document.
 - `session` — opaque token minted per menu session; `version` increments on every push. Both are
   echoed back on every click.
 - `icon.kind` ∈ `pathway` (a pathway key → `CoiIcons.drawPathwayEmblem`), `item` (a
-  `namespace:path` item model id → `AbilityIcons.drawItemModel`), `head` (a player uuid, resolved
-  through the tab list), `none`.
+  `namespace:path` item model id → `AbilityIcons.drawItemModel`), `glyph` (one of the 25 first-party
+  16×16 icons in `CoiIcons.GLYPHS` — the only kind whose art does not depend on the player's
+  resource pack), `ability` (an ability id, through the same `AbilityIcons` route the HUD uses),
+  `head` (a player uuid, resolved through the tab list), `none`.
 - `accent` — 6 hex digits, no `#`; drives the card rule, the headings, the primary buttons and the
   scrollbar. Absent means the mod's gold.
 - `toast` — one line shown under the header for the document's life, in `info|success|warn|error`
@@ -549,7 +554,7 @@ document.
   this is what replaces the plugin's two-step chest confirms.
 - `maxVisible` is **advisory**: the client scrolls the whole card, so a list is never paged.
 
-Parsed by `client/menu/MenuParser` into `MenuDocument`/`MenuComponent`, held by `ClientMenuState`,
+Parsed by `client/menu/MenuParser` into `MenuDocument`/`MenuComponent`, held by `MenuState`,
 drawn by `screen/menu/MenuScreen` (+ `MenuTheme`), reset on disconnect.
 
 ### `coi-client:appearance`
@@ -575,7 +580,7 @@ The client takes the segment before the first `-` as the pathway and colours the
 
 | Pathway | Color |
 |---------|-------|
-`AbilityInfo.pathwayRgb` is the single colour table for all 25 pathways — the HUD slots, the
+`Pathways.pathwayRgb` is the single colour table for all 25 pathways — the HUD slots, the
 picker, the acting bar and the mythical-form burst all read from it. `eternalaeon` resolves to
 `aeon`; anything unrecognised falls back to a pale lavender.
 

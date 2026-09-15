@@ -2,14 +2,14 @@ package dev.ua.ikeepcalm.coi.client.screen;
 
 import dev.ua.ikeepcalm.coi.client.config.ClientStateStore;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-import dev.ua.ikeepcalm.coi.client.effects.impl.EffectPaint;
+import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
+
+import java.util.Random;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.SplashRenderer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-
-import java.util.Random;
 
 /**
  * The title screen remembers. Corruption (the higher of madness / permanent
@@ -25,7 +25,7 @@ public class TitleScreenHaunt {
     private static final Identifier[] PUPIL_FRAMES = new Identifier[4];
 
     static {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PUPIL_FRAMES.length; i++) {
             PUPIL_FRAMES[i] = Identifier.fromNamespaceAndPath("coi-client", "textures/eyes/eye4." + (i + 1) + ".png");
         }
     }
@@ -43,6 +43,9 @@ public class TitleScreenHaunt {
     private static float eyeRotation;
     private static boolean splashDecided = false;
     private static SplashRenderer hauntedSplash = null;
+
+    private TitleScreenHaunt() {
+    }
 
     /**
      * 0 when clean (or hallucinations disabled), creeping to 1 at corruption

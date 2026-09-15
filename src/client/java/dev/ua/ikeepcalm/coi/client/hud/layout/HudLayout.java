@@ -1,5 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud.layout;
 
+import dev.ua.ikeepcalm.coi.client.screen.settings.HudLayoutScreen;
+
 /**
  * Shared switch for the HUD layout editor.
  * <p>

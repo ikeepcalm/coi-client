@@ -1,10 +1,10 @@
 package dev.ua.ikeepcalm.coi.client.hud;
 
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.util.Mth;
 
 import java.util.BitSet;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.util.Mth;
 
 /**
  * Per-element HUD scaling.

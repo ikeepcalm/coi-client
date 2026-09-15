@@ -63,7 +63,7 @@ divine-actions line that repeated its own button's `disabledReason`.
 - **Disclosure state is keyed `screenId + "/" + id` and survives a rebuild**, resetting only when
   the screen id actually changes. A 60-tick refresh slamming shut what the player just opened is the
   bug this prevents — the same bargain renderer decision 6 makes for `EditBox` identity.
-- **All easing funnels through `MenuScreen.approach`**, which returns the target outright under
+- **All easing funnels through `MenuContext.approach`**, which returns the target outright under
   `epilepsyMode`. One chokepoint, so a future animation cannot forget the setting.
 
 ### The back arrow
@@ -75,7 +75,7 @@ church tree, which uses `ChurchMenus.push`) were always fine.
 
 `MenuChannelUtil.back` now answers the empty-stack case with `{"closed":true,"back":true}`; every
 other close path still sends `{"closed":true}` with no flag. The client reopens
-`CharacterSheetScreen` when the flag is set **and** `ClientMenuState.openedFromSheet()` **and** the
+`CharacterSheetScreen` when the flag is set **and** `MenuState.openedFromSheet()` **and** the
 server advertises `character_sheet`. **Esc and the X still close outright** — only the back arrow
 goes back. The flag is read off the raw JSON in `handleMenu` rather than through `MenuParser`,
 because it describes the *transition*: a closed document has no screen to describe.
@@ -175,7 +175,8 @@ this ignores the field and opens its chest GUI either way.
 - `icon.kind` is one of `pathway` (a pathway key → the client's emblem font), `item`
   (`namespace:path` item model → the client's item route), `head` (player UUID),
   **`glyph`** (a bare name → one of the 25 16×16 icons shipped in the client jar; see
-  `MenuIcon.Glyph` server-side and `CoiIcons.GLYPHS` client-side), `none`.
+  `MenuIcon.Glyph` server-side and `CoiIcons.GLYPHS` client-side), `ability` (an ability id, drawn
+  through the same `ui/AbilityIcons` route the HUD slots and the picker use), `none`.
   `glyph` is the only kind whose art does not depend on the player's resource pack, so it is the
   right choice for anything conceptual — a cost, a cooldown, a sequence — and `item` stays for
   things that really are an item.
@@ -385,17 +386,20 @@ All seven sheet targets are registered: `map`, `mythical`, `seat`, `uniqueness`,
 
 | Package / file                                                               | Job                                                                                                                                                         |
 |------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client/menu/MenuDocument`, `MenuComponent` (sealed, 13 records), `MenuIcon` | the parsed model; colours are `0xRRGGBB` ints where `0` means "the server did not name one"                                                                 |
-| `client/menu/MenuParser`                                                     | defensive Gson: never throws, skips unknown `type`s, clamps everything                                                                                      |
-| `client/menu/ClientMenuState`                                                | current document plus a `revision` the screen watches; `adopt` / `clear` / `reset` / `debugInject`                                                          |
-| `client/screen/menu/MenuScreen`                                              | the renderer, about 1200 lines                                                                                                                              |
-| `client/screen/menu/MenuTheme`                                               | every colour decision and primitive: button, badge, switch, tick/cross, chevron, gauge, hairline, small-caps heading, rounded panel, the three icon sources |
-| `client/network/MenuPayload`, `MenuActionPayload`                            | the two channels                                                                                                                                            |
+| `client/menu/MenuDocument`, `MenuComponent` (sealed), `MenuIcon`, `MenuParts` | the parsed model; colours are `0xRRGGBB` ints where `0` means "the server did not name one". `MenuParts` holds the structures that appear inside more than one component (a button alone, in `buttons` and in the footer; a row in a list and in a grid) |
+| `client/menu/MenuParser`, `MenuJson`, `MenuStyles`, `MenuLimits`            | defensive Gson: never throws, skips unknown `type`s, clamps everything. `MenuJson` is the read helper, `MenuStyles` folds the wire's words onto this client's enums, `MenuLimits` is every cap in one place |
+| `client/state/MenuState`                                                     | current document plus a `revision` the screen watches; `adopt` / `clear` / `reset` / `debugInject`; `openedFromSheet()` is what the back arrow consults |
+| `client/screen/menu/MenuScreen`                                              | the renderer's shell: the `Screen` lifecycle, the `__close` guard, scroll and `approach`                                                                     |
+| `client/screen/menu/MenuPartFactory`, `MenuPart`, `Menu{Text,Value,Control,Collection}Parts` | the document becomes a flat list of laid-out `MenuPart`s in content space, and one of four part families draws each: words, values, the things the player operates, the parts that repeat a cell |
+| `client/screen/menu/MenuChrome`, `MenuGauges`, `MenuIcons`, `MenuScrollbar`, `MenuConfirmModal`, `MenuMetrics`, `MenuContext` | the card and its header, the meters, the icon sources, the draggable bar, the confirm modal, the geometry + its one hit test, and the interface a part is handed |
+| `client/screen/menu/MenuTheme`                                               | every colour decision and primitive: button, badge, switch, tick/cross, chevron, gauge, hairline, small-caps heading, rounded panel, the icon sources        |
+| `client/network/payload/MenuPayload`, `MenuActionPayload`                    | the two channels                                                                                                                                            |
 
-Parser caps: 32 sections, 96 components per section, 400 rows, 64 kv rows, 64 checks, 24 buttons,
-10 tooltip lines; 128-char titles, 160-char labels, 2000-char text, 96-char ids.
+Parser caps (`MenuLimits`): 32 sections, 96 components per section, 400 rows, 64 kv rows, 64 checks,
+24 buttons, 10 tooltip lines, 12 chips / steps / panel cells, 8 details blocks, 4 hero chips;
+128-char titles, 160-char labels, 2000-char text, 96-char ids, 32-char badges.
 
-Routing lives in `CircleOfImaginationClient.handleMenu`: a `closed` document clears the state and
+Routing lives in `CoiNetworking.handleMenu`: a `closed` document clears the state and
 closes the screen quietly; otherwise the document is **adopted** and a screen is opened only if one
 is not already open. That is the important part — a refresh must not recreate the screen, or
 `removed()` would fire `__close` and kill the session the server is still using.
@@ -422,7 +426,7 @@ The sheet's destination cards send `ActionPayload.ofOpen(target)`, which stamps 
 
 ### 4.2 Player opt-out
 
-`HudConfig.Settings.useServerMenus`, persisted in `config/coi_hud.json`, surfaced as a checkbox on
+`HudConfig.HudSettings.useServerMenus`, persisted in `config/coi_hud.json`, surfaced as a checkbox on
 the **General** tab of HUD Settings (`screen.coi.menu_use_server` and `_hint`). Default **false**:
 the point of the system is that a modded player never sees a chest again. When true, every sheet
 button opens the plugin's original screen, byte-identical.
@@ -520,9 +524,9 @@ For a brand-new **entry point** rather than one of the seven sheet targets, the 
 
 ## Redesigning the visuals
 
-The redesign should be confined to `screen/menu/MenuScreen` and `screen/menu/MenuTheme` on the
-client, plus `screen/CharacterSheetScreen` (and `SheetGlyphs`) if the sheet is in
-scope. Nothing about the wire, the parser, the session model or any adapter needs to move: a
+The redesign should be confined to `screen/menu/` — `MenuScreen` and its part classes, and
+`MenuTheme` — on the client, plus `screen/sheet/` (`CharacterSheetScreen`, the `Sheet*` sections and
+`SheetGlyphs`) if the sheet is in scope. Nothing about the wire, the parser, the session model or any adapter needs to move: a
 component is a *semantic* — a stat, a checklist, a locked button with a reason — and how it is drawn
 is entirely the renderer's business.
 

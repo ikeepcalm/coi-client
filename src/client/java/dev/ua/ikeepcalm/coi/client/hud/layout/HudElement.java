@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud.layout;
 
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 

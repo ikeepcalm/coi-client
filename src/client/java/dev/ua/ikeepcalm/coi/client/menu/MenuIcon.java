@@ -1,8 +1,9 @@
 package dev.ua.ikeepcalm.coi.client.menu;
 
+import dev.ua.ikeepcalm.coi.client.ui.CoiIcons;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-
 import java.util.Locale;
 
 /**
@@ -24,6 +25,12 @@ public record MenuIcon(Kind kind, String value) {
 
     public static final MenuIcon NONE = new MenuIcon(Kind.NONE, "");
 
+    /**
+     * Long enough for a namespaced item id, short enough that a document
+     * cannot smuggle a paragraph through as an icon name.
+     */
+    static final int MAX_VALUE = 128;
+
     public boolean present() {
         return kind != Kind.NONE && !value.isEmpty();
     }
@@ -34,8 +41,8 @@ public record MenuIcon(Kind kind, String value) {
     public static MenuIcon parse(JsonElement element) {
         if (element == null || !element.isJsonObject()) return NONE;
         JsonObject node = element.getAsJsonObject();
-        String kind = MenuParser.string(node, "kind", 16).toLowerCase(Locale.ROOT);
-        String value = MenuParser.string(node, "value", 128);
+        String kind = MenuJson.string(node, "kind", MenuLimits.MAX_WORD).toLowerCase(Locale.ROOT);
+        String value = MenuJson.string(node, "value", MenuIcon.MAX_VALUE);
         if (value.isEmpty()) return NONE;
         return switch (kind) {
             case "pathway" -> new MenuIcon(Kind.PATHWAY, value);

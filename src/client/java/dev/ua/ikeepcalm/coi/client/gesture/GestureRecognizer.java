@@ -9,7 +9,7 @@ import java.util.List;
  * string of 8-way direction codes, and matched against each template variant
  * with Levenshtein distance. Simple, debuggable, language-free.
  */
-public final class GestureRecognizer {
+public class GestureRecognizer {
 
     public record StrokePoint(float x, float y) {}
 
@@ -29,6 +29,19 @@ public final class GestureRecognizer {
      * horizontal jitter up to full box width.
      */
     private static final float ONE_DIMENSIONAL_RATIO = 0.2f;
+    /**
+     * A filtered stroke shorter than this has no shape left to read.
+     */
+    private static final int MIN_FILTERED_POINTS = 3;
+    /**
+     * Neighbor-averaging passes applied before resampling.
+     */
+    private static final int SMOOTHING_PASSES = 2;
+    /**
+     * A candidate is rejected outright once its edit distance exceeds the longer string's length
+     * divided by this — a cheap cutoff that stops a wildly wrong template winning on score alone.
+     */
+    private static final float MAX_EDIT_DIVISOR = 3f;
 
     private GestureRecognizer() {
     }
@@ -53,25 +66,34 @@ public final class GestureRecognizer {
     }
 
     /**
-     * Returns the best-matching gesture, or null if nothing matches well
-     * enough (the stroke fizzles).
+     * Runs the three stages in order — resample, direction string, match — and returns the
+     * best-matching gesture, or null if nothing matches well enough (the stroke fizzles).
      */
     public static GestureType recognize(List<StrokePoint> raw) {
-        List<StrokePoint> pts = filter(raw);
-        if (pts.size() < 3) return null;
-        pts = resample(normalize(smooth(pts)));
+        List<StrokePoint> stroke = filter(raw);
+        if (stroke.size() < MIN_FILTERED_POINTS) return null;
 
-        String input = directionString(pts);
-        if (input.isEmpty()) return null;
+        List<StrokePoint> resampled = resample(normalize(smooth(stroke)));
+        String directions = DirectionCodes.of(resampled);
+        if (directions.isEmpty()) return null;
 
+        return bestMatch(directions);
+    }
+
+    /**
+     * Third stage: the closest template by Levenshtein distance, normalized by length so a long
+     * template isn't penalized for having more places to differ. Null when nothing clears
+     * {@link #MAX_EDIT_DIVISOR}.
+     */
+    private static GestureType bestMatch(String directions) {
         GestureType best = null;
         float bestScore = Float.MAX_VALUE;
         for (GestureType type : GestureType.values()) {
             for (String variant : type.templateVariants()) {
-                int maxLen = Math.max(variant.length(), input.length());
-                int dist = levenshtein(variant, input);
-                if (dist > Math.max(1, Math.round(maxLen / 3f))) continue;
-                float score = dist / (float) maxLen;
+                int maxLen = Math.max(variant.length(), directions.length());
+                int distance = levenshtein(variant, directions);
+                if (distance > Math.max(1, Math.round(maxLen / MAX_EDIT_DIVISOR))) continue;
+                float score = distance / (float) maxLen;
                 if (score < bestScore) {
                     bestScore = score;
                     best = type;
@@ -99,7 +121,7 @@ public final class GestureRecognizer {
      * triangles start reading as circles.)
      */
     private static List<StrokePoint> smooth(List<StrokePoint> pts) {
-        for (int pass = 0; pass < 2; pass++) {
+        for (int pass = 0; pass < SMOOTHING_PASSES; pass++) {
             List<StrokePoint> out = new ArrayList<>(pts.size());
             out.add(pts.getFirst());
             for (int i = 1; i < pts.size() - 1; i++) {
@@ -142,6 +164,10 @@ public final class GestureRecognizer {
         return out;
     }
 
+    /**
+     * First stage: re-places the points at even arc-length intervals, so the direction codes that
+     * follow measure the shape rather than how fast the hand happened to be moving.
+     */
     private static List<StrokePoint> resample(List<StrokePoint> pts) {
         float pathLength = 0;
         for (int i = 1; i < pts.size(); i++) {
@@ -172,101 +198,6 @@ public final class GestureRecognizer {
         }
         if (out.size() < RESAMPLE_COUNT) out.add(pts.getLast());
         return out;
-    }
-
-    /**
-     * Quantizes each segment to an 8-way code, then collapses runs. Runs of a
-     * single sample are treated as corner noise and dropped (unless that would
-     * leave nothing).
-     */
-    private static String directionString(List<StrokePoint> pts) {
-        List<int[]> runs = new ArrayList<>(); // [direction, count]
-        for (int i = 1; i < pts.size(); i++) {
-            float dx = pts.get(i).x() - pts.get(i - 1).x();
-            float dy = pts.get(i).y() - pts.get(i - 1).y();
-            if (dx == 0 && dy == 0) continue;
-            int dir = Math.floorMod((int) Math.round(Math.toDegrees(Math.atan2(dy, dx)) / 45.0), 8);
-            if (!runs.isEmpty() && runs.getLast()[0] == dir) {
-                runs.getLast()[1]++;
-            } else {
-                runs.add(new int[]{dir, 1});
-            }
-        }
-
-        runs = mergeOscillations(runs);
-
-        // A stroke overwhelmingly in one direction is a line — ignore the
-        // small entry/exit hooks a hand leaves at the ends
-        int total = 0;
-        int[] dominant = null;
-        for (int[] run : runs) {
-            total += run[1];
-            if (dominant == null || run[1] > dominant[1]) dominant = run;
-        }
-        if (dominant != null && dominant[1] >= total * 0.7f) {
-            return String.valueOf((char) ('0' + dominant[0]));
-        }
-
-        String denoised = collapseRuns(runs, 2);
-        return denoised.isEmpty() ? collapseRuns(runs, 1) : denoised;
-    }
-
-    /**
-     * A stroke along an 8-way sector boundary flickers between the two
-     * adjacent directions (e.g. 7,6,7,6). Blocks of 3+ runs alternating
-     * between two adjacent directions collapse into the dominant one.
-     * (Two long adjacent runs — as around a circle — are NOT oscillation
-     * and pass through untouched.)
-     */
-    private static List<int[]> mergeOscillations(List<int[]> runs) {
-        List<int[]> out = new ArrayList<>(runs.size());
-        int i = 0;
-        while (i < runs.size()) {
-            int a = runs.get(i)[0];
-            int b = -1;
-            int j = i + 1;
-            while (j < runs.size()) {
-                int d = runs.get(j)[0];
-                if (b == -1) {
-                    if (d != a && adjacent(d, a)) b = d;
-                    else break;
-                } else if (d != a && d != b) {
-                    break;
-                }
-                j++;
-            }
-            if (b != -1 && j - i >= 3) {
-                int countA = 0, countB = 0;
-                for (int k = i; k < j; k++) {
-                    int[] run = runs.get(k);
-                    if (run[0] == a) countA += run[1];
-                    else countB += run[1];
-                }
-                out.add(new int[]{countA >= countB ? a : b, countA + countB});
-                i = j;
-            } else {
-                out.add(runs.get(i));
-                i++;
-            }
-        }
-        return out;
-    }
-
-    private static boolean adjacent(int a, int b) {
-        int diff = Math.floorMod(a - b, 8);
-        return diff == 1 || diff == 7;
-    }
-
-    private static String collapseRuns(List<int[]> runs, int minRun) {
-        StringBuilder sb = new StringBuilder();
-        for (int[] run : runs) {
-            if (run[1] < minRun) continue;
-            char c = (char) ('0' + run[0]);
-            if (sb.isEmpty() || sb.charAt(sb.length() - 1) != c) {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     private static int levenshtein(String a, String b) {

@@ -1,15 +1,16 @@
 package dev.ua.ikeepcalm.coi.client.presence;
 
+import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry;
+import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+import dev.ua.ikeepcalm.coi.client.state.BeyonderState;
+
 import de.jcm.discordgamesdk.Core;
 import de.jcm.discordgamesdk.CreateParams;
 import de.jcm.discordgamesdk.activity.Activity;
 import de.jcm.discordgamesdk.activity.ActivityButton;
 import de.jcm.discordgamesdk.activity.ActivityButtonsMode;
-import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
-import dev.ua.ikeepcalm.coi.client.ClientBeyonderState;
-import dev.ua.ikeepcalm.coi.client.config.AbilityInfo;
-import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +36,14 @@ public final class DiscordPresenceManager {
     private static final long MIN_UPDATE_INTERVAL_MS = 15_000;
     private static final String FALLBACK_SERVER_NAME = "Mysterria";
     private static final String WEBSITE_URL = "https://mysterria.net";
+
+    /**
+     * What is shown outside a world, and the art key for a player whose
+     * pathway is still unknown.
+     */
+    private static final String MOD_NAME = "Circle of Imagination";
+    private static final String IDLE_DETAILS = "In the menus";
+    private static final String FALLBACK_IMAGE_KEY = "logo";
 
     private static final Set<String> PATHWAY_ASSET_KEYS = Set.of(
             "abyss", "aeon", "eternalaeon", "chained", "darkness", "death",
@@ -90,32 +99,55 @@ public final class DiscordPresenceManager {
         if (!everJoined) return; // lazy: don't touch Discord until the mod matters
 
         long now = System.currentTimeMillis();
-        if (core == null) {
-            if (now - lastConnectAttempt < RECONNECT_INTERVAL_MS) return;
-            lastConnectAttempt = now;
-            connect();
-            if (core == null) return;
-        }
-
-        try {
-            core.runCallbacks();
-        } catch (Throwable t) {
-            // Discord quit or the pipe broke — drop the core, retry in 60s
-            shutdown();
-            return;
-        }
+        if (!pumpCallbacks(now)) return;
 
         String pathway = inWorld ? dominantPathway() : null;
-        String details = inWorld ? serverDetails() : "In the menus";
-        String state = inWorld ? buildStateLine(pathway) : "Circle of Imagination";
-        String imageKey = pathway != null ? assetKey(pathway) : "logo";
-        String imageText = pathway != null ? pathwayLabel(pathway) : "Circle of Imagination";
+        String details = inWorld ? serverDetails() : IDLE_DETAILS;
+        String state = inWorld ? buildStateLine(pathway) : MOD_NAME;
+        String imageKey = pathway != null ? assetKey(pathway) : FALLBACK_IMAGE_KEY;
+        String imageText = pathway != null ? pathwayLabel(pathway) : MOD_NAME;
 
+        // What Discord would actually see: re-sending an identical activity
+        // just burns the rate limit
         String signature = details + "\n" + state + "\n" + imageKey;
         if (signature.equals(lastSignature) || now - lastUpdateAt < MIN_UPDATE_INTERVAL_MS) {
             return;
         }
 
+        if (updateActivity(details, state, imageKey, imageText)) {
+            lastSignature = signature;
+            lastUpdateAt = now;
+        }
+    }
+
+    /**
+     * Connects if needed and services the SDK.
+     *
+     * @return false when there is nothing to publish to this tick — Discord
+     * is not running, or the pipe just broke
+     */
+    private static boolean pumpCallbacks(long now) {
+        if (core == null) {
+            if (now - lastConnectAttempt < RECONNECT_INTERVAL_MS) return false;
+            lastConnectAttempt = now;
+            connect();
+            if (core == null) return false;
+        }
+        try {
+            core.runCallbacks();
+            return true;
+        } catch (Throwable t) {
+            // Discord quit or the pipe broke — drop the core, retry in 60s
+            shutdown();
+            return false;
+        }
+    }
+
+    /**
+     * @return whether the activity actually reached Discord; a failure drops
+     * the core so the next tick reconnects instead of republishing into it
+     */
+    private static boolean updateActivity(String details, String state, String imageKey, String imageText) {
         try {
             // Not try-with-resources: close() is deprecated in the pure-Java SDK (nothing to free)
             Activity activity = new Activity();
@@ -129,10 +161,10 @@ public final class DiscordPresenceManager {
             activity.setActivityButtonsMode(ActivityButtonsMode.BUTTONS);
             activity.addButton(new ActivityButton("Visit Website", WEBSITE_URL));
             core.activityManager().updateActivity(activity);
-            lastSignature = signature;
-            lastUpdateAt = now;
+            return true;
         } catch (Throwable t) {
             shutdown();
+            return false;
         }
     }
 
@@ -163,18 +195,22 @@ public final class DiscordPresenceManager {
         return ASSET_ALIASES.getOrDefault(pathway, pathway);
     }
 
+    /**
+     * The second presence line: who the player is, and — if they left the
+     * setting on — how badly they are coping.
+     */
     private static String buildStateLine(String pathway) {
         if (pathway == null) {
             return "Ordinary Human";
         }
         String label = pathwayLabel(pathway);
         // The server knows the exact sequence; the binding heuristic never did
-        int sequence = ClientBeyonderState.getSequence();
+        int sequence = BeyonderState.getSequence();
         if (sequence >= 0) {
-            label = "Seq " + sequence + " \u00B7 " + label;
+            label = "Seq " + sequence + " · " + label;
         }
         if (inWorld && HudConfig.getSettings().presenceShowMadness) {
-            return label + " \u2014 " + madnessFlavor(ClientBeyonderState.getMadness());
+            return label + " — " + madnessFlavor(BeyonderState.getMadness());
         }
         return label;
     }
@@ -187,6 +223,11 @@ public final class DiscordPresenceManager {
         return Character.toUpperCase(pathway.charAt(0)) + pathway.substring(1) + " Pathway";
     }
 
+    /**
+     * One word per madness stage — the same 25 / 50 / 75 / 100 brackets the
+     * HUD colours the madness bar by, so the two never disagree about which
+     * stage the player is in.
+     */
     private static String madnessFlavor(double madness) {
         if (madness < 25) return "Sane";
         if (madness < 50) return "Uneasy";
@@ -202,19 +243,19 @@ public final class DiscordPresenceManager {
      */
     private static String dominantPathway() {
         // A protocol-2 server names the pathway outright; guessing is the fallback
-        if (ClientBeyonderState.hasIdentity()) {
-            return ClientBeyonderState.getPathway();
+        if (BeyonderState.hasIdentity()) {
+            return BeyonderState.getPathway();
         }
         Map<String, Integer> counts = new HashMap<>();
-        countPathways(CircleOfImaginationClient.getBoundAbilitiesSnapshot(), counts);
-        countPathways(CircleOfImaginationClient.getWheelAbilitiesSnapshot(), counts);
+        countPathways(AbilityBindings.getBoundAbilitiesSnapshot(), counts);
+        countPathways(AbilityBindings.getWheelAbilitiesSnapshot(), counts);
 
         // A newly awakened Beyonder may have learned abilities without having
         // opened the binding screen yet. Prefer their bindings when present,
         // but fall back to all server-provided abilities instead of calling
         // them an Ordinary Human.
         if (counts.isEmpty()) {
-            countPathways(CircleOfImaginationClient.getAvailableAbilities().toArray(String[]::new), counts);
+            countPathways(AbilityRegistry.getAvailableAbilities().toArray(String[]::new), counts);
         }
 
         String best = null;

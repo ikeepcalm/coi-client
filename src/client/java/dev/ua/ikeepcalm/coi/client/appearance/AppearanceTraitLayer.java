@@ -1,13 +1,15 @@
 package dev.ua.ikeepcalm.coi.client.appearance;
 
+import dev.ua.ikeepcalm.coi.client.appearance.trait.FemaleTraitsRenderer;
+import dev.ua.ikeepcalm.coi.client.appearance.trait.HornsTraitRenderer;
+import dev.ua.ikeepcalm.coi.client.appearance.trait.MushroomTraitRenderer;
+import dev.ua.ikeepcalm.coi.client.form.MythicalCreatureForm;
+import dev.ua.ikeepcalm.coi.client.form.PartialForms;
+import dev.ua.ikeepcalm.coi.client.mixin.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.state.AppearanceState;
+
 import com.mojang.blaze3d.vertex.PoseStack;
-import dev.ua.ikeepcalm.coi.client.ClientAppearanceState;
-import dev.ua.ikeepcalm.coi.client.appearance.renderers.FemaleTraitsRenderer;
-import dev.ua.ikeepcalm.coi.client.appearance.renderers.HornsTraitRenderer;
-import dev.ua.ikeepcalm.coi.client.appearance.renderers.MushroomTraitRenderer;
-import dev.ua.ikeepcalm.coi.client.mcf.AvatarRenderStateAccessor;
-import dev.ua.ikeepcalm.coi.client.mcf.MythicalCreatureForm;
-import dev.ua.ikeepcalm.coi.client.mcf.PartialForms;
+import java.util.List;
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
@@ -15,8 +17,10 @@ import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.jspecify.annotations.NonNull;
 
-import java.util.List;
-
+/**
+ * Render layer that draws whichever appearance traits the server has granted a player, on top of
+ * their normal skin. Attached to every player renderer by {@code AvatarRendererMixin}.
+ */
 public class AppearanceTraitLayer extends RenderLayer<AvatarRenderState, PlayerModel> {
 
     private static final List<AppearanceTraitRenderer> TRAIT_RENDERERS = List.of(
@@ -30,14 +34,12 @@ public class AppearanceTraitLayer extends RenderLayer<AvatarRenderState, PlayerM
     }
 
     @Override
-    public void submit(@NonNull PoseStack poseStack, @NonNull SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot) {
+    public void submit(@NonNull PoseStack poseStack, @NonNull SubmitNodeCollector collector, int light, @NonNull AvatarRenderState state, float yRot, float xRot) {
         String playerUuid = ((AvatarRenderStateAccessor) state).coi$getPlayerUuid();
         if (playerUuid == null || state.isInvisible) {
             return;
         }
-        // Partial forms keep the player's own head and torso, and every trait hangs off one of those,
-        // so a character's horns shouldn't disappear the moment they grow a dragon's lower half.
-        // Full forms replace the body outright and have nothing left to attach to.
+
         MythicalCreatureForm form = PartialForms.form(state);
         if (form != null && form.partialForm() == null) {
             return;
@@ -45,7 +47,7 @@ public class AppearanceTraitLayer extends RenderLayer<AvatarRenderState, PlayerM
 
         PlayerModel model = getParentModel();
         for (AppearanceTraitRenderer renderer : TRAIT_RENDERERS) {
-            if (ClientAppearanceState.hasTrait(playerUuid, renderer.traitId())) {
+            if (AppearanceState.hasTrait(playerUuid, renderer.traitId())) {
                 renderer.submit(poseStack, collector, state, model);
             }
         }

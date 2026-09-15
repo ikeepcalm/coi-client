@@ -342,6 +342,13 @@ The client only processes this payload while connected (receiver is registered g
 
 ## Adding New Effects (client-side)
 
-1. Create `effects/impl/YourEffect.java` implementing `VisualEffect`
-2. Register in `EffectManager.initialize()`: `register(YourEffect.ID, YourEffect::new)`
-3. Update this file with the new effect's params and examples
+1. Create `client/effect/visual/YourEffect.java` implementing `client/effect/VisualEffect`
+2. Read the params with `EffectParams` (the shared `key=value,key=value` splitter) and draw with
+   `EffectPaint` (the 2D helpers vanilla does not expose) — do not hand-roll either
+3. Register in `EffectManager.initialize()`: `register(YourEffect.ID, YourEffect::new)`
+4. Update this file with the new effect's params and examples
+
+An effect large enough to want collaborators gets a sub-package, the way `impact` does:
+`ImpactFrameEffect` keeps only the `VisualEffect` contract and the params, and
+`effect/visual/impact/` holds the presets (`ImpactStyle`), the randomised shapes (`ImpactGeometry`),
+the marks (`ImpactRenderer`) and one playing impact (`WorldImpact`).

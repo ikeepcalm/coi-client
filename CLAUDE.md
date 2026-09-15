@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-COI Client is a client-only Minecraft Fabric mod implementing a customizable ability system with HUD overlay. Players bind up to **10 abilities** to keybindings (slots 1–6 default Z/X/C/V/B/N, slots 7–10 default unbound), use them in-game, and can customize the HUD visually. The player-facing slot count is the `activeAbilitySlots` HUD setting (1–10, default 6); `MAX_ABILITIES = 10` is a hard ceiling because keymappings can only be registered once at init. Lowering the count hides bindings without deleting them. The mod communicates with a server-side Paper plugin via **Fabric custom payloads** (plugin messaging).
+COI Client is a client-only Minecraft Fabric mod implementing a customizable ability system with HUD overlay. Players bind up to **10 abilities** to keybindings (slots 1–6 default Z/X/C/V/B/N, slots 7–10 default unbound), use them in-game, and can customize the HUD visually. The player-facing slot count is the `activeAbilitySlots` HUD setting (1–10, default 6); `AbilityBindings.MAX_ABILITIES = 10` is a hard ceiling because keymappings can only be registered once at init. Lowering the count hides bindings without deleting them. The mod communicates with a server-side Paper plugin via **Fabric custom payloads** (plugin messaging).
 
 **Environment:** Client-only
 **Java:** 25 | **MC:** 26.2 | **Fabric Loader:** 0.19.5 | **Fabric API:** 0.159.0+26.2
@@ -21,134 +21,344 @@ COI Client is a client-only Minecraft Fabric mod implementing a customizable abi
 ## Architecture
 
 ```
-CircleOfImaginationClient   — entry point, singleton state, payload registration
-  ├── hud/
-  │   ├── AbilityHudOverlay    — renders all ability slots via HudRenderCallback
-  │   ├── AbilitySlotWidget    — single slot: icon, cooldown, keybind, glow, toggle
-  │   │                          outline + "ON" tag, red strike when locked/blocked
-  │   ├── HudAnchor            — TOP/BOTTOM × LEFT/CENTER/RIGHT corner math for bars
-  │   ├── CoiBar               — stateless bar layers (frame/fill/shimmer/notches/label)
-  │   ├── BeyonderHealthOverlay — replaces the vanilla hearts with the real HP
-  │   │                          pool, numbers inside the bar
-  │   ├── CharacterPlateOverlay — one card: head + pathway crest, sanity (brain)
-  │   │                          and acting (mask) symbol gauges, reserve rows;
-  │   │                          supersedes the madness/acting/resource bars
-  │   ├── PlateSymbols        — the 40×20 two-frame fillable symbol sprites
-  │   ├── MadnessHudOverlay    — madness bar + stage screen effects
-  │   ├── SpiritualityHudOverlay — spirituality bar (protocol 2 only)
-  │   ├── ActingHudOverlay     — acting bar + `+N` gain popup (protocol 2 only)
-  │   ├── ResourceHudOverlay   — stack of server-pushed ability resource meters
-  │   ├── ActionBarHudOverlay  — COI's own action-bar channel lines above the hotbar
-  │   ├── TargetHealthOverlay  — hit target's HP bar under the crosshair
-  │   ├── CogitationOverlay    — centred cogitation prompt card + streak + timer
-  │   ├── NotificationOverlay  — top-right toast stack for `coi-client:notify`
-  │   └── layout/              — the HUD layout editor's model
-  │       ├── HudLayout        — `editing()` flag every overlay's render gate honours
-  │       ├── HudElement       — id / label / group / visible / bounds / moveTo / preview / reset
-  │       └── HudElements      — slot_1…slot_N + the eight bar descriptors,
-  │                              the anchored-move rule and the Ctrl group move
-  ├── effects/
-  │   ├── EffectManager        — registry + active list, renders via HudRenderCallback
-  │   ├── VisualEffect         — interface (start/render/isFinished/stop)
-  │   └── impl/                — CracksEffect, EyesEffect, VignetteEffect,
-  │                               HeartbeatEffect, GlitchEffect
-  ├── gesture/
-  │   ├── GestureType          — 5 shapes (circle, V, Z, line down, triangle):
-  │   │                          direction templates + preview polylines
-  │   ├── GestureRecognizer    — resample → 8-way direction string → Levenshtein match
-  │   └── GestureScreen        — hold Left Alt, draw with mouse, release to cast;
-  │                              inert until a gesture has an ability bound
-  ├── presence/
-  │   └── DiscordPresenceManager — Discord Rich Presence via discord-game-sdk4j
-  │                                (pure-Java IPC, bundled jar-in-jar); lazy connect
-  │                                on first join, APP_ID = 0 disables it entirely
-  ├── mcf/                     — mythical creature forms (see below)
-  │   ├── MythicalFormManager  — uuid → pathway map, fed by coi-client:mythical
-  │   ├── MythicalCreatureForm — per-pathway form; forms/ holds all 20
-  │   ├── PartialFormSpec      — placement/scale of a baked lower-body model
-  │   ├── PartialForms         — shared resolve + carrier-transform helpers
-  │   ├── PartialFormLayer     — draws the baked model as a player render layer
-  │   └── model/               — Blockbench exports (VisionaryLowerModel/Animations)
-  ├── menu/                    — the declarative menu document (server-authored screens)
-  │   ├── MenuDocument         — session / version / screen id, header, sections, footer
-  │   ├── MenuComponent        — sealed: text, note, stat, kv, checklist, button(s),
-  │   │                          toggle, list, grid, input, divider, spacer
-  │   ├── MenuIcon             — pathway emblem / item model / player head / none
-  │   ├── MenuParser           — defensive Gson; unknown `type`s skipped, sizes clamped
-  │   └── ClientMenuState      — the current document + a revision the screen watches
-  ├── network/
-  │   ├── AbilityUsePayload    C→S  coi-client:use
-  │   ├── AbilityRequestPayload C→S  coi-client:request
-  │   ├── HelloPayload         C→S  coi-client:hello   (capability handshake)
-  │   ├── ActionPayload        C→S  coi-client:action  (open_menu)
-  │   ├── MenuActionPayload    C→S  coi-client:menu_action (a click in a menu document)
-  │   ├── AbilitiesPayload     S→C  coi-client:abilities
-  │   ├── AbilitiesV2Payload   S→C  coi-client:abilities_v2 (JSON, 1 MiB cap)
-  │   ├── AbilityStatePayload  S→C  coi-client:state   (toggle / category)
-  │   ├── ActingPayload        S→C  coi-client:acting
-  │   ├── ResourcePayload      S→C  coi-client:resource (JSON, one meter per packet)
-  │   ├── ActionBarPayload     S→C  coi-client:actionbar (JSON, text components)
-  │   ├── TargetHealthPayload  S→C  coi-client:target
-  │   ├── CogitationPayload    S→C  coi-client:cogitation
-  │   ├── NotifyPayload        S→C  coi-client:notify
-  │   ├── CooldownPayload      S→C  coi-client:cooldown
-  │   ├── SheetPayload         S→C  coi-client:sheet   (JSON, 1 MiB cap)
-  │   ├── ServerInfoPayload    S→C  coi-client:server
-  │   ├── MenuPayload          S→C  coi-client:menu    (JSON document, 1 MiB cap)
-  │   └── VisualEffectPayload  S→C  coi-client:effect
-  ├── config/
-  │   ├── AbilityConfig        — persists slot bindings → config/coi_abilities.json
-  │   ├── HudConfig            — persists HUD settings  → config/coi_hud.json
-  │   └── AbilityInfo          — ability metadata record + **the** 25-pathway colour
-  │                              table (`pathwayRgb`), shared by HUD/picker/acting
-  │                              bar/`MythicalFormManager`
-  ├── ClientFeatures           — feature ids + protocol version this client speaks
-  ├── ServerCapabilities       — what the connected server said it can feed
-  ├── ClientBeyonderState      — madness, spirituality, pathway + sequence
-  ├── ClientActingState        — acting progress, method cooldown, last grant
-  ├── ClientResourceState      — ability resource meters keyed by id, TTL-expired
-  ├── ClientActionBarState     — action-bar entries + client-side TTL expiry
-  ├── ClientTargetState        — last ability hit (name, before/after, HP)
-  ├── ClientCogitationState    — cogitation session: prompt, streak, timeout, fail
-  ├── ClientNotificationState  — toast queue (3 visible, rest promoted in turn)
-  ├── ClientSheetState         — character sheet snapshot (identity, vitals, mind,
-  │                              acting ledger, sub-menu gates); defensive JSON parse
-  └── screen/
-      ├── CharacterSheetScreen — the Beyonder sheet (opened with M on a `character_sheet`
-      │                          server): one `MenuTheme` card — hero panel, vitals,
-      │                          acting + ledger, condition chips, destination cards,
-      │                          terrain switch — drawn as a menu document would be
-      ├── SheetGlyphs          — the sheet's 8×8 drawn marks (heart/flask/hourglass,
-      │                          the seven destination glyphs, lock)
-      ├── AbilityBindingScreen — bind abilities to slots (opened with K); tabbed
-      │                          (hotkeys/wheel/gestures) with per-tab how-to banner
-      ├── AbilityPickerOverlay — modal ability chooser: search box, pathway-grouped
-      │                          headers, two-line rows (cost/cooldown/category/kind
-      │                          badges), Unbind, red struck locked rows, trimmed
-      │                          tooltip after the scissor
-      ├── AbilityIcons         — shared icon renderer: pack item model, else category/tier
-      ├── IconModels           — "is that item model loaded?", cached per reload
-      ├── CoiStyle             — shared dark/gold palette + card chrome (from TourScreen)
-      ├── CoiTabButton         — hand-drawn tab widget used by binding + settings screens
-      ├── HudSettingsScreen    — HUD customization: 3 tabs (Ability HUD/Elements/General),
-      │                          scrollable rows so it fits any gui scale. Holds **no**
-      │                          position rows: "Arrange on screen…" plus the per-element
-      │                          *Align* buttons are the only position UI
-      ├── HudLayoutScreen      — drag-to-position editor: sample previews of every
-      │                          element over the live world — or one element / one group,
-      │                          in solo mode — snapping, Ctrl group move, nudge keys
-      ├── TourScreen           — first-join walkthrough: spotlight cutouts + text cards,
-      │                          movement stays enabled; re-run via "Show Tour Again"
-      ├── InventoryHint        — a strip on the vanilla inventory saying the Mystery Arts
-      │                          item is gone and naming the live "open menu" keybind;
-      │                          dismissed once, remembered in coi_client_state.json
-      ├── menu/                — the server-authored menu renderer
-      │   ├── MenuScreen       — one scrolling card: header + sections + footer,
-      │   │                      hand-drawn buttons, live list search, confirm modal,
-      │   │                      collapsible sections + details, draggable scrollbar
-      │   └── MenuTheme        — every colour and primitive the screen draws with
-      └── EffectDebugScreen    — dev-only (F8), test visual effects without server
+dev.ua.ikeepcalm.coi
+  ├── CoiClient                 — common-side entrypoint; exists only because Fabric wants one
+  ├── CoiLog                    — the mod's one logger ("COI Client"); no System.out.println remains
+  └── client/
+      ├── CoiClientMod          — the client entrypoint, and **only** that: load what is on disk,
+      │                           register what draws and what listens, wire the two connection
+      │                           events. It holds no ability state any more (see ability/)
+      ├── DataGenerator         — datagen entrypoint; creates the pack and generates nothing,
+      │                           since every asset this client ships is hand-authored
+      ├── ability/
+      │   ├── AbilityRegistry   — the server's ability catalogue: both list formats (v1 delimited,
+      │   │                       v2 JSON) land in the same two collections, so nothing downstream
+      │   │                       has to know which protocol answered
+      │   ├── AbilityBindings   — which ability sits in which key slot / wheel slot / gesture, and
+      │   │                       the persistence behind all three; owns MAX_ABILITIES
+      │   ├── AbilityInfo       — ability metadata record + the `id - englishName` encoding
+      │   └── Pathways          — **the** single home for a pathway as a pathway: normalisation,
+      │                           the 25-colour `pathwayRgb` table, the emblem glyph, the spelling
+      ├── input/
+      │   └── CoiKeyBindings    — every keymapping and what pressing one does; presses are
+      │                           edge-triggered by hand, because the wheel and gesture screens
+      │                           need to know the key is still *held*
+      ├── network/
+      │   ├── CoiNetworking     — the wire: payload registration, every S→C receiver, `sendHello`
+      │   ├── ClientFeatures    — feature ids + protocol version this client speaks
+      │   ├── ServerCapabilities — what the connected server said it can feed; reset on disconnect
+      │   └── payload/          — one record per channel, all built from `CoiPayloads`
+      │       ├── CoiPayloads   — the shared type/codec shapes: the `coi-client` namespace, the
+      │       │                   1 MiB / 32 KiB caps, the read/write pair — spelled out once
+      │       ├── AbilityUsePayload      C→S  coi-client:use
+      │       ├── AbilityRequestPayload  C→S  coi-client:request
+      │       ├── HelloPayload           C→S  coi-client:hello   (capability handshake)
+      │       ├── ActionPayload          C→S  coi-client:action  (open_menu, sheet lifecycle)
+      │       ├── MenuActionPayload      C→S  coi-client:menu_action (a click in a menu document)
+      │       ├── AbilitiesPayload       S→C  coi-client:abilities
+      │       ├── AbilitiesV2Payload     S→C  coi-client:abilities_v2 (JSON, 1 MiB cap)
+      │       ├── AbilityStatePayload    S→C  coi-client:state   (toggle / category)
+      │       ├── ActingPayload          S→C  coi-client:acting
+      │       ├── ResourcePayload        S→C  coi-client:resource (JSON, one meter per packet)
+      │       ├── ActionBarPayload       S→C  coi-client:actionbar (JSON, text components)
+      │       ├── TargetHealthPayload    S→C  coi-client:target
+      │       ├── CogitationPayload      S→C  coi-client:cogitation
+      │       ├── NotifyPayload          S→C  coi-client:notify
+      │       ├── CooldownPayload        S→C  coi-client:cooldown
+      │       ├── ConditionsPayload      S→C  coi-client:conditions
+      │       ├── AppearancePayload      S→C  coi-client:appearance
+      │       ├── MythicalFormPayload    S→C  coi-client:mythical
+      │       ├── SheetPayload           S→C  coi-client:sheet   (JSON, 1 MiB cap)
+      │       ├── ServerInfoPayload      S→C  coi-client:server
+      │       ├── MenuPayload            S→C  coi-client:menu    (JSON document, 1 MiB cap)
+      │       └── VisualEffectPayload    S→C  coi-client:effect
+      ├── state/                — one holder per S→C channel; all parse through json/JsonRead
+      │   ├── BeyonderState     — madness, spirituality, health ceiling, pathway + sequence
+      │   ├── ConditionsParser  — the `key=value;…` body of coi-client:conditions
+      │   ├── SpiritualityTracker — spirituality as the HUD needs it: the server's last figure
+      │   │                       plus the regen rate `predictedSpirituality()` extrapolates from
+      │   ├── ActingState       — acting progress, method cooldown, last grant
+      │   ├── ResourceState     — ability resource meters keyed by id, TTL-expired
+      │   ├── ActionBarState    — action-bar entries + client-side TTL expiry
+      │   ├── TargetState       — last ability hit (name, before/after, HP)
+      │   ├── CogitationState   — cogitation session: prompt, streak, timeout, fail
+      │   ├── NotificationState — toast queue (3 visible, rest promoted in turn)
+      │   ├── SheetState        — character sheet snapshot (identity, vitals, mind, acting
+      │   │                       ledger, sub-menu gates)
+      │   ├── SheetParser       — coi-client:sheet JSON → SheetState.Snapshot, defensively
+      │   ├── AppearanceState   — appearance traits per player UUID
+      │   ├── MenuState         — the current menu document + a revision the screen watches
+      │   └── MenuSample        — the hand-written document behind F8 → *Menu*
+      ├── hud/
+      │   ├── HudGate           — `blocked(client, settings)`: the four refusals every overlay
+      │   │                       opens with. Calling it is how an overlay cannot forget the
+      │   │                       `HudLayout.editing()` term
+      │   ├── HudAnchor         — TOP/BOTTOM × LEFT/CENTER/RIGHT corner math for bars
+      │   ├── HudScale          — per-element scaling about the element's own fill origin
+      │   ├── HudGaslight       — the HUD's madness lies (wrong cooldowns, swapped slots)
+      │   ├── overlay/          — everything that draws on the HUD; each gates on HudGate
+      │   │   ├── AbilityOverlay        — all ability slots; owns `slotOrigin` / `boxSize` /
+      │   │   │                           `rowStep` / `shiftRow`, the answer to "where is slot N"
+      │   │   ├── BeyonderHealthOverlay — replaces the vanilla hearts with the real HP pool,
+      │   │   │                           numbers inside the bar
+      │   │   ├── CharacterPlateOverlay — one card: head + pathway crest, sanity (brain) and
+      │   │   │                           acting (mask) symbol gauges, reserve rows; supersedes
+      │   │   │                           the madness / acting / resource bars
+      │   │   ├── MadnessOverlay        — madness bar + the stage screen effects
+      │   │   ├── SpiritualityOverlay   — spirituality bar (protocol 2 only)
+      │   │   ├── ActingOverlay         — acting bar + `+N` gain popup (protocol 2 only)
+      │   │   ├── ResourceOverlay       — stack of server-pushed ability resource meters
+      │   │   ├── ActionBarOverlay      — COI's own action-bar channel lines above the hotbar
+      │   │   ├── TargetHealthOverlay   — hit target's HP bar under the crosshair
+      │   │   ├── CogitationOverlay     — centred cogitation prompt card + streak + timer
+      │   │   └── NotificationOverlay   — top-right toast stack for `coi-client:notify`
+      │   ├── widget/
+      │   │   ├── AbilitySlotWidget — single slot: icon, cooldown, keybind, glow, toggle
+      │   │   │                       outline + "ON" tag, red strike when locked/blocked
+      │   │   └── SlotAnimations    — the three moments a slot animates: the cast punch, the
+      │   │                           ready flash, the cooldown sweep
+      │   ├── render/           — the paint the overlays share: no state, no render gates
+      │   │   ├── CoiBar            — stateless bar layers (frame/fill/shimmer/notches/label)
+      │   │   ├── MadnessPalette    — the bar's colours and status word, one set per stage
+      │   │   ├── MadnessCorruption — the full-screen stage effects: vignette, VHS, static
+      │   │   ├── PlateCard         — the character plate's card, header and gauge rows
+      │   │   ├── PlateSymbols      — the 32×32 fillable brain / mask sprites
+      │   │   └── SpiritSprites     — the three first-party spirituality sprites + the luster
+      │   └── layout/           — the HUD layout editor's model
+      │       ├── HudLayout     — `editing()` flag every overlay's render gate honours
+      │       ├── HudElement    — id / label / group / visible / bounds / moveTo / preview / reset
+      │       ├── HudElements   — the descriptor list in draw order, `soloSet`, `byId`
+      │       ├── LayoutGeometry — the arithmetic every element shares, incl. the anchored-move rule
+      │       ├── LayoutGroups  — everything the editor does to a group rather than an element
+      │       └── element/      — one descriptor per positionable element
+      │           ├── ElementIds      — the stable, never-localized ids
+      │           ├── AbstractElement — shared id/label plumbing
+      │           ├── BarElement      — a 182-wide bar with its label 10px above it
+      │           ├── SlotElement     — one ability slot (slot_1 … slot_10, one group)
+      │           └── CharacterPlateElement, BeyonderHealthElement, MadnessElement,
+      │                               SpiritualityElement, ActingElement, ResourceElement,
+      │                               ActionBarElement, CogitationElement, TargetHealthElement,
+      │                               NotificationElement
+      ├── effect/
+      │   ├── EffectManager     — registry + active list, renders via HudRenderCallback
+      │   ├── VisualEffect      — interface (start/render/isFinished/stop)
+      │   ├── EffectSounds      — the audio companions (loops and one-shots)
+      │   ├── HallucinationManager — client-side madness hallucinations, on the client tick
+      │   └── visual/           — the effects themselves
+      │       ├── EffectParams  — the `key=value,key=value` param splitter
+      │       ├── EffectPaint   — the 2D paint helpers vanilla does not expose
+      │       ├── CracksEffect, EyesEffect, VignetteEffect, HeartbeatEffect, GlitchEffect,
+      │       │                   BloodRainEffect, FrostEffect, WhispersEffect, TunnelEffect,
+      │       │                   FlashEffect, HallucinationEffect
+      │       ├── ImpactFrameEffect — the world-space spell impact; a shell over impact/
+      │       └── impact/       — ImpactStyle (the presets), ImpactGeometry (the randomised
+      │                           shapes), ImpactRenderer (every mark it puts on the world or
+      │                           the screen), WorldImpact (one impact playing out at a position)
+      ├── gesture/
+      │   ├── GestureType       — 5 shapes (circle, V, Z, line down, triangle):
+      │   │                       direction templates + preview polylines
+      │   ├── DirectionCodes    — resampled stroke → 8-way direction string
+      │   └── GestureRecognizer — resample → DirectionCodes → Levenshtein match
+      ├── form/                 — mythical creature forms (see below)
+      │   ├── MythicalFormManager  — uuid → pathway map, fed by coi-client:mythical
+      │   ├── MythicalCreatureForm — per-pathway form; pathway/ holds all 20
+      │   ├── FormPrimitives    — the hand-authored cuboid geometry the full forms are drawn from
+      │   ├── PartialFormSpec   — placement/scale of a baked lower-body model
+      │   ├── PartialForms      — shared resolve + carrier-transform helpers
+      │   ├── PartialFormLayer  — draws the baked model as a player render layer
+      │   ├── FormModel         — the `carrierDelta()` contract a baked model can implement
+      │   ├── FormModelLayers   — registration + placement of the baked models
+      │   ├── pathway/          — the 20 pathway forms (FoolForm, SunForm, VisionaryForm, …)
+      │   └── model/            — Blockbench exports (VisionaryLowerModel/Animations);
+      │                           **generated — regenerate from Blockbench, never hand-edit**
+      ├── appearance/
+      │   ├── AppearanceTraitLayer    — render layer for the traits the server granted
+      │   ├── AppearanceTraitRenderer — one additive trait
+      │   ├── TraitGeometry           — smooth tubes/quads/triangles in block units
+      │   └── trait/                  — HornsTraitRenderer, MushroomTraitRenderer,
+      │                                 FemaleTraitsRenderer
+      ├── menu/                 — the declarative menu document (server-authored screens)
+      │   ├── MenuDocument      — session / version / screen id, header, sections, footer
+      │   ├── MenuComponent     — sealed: text, note, stat, kv, checklist, button(s), toggle,
+      │   │                       list, grid, input, divider, spacer, plus the v2 five
+      │   │                       (hero, details, steps, chips, panels)
+      │   ├── MenuIcon          — pathway emblem / item model / glyph / ability / player head / none
+      │   ├── MenuParser        — defensive Gson; unknown `type`s skipped, sizes clamped
+      │   ├── MenuParts         — the structures that appear in more than one component
+      │   ├── MenuJson          — the defensive reads a document is parsed with
+      │   ├── MenuStyles        — the wire's enum words, folded onto this client's enums
+      │   └── MenuLimits        — how much of a document this client will read
+      ├── config/
+      │   ├── AbilityConfig     — persists slot bindings → config/coi_abilities.json
+      │   ├── HudConfig         — every HUD setting → config/coi_hud.json
+      │   ├── HudConfigReader   — the on-disk key names, read as "the value, else the default"
+      │   ├── HudConfigWriter   — the same key names, written back
+      │   ├── HudConfigMigrations — brings an older file up to `HudConfig.LAYOUT_VERSION`
+      │   ├── HudSettingsCopy   — the field-by-field copy behind the settings screens'
+      │   │                       working copies
+      │   └── ClientStateStore  — persistent state, not preferences → coi_client_state.json
+      ├── data/
+      │   ├── ClientDataLoader  — the mod's own resource-pack data (the pathway archive), and
+      │   │                       the reload hook clearing IconModels / PlateSymbols / CoiIcons
+      │   └── IngredientInfo    — one archive entry: which pathway and sequence wants an item
+      ├── json/
+      │   └── JsonRead          — the defensive scalar reads every state class shares
+      ├── ui/
+      │   ├── CoiStyle          — shared dark/gold palette + card chrome; the BACKDROP / SCRIM /
+      │   │                       VEIL dimming ladder, `cardWidth` and `formWidth`
+      │   ├── CoiIcons          — the mod's first-party GUI icons, and the one way to draw them
+      │   ├── AbilityIcons      — shared icon renderer: pack item model, else category/tier
+      │   ├── IconModels        — "is that item model loaded?", cached per reload
+      │   └── IngredientTooltips — names the pathway an item belongs to, in its tooltip
+      ├── presence/
+      │   └── DiscordPresenceManager — Discord Rich Presence via discord-game-sdk4j
+      │                                (pure-Java IPC, bundled jar-in-jar); lazy connect
+      │                                on first join, APP_ID = 0 disables it entirely
+      ├── mixin/                — every mixin and accessor, plus mixin/duck/
+      │   ├── LivingEntityRendererMixin — the mythical form: cancels the vanilla player render
+      │   │                       for a full form, pushes hipRaise + the carrier transform
+      │   │                       for a partial one
+      │   ├── AvatarRendererMixin / AvatarRenderStateMixin / duck/AvatarRenderStateAccessor —
+      │   │                       attach the mod's layers, and carry a player UUID on a render
+      │   │                       state vanilla gives no identity to
+      │   ├── PlayerModelMixin / HumanoidArmorLayerMixin — hide legs, then leggings + boots,
+      │   │                       under a partial form
+      │   ├── TitleScreenMixin  — the title-screen haunting hook
+      │   ├── LoadingOverlayMixin / JoinMultiplayerScreenMixin / OnlineServerEntryMixin — the
+      │   │                       startup logo and the Mysterria server-list entry
+      │   └── EntityRendererAccessor / LivingEntityRendererAccessor / SelectionListEntryInvoker
+      └── screen/               — the chrome these draw with lives in ui/CoiStyle
+          ├── ScreenInput       — the keyboard concerns the mod's own screens share
+          ├── ScrollbarPainter  — the 3px track-and-thumb bar drawn *beside* a card
+          ├── GestureScreen     — hold Left Alt, draw with mouse, release to cast;
+          │                       inert until a gesture has an ability bound
+          ├── TourScreen        — first-join walkthrough: spotlight cutouts + text cards,
+          │                       movement stays enabled; re-run via "Show Tour Again"
+          ├── TitleScreenHaunt  — the main menu remembers the madness you left with
+          ├── InventoryHint     — a strip on the vanilla inventory saying the Mystery Arts
+          │                       item is gone and naming the live "open menu" keybind;
+          │                       dismissed once, remembered in coi_client_state.json
+          ├── sheet/            — the Beyonder character sheet (opened with M)
+          │   ├── CharacterSheetScreen — one `MenuTheme` card, drawn as a menu document would be
+          │   ├── SheetContext / SheetMetrics / SheetPalette — what a section is handed to draw
+          │   │                       itself with, the measurements + the one hit test its cards
+          │   │                       use, and every colour the sheet decides for itself
+          │   ├── SheetHero, SheetVitals, SheetActing, SheetConditions, SheetDestinations,
+          │   │   SheetFooter, SheetRows, SheetChips — one section each, in draw order
+          │   └── SheetGlyphs   — the sheet's 8×8 drawn marks (heart/flask/hourglass, the
+          │                       seven destination glyphs, lock)
+          ├── ability/
+          │   ├── AbilityBindingScreen — bind abilities to slots (opened with K); tabbed
+          │   │                       (hotkeys/wheel/gestures) with a per-tab how-to banner
+          │   ├── BindingRowPainter — one row of that screen's slot list
+          │   ├── AbilityWheelScreen — the radial picker, held open on G
+          │   ├── AbilityPickerOverlay — the modal chooser: the screen, its input and its scroll
+          │   ├── PickerModel   — the flat Row list: the search, the grouping, the row heights
+          │   ├── PickerPainter — one row at a time, plus the tooltip after the scissor
+          │   ├── PickerMetrics — ROW_H 26 / HEADER_H 13 / UNBIND_H 18 / MESSAGE_H 18
+          │   └── PickerLabels  — every word a row or its tooltip puts on screen
+          ├── settings/
+          │   ├── HudSettingsScreen — HUD customization: 3 tabs (Ability HUD/Elements/General),
+          │   │                       scrollable rows so it fits any gui scale. Holds **no**
+          │   │                       position rows: "Arrange on screen…" plus the per-element
+          │   │                       *Align* buttons are the only position UI
+          │   ├── SettingsTabs  — the contents of those three tabs, one method each
+          │   ├── SettingsRows  — the row builders the tabs compose
+          │   ├── HudLayoutScreen — drag-to-position editor: sample previews of every
+          │   │                       element over the live world — or one element / one group,
+          │   │                       in solo mode — snapping, Ctrl group move, nudge keys
+          │   ├── LayoutPainter — what that editor paints over the world
+          │   └── LayoutSnap    — where a dragged element actually lands
+          ├── menu/             — the server-authored menu renderer
+          │   ├── MenuScreen    — one scrolling card: header + sections + footer,
+          │   │                   hand-drawn buttons, live list search, confirm modal,
+          │   │                   collapsible sections + details, draggable scrollbar
+          │   ├── MenuTheme     — every colour and primitive the screen draws with
+          │   ├── MenuContext   — everything a collaborator may ask the screen for, including
+          │   │                   `approach` (the one easing chokepoint)
+          │   ├── MenuPart / MenuPartFactory — one laid-out piece in content space, and the
+          │   │                   document → flat part list the card scrolls
+          │   ├── MenuTextParts / MenuValueParts / MenuControlParts / MenuCollectionParts —
+          │   │                   the words, the values, the things the player operates, and
+          │   │                   the parts that repeat a cell
+          │   ├── MenuChrome, MenuGauges, MenuIcons, MenuScrollbar, MenuConfirmModal
+          │   └── MenuMetrics   — the geometry a document is drawn to, and its one hit test
+          ├── widget/
+          │   └── CoiTabButton  — hand-drawn tab widget used by binding + settings screens
+          └── debug/            — dev-only (F8)
+              ├── EffectDebugScreen — test effects, forms, bars and menus without a server
+              ├── DebugStates       — the state pokes behind its buttons
+              └── AppearanceDebugScreen — preview the appearance traits
 ```
+
+## Shared seams
+
+Five small classes exist only so the same decision cannot be made twice. Reach for them before
+retyping what they hold.
+
+- **`hud/HudGate.blocked(client, settings)`** — the four refusals every overlay's render gate opens
+  with: no player, `hud.isHidden()`, `HudLayout.editing()`, master switch off. The editing term is
+  the one that matters and the easy one to leave out — an overlay that forgets it draws its live
+  self underneath the editor's preview, which is the one way to break the layout editor. A new
+  overlay calls `HudGate.blocked` rather than retyping the chain; whatever else it needs (its own
+  `show*` toggle, whether the server has sent data, the plate superseding it) stays in the overlay,
+  because no two of those agree.
+
+  Two overlays deliberately do more with the gate than return early:
+  `overlay/BeyonderHealthOverlay` turns it into a **fall-through** — it replaced a vanilla element,
+  so `blocked` means "draw the hearts", not "draw nothing", and its `render` returns a boolean the
+  wrapper uses to call the original (it also hands the frame back in creative and spectator rather
+  than re-deriving vanilla's rule). `overlay/MadnessOverlay` passes the gate and *then* draws
+  `MadnessCorruption.screenEffects` **before** the `showCharacterPlate` check, because the stage
+  vignette is the world reacting to the player, not a readout — the plate supersedes the bar, never
+  the effects.
+
+- **`dev.ua.ikeepcalm.coi.CoiLog`** — the mod's one logger (`CoiLog.LOG`, named "COI Client"). Every
+  hand-written `System.out.println("COI Client: …")` is gone; the prefix is now the logger's name,
+  so it cannot drift between call sites, and the lines land with a level and a timestamp like every
+  other mod's.
+
+- **`network/payload/CoiPayloads`** — the shape every payload record is built from: the `coi-client`
+  namespace, the `MAX_DOCUMENT` (1 MiB) and `MAX_ACTION` (32 KiB) caps, and the read/write pair.
+  Both ends have to agree on a cap or the packet is rejected mid-flight, so it is stated once here
+  rather than 22 times. A payload class is then its record components, its id and its codec — which
+  is what makes a mismatch with the plugin visible at a glance.
+
+- **`json/JsonRead`** — the defensive scalar reads (`string`, `intOf`, `dbl`, `bool`, `object`, …)
+  that every `state/` class shares. Each answers "absent" with the caller's default instead of
+  throwing, so a `handle` method only guards the two things that genuinely are fatal: a body that is
+  not an object, and a value of the wrong Java type. `menu/MenuJson` is the same idea for menu
+  documents, with the length clamps a document needs.
+
+- **`ui/CoiStyle`** — besides the dark/gold palette and the card chrome, it now names the screen
+  dimming ladder: **`BACKDROP`** for a modal that owns the screen, **`SCRIM`** for one the player is
+  expected to glance past, **`VEIL`** for the layout editor, where the world has to stay readable
+  while it is dragged on. Choosing between them is a judgement about the screen behind, not a taste
+  in alpha, which is why they are named rather than typed as hex at the call site. It also carries
+  **two** width rules: `cardWidth` for a scrolling content card (the sheet and the menus, which are
+  the same object to a player) and `formWidth` for a settings-style column of labelled rows (the
+  binding screen, HUD settings). `formWidth` is deliberately **not** `cardWidth` — a form stops
+  being readable long before a document does, so it takes a wider gutter and caps far lower, and
+  keeping the rules apart is what stops a later widening of the reading card from stretching the
+  forms with it.
+
+**The big screens are shells over collaborators.** `MenuScreen`, `CharacterSheetScreen`,
+`AbilityPickerOverlay`, `HudSettingsScreen`, `HudLayoutScreen`, `ImpactFrameEffect` and
+`HudElements` each kept their public surface and their behaviour, and handed the drawing out:
+
+| Shell | Keeps | Hands out |
+|-------|-------|-----------|
+| `screen/menu/MenuScreen` | the vanilla `Screen` lifecycle, the session's `__close` guard, scroll, `approach` | `MenuPartFactory` → `MenuPart`s; `Menu{Text,Value,Control,Collection}Parts` draw them; `MenuChrome`/`MenuGauges`/`MenuIcons`/`MenuScrollbar`/`MenuConfirmModal`/`MenuMetrics` |
+| `screen/sheet/CharacterSheetScreen` | the `sheet_open`/`sheet_close` lifecycle, the card, the scroll | one `Sheet*` class per section, all handed a `SheetContext`; `SheetMetrics`/`SheetPalette` |
+| `screen/ability/AbilityPickerOverlay` | the modal, the search box, the keyboard | `PickerModel` (rows), `PickerPainter` (paint), `PickerMetrics`, `PickerLabels` |
+| `screen/settings/HudSettingsScreen` | the tabs, the working copy, Done/Cancel | `SettingsTabs` (which rows), `SettingsRows` (how a row is built) |
+| `screen/settings/HudLayoutScreen` | selection, drag, keys | `LayoutPainter` (what is drawn over the world), `LayoutSnap` (where it lands) |
+| `effect/visual/ImpactFrameEffect` | the `VisualEffect` contract and the params | `ImpactStyle`, `ImpactGeometry`, `ImpactRenderer`, `WorldImpact` |
+| `hud/layout/HudElements` | `all` / `byId` / `soloSet` / `moveGroupBy` | one `element/*Element` descriptor per element; `LayoutGeometry`, `LayoutGroups` |
+
+The seam is always the same: the shell owns *state and lifecycle*, the collaborators own *pixels and
+arithmetic* and are handed everything they need. So a rendering change is a change in one
+collaborator, and none of the invariants recorded below moved with the code.
 
 ## Network Protocol
 
@@ -194,10 +404,10 @@ Client feature ids (`ClientFeatures.SUPPORTED`): `ability_hud`, `hotkeys`, `effe
 `acting_hud`, `action_bar`, `target_health`, `cogitation`, `notify`, `character_sheet`,
 `resource_bar`, `menu_ui`.
 
-**Ability icons** — `util/AbilityIcons.draw` prefers the resource pack's per-ability item model (`AbilityInfo.icon()`,
+**Ability icons** — `ui/AbilityIcons.draw` prefers the resource pack's per-ability item model (`AbilityInfo.icon()`,
 rendered as a glowstone-dust stack with `DataComponents.ITEM_MODEL` set, posed
 to the box size) and falls back to the bundled `textures/icons/<category>/<tier>.png`, with the
-category whitelisted against the 14 shipped folders. `util/IconModels` decides which, by looking for
+category whitelisted against the 14 shipped folders. `ui/IconModels` decides which, by looking for
 `<ns>:items/<path>.json` in the resource manager — cached per icon id, cleared on resource reload
 and on disconnect.
 
@@ -218,21 +428,21 @@ Available effects: `vignette`, `heartbeat`, `cracks`, `eyes`, `glitch`, `bloodra
 
 **Sound layer** — `EffectSounds` plays audio companions for effects (loops for `heartbeat`/`whispers`/`tunnel`, one-shots for `cracks`/`frost`/`glitch`); assets in `assets/coi-client/sounds/` + `sounds.json`. Volume via `effectSoundVolume` HUD setting.
 
-**Madness hallucinations** — `HallucinationManager` (client tick) fires phantom positional sounds and visual flickers once `ClientBeyonderState` madness ≥ 25, scaling with stages 25/50/75; darkness/night makes events up to ~2.5x more frequent. Server can force one via the `hallucination` pseudo-effect (`event=footsteps|whisper|cave|block|flicker|random`). Toggle: `enableHallucinations` HUD setting, which also gates:
+**Madness hallucinations** — `HallucinationManager` (client tick) fires phantom positional sounds and visual flickers once `BeyonderState` madness ≥ 25, scaling with stages 25/50/75; darkness/night makes events up to ~2.5x more frequent. Server can force one via the `hallucination` pseudo-effect (`event=footsteps|whisper|cave|block|flicker|random`). Toggle: `enableHallucinations` HUD setting, which also gates:
 - **HUD gaslighting** (`hud/HudGaslight`) — at madness ≥ 75 the HUD briefly lies: wrong cooldown numbers, glitched keybind glyphs, two slots trading places.
 - **Title screen haunting** (`screen/TitleScreenHaunt` + `TitleScreenMixin`) — corruption (max of madness at disconnect and permanent madness, incl. debug-screen values) is persisted to `config/coi_client_state.json` (`ClientStateStore`); the main menu shows a scaled vignette, occasional eye apparitions, and whisper splash lines (`title.coi.haunt_splash.*`). Clean players always get LOTM flavor splashes (`title.coi.splash.*`) — not gated by the hallucinations toggle.
 
 **Debug screen** (dev environment only, F8): lists all registered effects with Test/Stop buttons and a params input field. `shouldPause()` returns false so effects are visible while the screen is open.
 
-## Mythical Creature Forms (`mcf/`)
+## Mythical Creature Forms (`form/`)
 
 S→C `coi-client:mythical` (`MythicalFormPayload`, `targetUuid` + `pathway:<unused>:start|stop`) marks
 a player's UUID as transformed into a pathway's form. Two kinds:
 
-- **Full forms** — the vanilla player render is cancelled outright (`PlayerRendererMixin` at HEAD)
-  and replaced with procedural geometry drawn from `Coi3dPrimitives`. 19 of the 20 pathways.
+- **Full forms** — the vanilla player render is cancelled outright (`LivingEntityRendererMixin` at HEAD)
+  and replaced with procedural geometry drawn from `FormPrimitives`. 19 of the 20 pathways.
 - **Partial forms** — a baked Blockbench model stands in for the *lower body* while the player's own
-  head/torso/arms keep rendering. Currently Visionary only (`CoiModelLayers.VISIONARY_LOWER_SPEC`).
+  head/torso/arms keep rendering. Currently Visionary only (`FormModelLayers.VISIONARY_LOWER_SPEC`).
 
 Partial forms are assembled from four pieces that all have to agree:
 
@@ -240,39 +450,43 @@ Partial forms are assembled from four pieces that all have to agree:
 |-------|-----|
 | `PlayerModelMixin` (`setupAnim` TAIL) | hides leg parts; must run in `setupAnim`, since submission is deferred |
 | `HumanoidArmorLayerMixin` | hides leggings/boots, which draw from their own model set |
-| `PlayerRendererMixin` | `hipRaise` push (world space, at HEAD) + **carrier transform** push (model space) |
+| `LivingEntityRendererMixin` | `hipRaise` push (world space, at HEAD) + **carrier transform** push (model space) |
 | `PartialFormLayer` | draws the baked model, undoing the carrier transform it inherits |
 
 **The carrier transform** is what makes the halves read as one body. The rig's torso bone (its
 "carrier") both rotates and translates during the walk cycle, around a pivot that is over a block
-away from the player's waist. `CoiFormModel#carrierDelta` hands out that bone's full rigid motion,
+away from the player's waist. `FormModel#carrierDelta` hands out that bone's full rigid motion,
 `PartialForms#carrierTransform` converts it into player space, and the renderer mixin pushes it onto
 the pose stack just before the model is submitted — so the player *and* every layer above it (armor,
 held items, cape, appearance traits) ride the torso exactly. Copying the rotation angle alone is not
 enough and looks like shearing: same tilt, wrong pivot, no translation.
 
-Placement knobs live in `CoiModelLayers`; read the comment there before touching one. `hipRaise` and
-the carrier push sit in different coordinate spaces on purpose — see `PlayerRendererMixin`.
+Placement knobs live in `FormModelLayers`; read the comment there before touching one. `hipRaise` and
+the carrier push sit in different coordinate spaces on purpose — see `LivingEntityRendererMixin`.
+
+`form/model/VisionaryLowerModel` and `VisionaryLowerAnimations` are **Blockbench exports**. They are
+generated files: change the rig in the modelling tool and re-export, never hand-edit the Java. A
+hand edit is invisible until the next export silently reverts it.
 
 **Dev testing** (no server needed): F8 → *Form: None (Click to cycle)* applies a form to yourself.
 
 ## HUD Bars
 
-`MadnessHudOverlay` and `SpiritualityHudOverlay` both draw a 182×6 bar and share two helpers:
+`MadnessOverlay` and `SpiritualityOverlay` both draw a 182×6 bar and share two helpers:
 
 - `hud/HudAnchor` — `parse(String)` + `resolve(screenW, screenH, barW, xOffset, topY, bottomYOffset)`
   returns `{x, y}`. Six anchors: TOP/BOTTOM × LEFT/CENTER/RIGHT, where LEFT means `x = 10 + xOffset`
   and RIGHT its mirror, `x = screenW - barW - 10 + xOffset` (`HudAnchor.MARGIN`); `isTop()`,
   `isCenter()` and `isRight()` answer which. Every bar now passes its own Y offset for both arguments — the madness bar
-  included, since `layoutVersion` 2 (`MadnessHudOverlay.DEFAULT_TOP_Y = 20` is only the default) —
+  included, since `layoutVersion` 2 (`MadnessOverlay.DEFAULT_TOP_Y = 20` is only the default) —
   so any bar can be dragged whichever edge it is anchored to. `TourScreen` spotlights call the same method,
   which is why they can't drift from the overlays.
-- `hud/CoiBar` — stateless layers: `frame`, `fill` (gradient + bevel), `shimmer`, `notches`,
+- `hud/render/CoiBar` — stateless layers: `frame`, `fill` (gradient + bevel), `shimmer`, `notches`,
   `label` (centred 10px above the bar), `lerpWidth`, `withAlpha`. Anything madness-specific (glitch
   slices, cracks, static, permanent-madness marker, the extras line) stays in its own overlay.
 
 The spirituality bar only draws once a protocol-2 server has actually sent `spirituality` on
-`conditions` (`ClientBeyonderState.hasSpiritualityData()`); it goes red below 30% of max, its label
+`conditions` (`BeyonderState.hasSpiritualityData()`); it goes red below 30% of max, its label
 goes red below 25%, and with `spiritualityHideWhenFull` it eases out at full instead of sitting
 there. Dev testing: F8 → the *Spirit* buttons.
 
@@ -280,19 +494,19 @@ The spirituality bar is no longer a `CoiBar` composite: it blits three first-par
 `textures/gui/hud/` (`spirituality_fill.png` 182×5 clipped to progress, `spirituality_frame.png`
 184×25 drawn at `(fillX-1, fillY-9)`, and `spirituality_frame_critical.png` crossfaded in below
 30%), with the luster — edge bloom, motes, drain trail — drawn as plain `fill`s in
-`SpiritualityHudOverlay` and the geometry in `hud/SpiritSprites`. Numbers only, right-aligned above
-the fill; the flask ornament is the label. `ClientBeyonderState.predictedSpirituality()` extrapolates
+`SpiritualityOverlay` and the geometry in `hud/render/SpiritSprites`. Numbers only, right-aligned above
+the fill; the flask ornament is the label. `BeyonderState.predictedSpirituality()` extrapolates
 between the server's once-a-second regen steps from a rate measured off the last two increases (discarded on any
 decrease, capped at max/2 per second and 1.5 s ahead), and hide-when-full now
 appears instantly and only retreats after a 1.5 s hold plus a 900 ms fade. The
 `hud.coi.spirituality_label` lang key is now unused — leave it in place.
 
-`ActingHudOverlay` is a third, thinner (182×4) bar using the same two helpers, coloured by
-`AbilityInfo.pathwayRgb`. It draws only while `ClientActingState.hasData()` and the pathway is not
+`ActingOverlay` is a third, thinner (182×4) bar using the same two helpers, coloured by
+`Pathways.pathwayRgb`. It draws only while `ActingState.hasData()` and the pathway is not
 an `OuterPathway`, shows the method cooldown as `mm:ss` on the label, and floats a pathway-coloured
 `+N` above the label for 1.2s after a grant. Dev testing: F8 → the *Acting* buttons.
 
-`ResourceHudOverlay` draws the server's ability resource meters as a stack of 182×4 bars in the
+`ResourceOverlay` draws the server's ability resource meters as a stack of 182×4 bars in the
 colour each packet names, 18 px apart, growing downwards from a `TOP_*` anchor and upwards from a
 `BOTTOM_*` one (`HudAnchor.isTop()`), capped at `resourceMaxBars`. Bars are keyed by id so a
 refresh never reorders the stack, and each one expires on its own `ttlMs` unless the server keeps
@@ -300,23 +514,26 @@ re-sending it. Dev testing: F8 → the *Resource* / *Res clear* buttons.
 
 ## HUD Layout Editor
 
-`screen/HudLayoutScreen` (HUD Settings → *Arrange on screen…*, or *Align* on any element's row)
+`screen/settings/HudLayoutScreen` (HUD Settings → *Arrange on screen…*, or *Align* on any element's row)
 drags every positionable element into place over the live world. It is **the only position UI**:
 the settings tabs carry no anchor cycles and no X/Y offset rows any more — only the show toggles,
 sizes and an *Align* button on each element's header. The fields themselves are untouched, still
 written to `config/coi_hud.json`, and the presets still assign them. The screen is a thin shell over
-`hud/layout/`:
+`hud/layout/` — it owns selection, the drag and the keys, `LayoutPainter` owns what is drawn over
+the world and `LayoutSnap` owns where a dragged element lands:
 
 - `HudElement` — `id` / `label` / `group` / `visible` / `bounds` / `moveTo` / `renderPreview` /
   `resetPosition` / `resetGroup`. `bounds` and `moveTo` are inverses in gui-scaled pixels: after
   `moveTo(x, y, …)`, `bounds` reports `(x, y)` again. Previews draw **sample data** and must never
-  touch a `Client*State`.
+  touch a class under `state/`. One implementation per element lives in `hud/layout/element/`
+  (`SlotElement`, `BarElement` and the nine descriptors over it), with the ids in `ElementIds` —
+  never localized, since they go into `coi_hud.json` and into an *Align* button's argument.
 - `HudElements.all(settings)` — the descriptors in draw order: `slot_1` … `slot_N` (only the first
-  `activeAbilitySlots` of the ten), then `madness`, `spirituality`, `acting`, `resources`,
-  `action_bar`, `target_health`, `cogitation`, `notifications`. The list depends on the settings, so
-  the screen builds it once in its constructor, and renders forwards / hit-tests backwards so you
-  grab what you see.
-- `HudElements.applyAnchoredMove(...)` — the one rule for anchored bars: the anchor follows the half
+  `activeAbilitySlots` of the ten), then `character_plate`, `beyonder_health`, `madness`,
+  `spirituality`, `acting`, `resources`, `action_bar`, `target_health`, `cogitation`,
+  `notifications`. The list depends on the settings, so the screen builds it once in its
+  constructor, and renders forwards / hit-tests backwards so you grab what you see.
+- `LayoutGeometry.applyAnchoredMove(...)` — the one rule for anchored bars: the anchor follows the half
   of the screen the bar landed in (`TOP_*` above the middle, `BOTTOM_*` below), and horizontally
   `CENTER` within 12 px of the screen's centre line (and then a near-zero X offset snaps to a true
   0), else `LEFT` (`x = 10 + xOffset`) or `RIGHT` (`x = screenW - barW - 10 + xOffset`) depending on
@@ -324,13 +541,16 @@ written to `config/coi_hud.json`, and the presets still assign them. The screen 
   their own top/bottom decision.
 - **Ability slots are one element each.** `slot_1` … `slot_10` all return `group() ==
   "ability_slots"`; `HudElements.soloSet(id, s)` resolves an *Align* id to a whole group or to a
-  single element, and `HudElements.moveGroupBy(…)` is the Ctrl-drag: slots still in the shared row
-  ride `hudX`/`hudYOffset` (shifted once, through `AbilityHudOverlay.shiftRow`), the rest take the
+  single element, and `HudElements.moveGroupBy(…)` is the Ctrl-drag (both delegate to
+  `hud/layout/LayoutGroups`, which is where everything group-shaped lives): slots still in the shared row
+  ride `hudX`/`hudYOffset` (shifted once, through `AbilityOverlay.shiftRow`), the rest take the
   same delta through their own `moveTo`. `resetGroup` puts the row origin back; `resetPosition` on a
   slot only drops that slot's own placement.
 - `HudLayout.editing()` — **every overlay's render gate must include it**, right after the
   `client.gui.hud.isHidden()` check, or the editor will draw its preview on top of the real thing.
-  A new overlay that forgets this is the one way to break the editor.
+  A new overlay that forgets this is the one way to break the editor — which is exactly why the
+  whole chain now lives in `hud/HudGate.blocked`, and why an overlay calls that rather than
+  retyping it.
 
 **Solo mode** — opened with a preselected id (an *Align* button), the screen resolves it in its
 constructor to a one-element list, or — for `ability_slots` — to the whole slot group, and every
@@ -359,10 +579,10 @@ ability name and the cooldown readout grow with the box instead of staying stuck
 which is what a plain "draw the box bigger" setting could never do. `MIN_SLOT_SIZE`/`MAX_SLOT_SIZE`
 are exactly `MIN/MAX_ELEMENT_SCALE × 40`, so the slider's range maps onto the supported scale band
 with nothing to clamp away. Three helpers keep the relationship in one place:
-`AbilityHudOverlay.slotScale(s)`, `boxSize(s)` (`== slotSize`) and `rowStep(s)`
+`AbilityOverlay.slotScale(s)`, `boxSize(s)` (`== slotSize`) and `rowStep(s)`
 (`boxSize + 10×scale`).
 
-**Per-slot placement** — `AbilityHudOverlay.slotOrigin(index, w, h, settings)` is *the* answer to
+**Per-slot placement** — `AbilityOverlay.slotOrigin(index, w, h, settings)` is *the* answer to
 "where does slot N go": the shared row (`hudX + index * rowStep(s)`, `h - hudYOffset` — `rowOrigin`
 is plain screen pixels, since the scale grows the slots rather than displacing the row) while
 `settings.slotPlacements[index]` is null, otherwise that placement's own `HudAnchor.resolve`, fed
@@ -384,23 +604,24 @@ it, so a file at version 0 gets both.
 
 ## Character Plate
 
-`hud/CharacterPlateOverlay` replaces three of the four look-alike bars with **one card**. Madness,
+`hud/overlay/CharacterPlateOverlay` replaces three of the four look-alike bars with **one card**. Madness,
 acting and the reserve stack were the same 182px `CoiBar` recipe stacked down the top-left corner,
-which read as clutter; the plate gives them a shared home and each gauge its own *shape*.
+which read as clutter; the plate gives them a shared home and each gauge its own *shape*. The
+overlay is the gate and the data; `hud/render/PlateCard` is the card, the header and the rows.
 
 | Row     | Source                              | Notes                                                                                                                     |
 |---------|-------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| header  | player skin + `ClientBeyonderState` | 16×16 head (face `u=8,v=8`, hat `u=40,v=8`), name, procedural pathway crest in `AbilityInfo.pathwayRgb` + `· SEQUENCE n`  |
+| header  | player skin + `BeyonderState` | 16×16 head (face `u=8,v=8`, hat `u=40,v=8`), name, the pathway emblem through `CoiIcons.drawPathwayEmblem` tinted `Pathways.pathwayRgb` + `· SEQUENCE n` |
 | sanity  | `100 - madness`                     | brain symbol; permanent madness is a **ceiling** the fill can't reach, drawn as a dark capped band on both symbol and bar |
-| acting  | `ClientActingState`                 | mask symbol, `mm:ss` method cooldown, the `+N` grant popup                                                                |
-| reserve | `ClientResourceState`               | under a divider, one compact row each, capped by `resourceMaxBars`                                                        |
+| acting  | `ActingState`                 | mask symbol, `mm:ss` method cooldown, the `+N` grant popup                                                                |
+| reserve | `ResourceState`               | under a divider, one compact row each, capped by `resourceMaxBars`                                                        |
 
 **Spirituality is deliberately not on the plate** — it keeps its own sprite bar and its own position;
 that bar is the one the user is happy with. Rows with no data are **omitted, not blanked**, so the
 card's height follows the server, and the whole plate hides when there is no pathway and no gauge
 has data (a vanilla server never shows a card containing just a head).
 
-**Symbols** (`hud/PlateSymbols`) are `textures/gui/hud/symbol_brain.png` and `symbol_mask.png`, each
+**Symbols** (`hud/render/PlateSymbols`) are `textures/gui/hud/symbol_brain.png` and `symbol_mask.png`, each
 a single **32×32 full-colour** sprite — ordinary artwork, not a mask/ink frame pair. `PlateSymbols.SIZE`
 is both the sheet edge and the drawn size, so every blit is 1:1 and the art never resamples; 32 is
 chosen because the source brain is natively 32×32 and the source clown 64×64, both whole-pixel
@@ -419,8 +640,8 @@ texture degrades to a filled rounded rect, so a pack that drops the sprites stil
 Swapping in better art is a PNG swap with no code change — which is exactly how the shipped pair got
 there, replacing a generated placeholder set.
 
-**`showCharacterPlate` (default true) is an either/or.** While it is on, `MadnessHudOverlay`,
-`ActingHudOverlay` and `ResourceHudOverlay` draw no bar, `HudElements.all()` drops those three
+**`showCharacterPlate` (default true) is an either/or.** While it is on, `MadnessOverlay`,
+`ActingOverlay` and `ResourceOverlay` draw no bar, `HudElements.all()` drops those three
 outright (a superseded element is not the same as one the player switched off, so it is not left in
 the editor as a hidden ghost), and the settings screen hides their rows. The madness **screen
 effects** are not a bar and keep running either way — that is the easy mistake here. Turning the
@@ -428,7 +649,7 @@ plate off restores all three exactly as before.
 
 ## The Character Sheet
 
-`screen/CharacterSheetScreen` (**M**, on a `character_sheet` server) is the plate's full-size
+`screen/sheet/CharacterSheetScreen` (**M**, on a `character_sheet` server) is the plate's full-size
 sibling: a **single scrolling column of sections**, not a grid of look-alike bars.
 
 **It is drawn as a menu document, and that is the point.** The sheet opens every server-authored
@@ -444,7 +665,7 @@ the menus use 16 — stepping from it into a menu read as stepping into another 
 
 | Section     | What it is                                                                                                                                                                                      |
 |-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| hero        | 32px player head, the pathway emblem + name in `ClientSheetState.pathwayArgb()`, `Sequence N — <title>`, and the sequence again as a 2×-scaled numeral in a badge                               |
+| hero        | 32px player head, the pathway emblem + name in `SheetState.pathwayArgb()`, `Sequence N — <title>`, and the sequence again as a 2×-scaled numeral in a badge                               |
 | vitals      | four 32px rows — health, spirituality, madness, tiredness — each with its **own symbol**, its own colour, the number first and the bar second, and a plain-language line for the stage          |
 | acting      | the mask gauge + `mm:ss` method cooldown, then the **whole** source ledger (label · bar · `n / cap`, `∞` when unlimited, red when capped), with chips for limited / overflow / foreign throttle |
 | conditions  | Line of Life and Death, Frenzied Mage's Presence, the anomaly — chips, **only when present**                                                                                                    |
@@ -456,10 +677,12 @@ Three things a change here must keep:
 
 - **The lifecycle is unchanged.** `sheet_open` on init, `sheet_close` exactly once on the way out (both `onClose` and
   `removed`), the `send` guard that never talks into the void, and every value
-  re-read from `ClientSheetState` each frame so the 60-tick pushes land live.
-- **The draw *is* the layout.** Section heights follow the data, so each `draw…` method returns the
-  y it reached rather than being measured first — measure and draw are the same pass rather than two
-  that can drift. Two consequences: mouse events reuse the last frame's hit boxes (`Hit`), the same
+  re-read from `SheetState` each frame so the 60-tick pushes land live.
+- **The draw *is* the layout.** Each section is its own class — `SheetHero`, `SheetVitals`,
+  `SheetActing`, `SheetConditions`, `SheetDestinations`, `SheetFooter` over the shared `SheetRows` /
+  `SheetChips` — and each is handed a `SheetContext` and returns `int`. Section heights follow the
+  data, so a section's `draw` returns the y it reached rather than being measured first — measure and draw are the same pass rather than two
+  that can drift. Two consequences: mouse events reuse the last frame's hit boxes (`SheetContext.Hit`), the same
   bargain `AbilityPickerOverlay` makes; and the **card's height trails the content by one frame**, so
   `contentHeight` is seeded full (`Integer.MAX_VALUE / 4`) — the card opens at full size and settles
   down onto a short document instead of opening as a sliver and snapping out.
@@ -471,7 +694,7 @@ Cards send **`ActionPayload.ofOpen(target)`** (which carries the player's `useSe
 preference) and close the sheet; the server answers with its own GUI or a `coi-client:menu` document.
 
 Symbols split by who owns the art: madness and acting reuse `PlateSymbols`' 32×32 brain and mask, and
-everything else is drawn from `screen/SheetGlyphs`' 8×8 grid — blown up by whole pixels, so a mark is
+everything else is drawn from `screen/sheet/SheetGlyphs`' 8×8 grid — blown up by whole pixels, so a mark is
 exactly as sharp at 16px as at 32 and needs no PNG. Section headings and condition chips carry the
 bundled 16px `CoiIcons` glyphs instead, by the same names a server-authored document uses. The one
 deliberate disagreement with the plate is
@@ -480,7 +703,7 @@ it splits into permanent / godhood / temporary, so a symbol filling the other wa
 
 ## First-party GUI icons
 
-`util/CoiIcons` is the one way to draw the mod's small icons, in
+`ui/CoiIcons` is the one way to draw the mod's small icons, in
 `textures/gui/icons/`. **Each icon ships at exactly the size it is drawn at**, so every blit is 1:1
 and the artwork never resamples — that is why the sizes are constants in `CoiIcons` rather than a
 caller's argument, and why the cog exists twice. Anything that wants a new size gets a new file, not
@@ -513,13 +736,13 @@ reserve rows) keep their **drawn glyphs and primitives**, which stay sharp at an
 was tried and reverted. Before adding an icon to a new slot, check the slot is at least 16px.
 
 `draw` returns **false** when no loaded pack defines the icon, and every caller falls back to what it
-drew before. Presence is cached per identifier and cleared on resource reload by `ResourceLoader`,
+drew before. Presence is cached per identifier and cleared on resource reload by `ClientDataLoader`,
 alongside `IconModels` and `PlateSymbols`.
 
 `CoiIcons.drawPathwayEmblem` is the one way to draw a pathway's symbol and returns the width it
 drew. The mod ships **real art for all 25 pathways** — 9px bitmaps behind the
 `coi-client:pathway_icons` font (`textures/pathways/*.png`), keyed by PUA codepoints in
-`CircleOfImaginationClient.PATHWAY_ICONS` — so the character sheet and the character plate both use
+`Pathways`' own emblem map — so the character sheet and the character plate both use
 it and can never show two different symbols for the same pathway. The diamond crest is only a
 fallback for a pathway the map does not know; the plate used to draw that crest unconditionally,
 which was simply wrong about what art existed.
@@ -530,7 +753,7 @@ jar. The shipped icon is a whole-pixel reduction (64→16 is 4:1); the plate's s
 
 ## Beyonder Health Bar
 
-`hud/BeyonderHealthOverlay` is the **only element in the mod that replaces a vanilla HUD element**
+`hud/overlay/BeyonderHealthOverlay` is the **only element in the mod that replaces a vanilla HUD element**
 rather than attaching beside one: it takes `VanillaHudElements.HEALTH_BAR` through
 `HudElementRegistry.replaceElement`, keeps the `original`, and calls it whenever our bar is not
 drawing — so a vanilla server, a non-Beyonder, creative/spectator, `hud.isHidden()`,
@@ -589,13 +812,13 @@ replacing the left-side height provider too, which would have to duplicate the w
 
 ## HUD Settings & per-element scale
 
-`screen/HudSettingsScreen` has three tabs, split by what a setting *is* rather than by which overlay
+`screen/settings/HudSettingsScreen` has three tabs, split by what a setting *is* rather than by which overlay
 draws it:
 
 | Tab             | Holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Ability HUD** | `slotSize` (the only size knob), key + wheel slot counts, the three slot-decoration toggles, one *Align* for the whole slot group                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Elements**    | one uniform block per bar/overlay: a show/hide checkbox **labelled with the element's own name** (`screen.coi.layout_el_<id>`) and an *Align* button, then — **only while the element is switched on** — its *Scale* slider and its own extras (spirituality hide-when-full, resource max bars, action-bar lines). `addElementRow` returns the checked state and re-runs `init()` on toggle, so switching an element off collapses its block instead of leaving dead controls behind. The Character Plate leads the tab; while it is on, the madness / acting / resources blocks are absent entirely and only `resourceMaxBars` survives, since the plate still draws those rows |
+| **Elements**    | one uniform block per bar/overlay: a show/hide checkbox **labelled with the element's own name** (`screen.coi.layout_el_<id>`) and an *Align* button, then — **only while the element is switched on** — its *Scale* slider and its own extras (spirituality hide-when-full, resource max bars, action-bar lines). `SettingsRows.elementRow` returns the checked state and re-runs the screen's `init()` on toggle, so switching an element off collapses its block instead of leaving dead controls behind. The Character Plate leads the tab; while it is on, the madness / acting / resources blocks are absent entirely and only `resourceMaxBars` survives, since the plate still draws those rows |
 | **General**     | the master `enabled` switch, `useServerMenus` (open the plugin's chest GUIs instead of the mod's menus), accessibility (epilepsy mode, hallucinations, effect volume), Discord presence, "Show Tour Again"                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 The four presets are gone — the layout editor plus per-element scale cover what they used to
@@ -630,7 +853,7 @@ four attach before `VanillaHudElements.CHAT` and are gated on `settings.enabled`
 
 | Overlay               | Position                                                                                                                                       | Source                  |
 |-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| `ActionBarHudOverlay` | centred, stacked upward from `h - actionBarYOffset` (default 72), 10 px apart, 2 px channel-coloured tick left of each line                    | `coi-client:actionbar`  |
+| `ActionBarOverlay` | centred, stacked upward from `h - actionBarYOffset` (default 72), 10 px apart, 2 px channel-coloured tick left of each line                    | `coi-client:actionbar`  |
 | `TargetHealthOverlay` | 100×5 bar at `(w/2 - 50, h/2 + 18)`, name above, `hp / max (pct%)` below                                                                       | `coi-client:target`     |
 | `CogitationOverlay`   | 220×54 `CoiStyle.drawCard` at `(w/2 - 110, h/2 - 70)`; label at 1.5× scale, streak, draining 200×3 timer                                       | `coi-client:cogitation` |
 | `NotificationOverlay` | top-right toasts, `x = w - 12 - 180`, 180 px cards with a 2 px accent bar; slide in 250 ms, hold, fade 300 ms (`epilepsyMode` drops the slide) | `coi-client:notify`     |
@@ -664,7 +887,7 @@ disclosure, collapsed by default. The information was never the problem — show
 Two client-side rules the renderer must keep: **disclosure state (`details` open/closed, collapsed
 sections) is keyed `screenId + "/" + id` and survives a rebuild**, resetting only when the screen id
 changes — a 60-tick server refresh slamming shut what the player just opened is the bug to avoid;
-and **all easing funnels through `MenuScreen.approach`**, which returns the target outright under
+and **all easing funnels through `MenuContext.approach`**, which returns the target outright under
 `epilepsyMode`, so one chokepoint honours the setting.
 
 **The back arrow returns to the character sheet.** Every root document sets `back(true)` but is
@@ -706,13 +929,15 @@ new one.
 
 ## The Ability Picker
 
-`screen/AbilityPickerOverlay` is a flat `List<Row>` of `UNBIND` / `HEADER` / `ABILITY` / `MESSAGE`
-records, so scrolling, hit-testing and keyboard arithmetic all walk one structure. `Row.clickable()`
-is what makes headers and the no-results line inert. **Rows are not uniform height** (`ROW_H 26`,
-`HEADER_H 13`, `UNBIND_H 18`, `MESSAGE_H 18`), so every scroll calculation is in *pixels*:
-`contentHeight()`, `maxScroll()` (walks backwards for the first index whose tail still fits `listH`)
-and the scrollbar handle. `filtered` stays a plain ability list, so Enter-picks-first-match is
-unchanged.
+`screen/ability/AbilityPickerOverlay` is the modal shell — the search box, the keyboard and the
+scroll; `PickerModel` is the list itself, `PickerPainter` draws one row at a time, `PickerMetrics`
+holds the heights and `PickerLabels` every word. The model is a flat `List<Row>` of `UNBIND` /
+`HEADER` / `ABILITY` / `MESSAGE` records, so scrolling, hit-testing and keyboard arithmetic all walk
+one structure. `Row.clickable()` is what makes headers and the no-results line inert. **Rows are not
+uniform height** (`PickerMetrics.ROW_H 26`, `HEADER_H 13`, `UNBIND_H 18`, `MESSAGE_H 18`), so every
+scroll calculation is in *pixels*: `PickerModel.contentHeight()`, `maxScroll()` (walks backwards for
+the first index whose tail still fits `listH`) and the scrollbar handle. `filtered` stays a plain
+ability list, so Enter-picks-first-match is unchanged.
 
 - **Grouping** — sorted pathway → sequence → name, then one header per **pathway *and* sequence**
   (`FOOL · SEQ 5`, then `FOOL · SEQ 4`, …): the sequence is the bracket players actually think in.
@@ -725,7 +950,7 @@ unchanged.
   free/instant abilities — a blank where a number belongs is what made the old list read as
   interchangeable. The two glyphs live in the lang strings, so a font that lacks them is a
   translation fix, not a code change.
-- **`metaAvailable`**, computed once in `open()`, is `ServerCapabilities.has("ability_meta")` *or*
+- **`metaAvailable`**, computed once in `open()` via `PickerModel.detectMeta()`, is `ServerCapabilities.has("ability_meta")` *or*
   any listed ability carrying a richer field. False (a protocol-1 server) degrades line 2 to the
   category alone rather than a column of em-dashes. The OR keeps badges alive in the dev
   environment, where nothing answers the hello.
@@ -737,7 +962,7 @@ unchanged.
 
 ## Ability State on the HUD
 
-`AbilityHudOverlay.setActive/setCategoryLabel/setCooldown` fan out to **every** slot whose
+`AbilityOverlay.setActive/setCategoryLabel/setCooldown` fan out to **every** slot whose
 `AbilityInfo.extractId(stored)` equals the id — exact equality, not `contains`, and no early
 `break`. An active (toggled) ability gets a pulsing cyan outline and an `ON` tag; a locked or
 blocked one gets a red icon tint and a struck-through red name. State arrives either inline on the
@@ -745,7 +970,11 @@ v2 ability list (`active`, `cooldownRemainingTicks`) or live on `coi-client:stat
 
 ## Key Patterns
 
-- **Static singleton** — `CircleOfImaginationClient` holds all ability state; screens and widgets access it via static methods.
+- **Static singletons, one per concern** — `CoiClientMod` is the initializer and nothing else. The
+  ability catalogue is `ability/AbilityRegistry`, the slot bindings `ability/AbilityBindings`, the
+  pathway identity `ability/Pathways`, the keymappings `input/CoiKeyBindings`, the wire
+  `network/CoiNetworking`, and each S→C channel's data one class under `state/`. Screens and widgets
+  still reach all of them through static methods — what changed is which class answers, not how.
 - **Real-time cooldowns** — tracked via `System.currentTimeMillis()`, not ticks, for smooth animation.
 - **Lazy effect geometry** — `CracksEffect` generates crack segments on first render (needs screen dimensions); seeded by `startTime` for consistent patterns.
 - **Dev-only keybindings** — `effectDebugMenu` (F8) is only registered when `FabricLoader.isDevelopmentEnvironment()`.
@@ -756,6 +985,7 @@ v2 ability list (`active`, `cooldownRemainingTicks`) or live on `coi-client:stat
 |-----------------|--------------------------------------------------------------------------------------------------------------------------|
 | Z–N (6 keys)    | Ability slots 1–6 (each slot is placed on its own in the layout editor)                                                  |
 | *(unbound)*     | Ability slots 7–10 — assign in vanilla Controls, activate via `activeAbilitySlots`                                       |
+| G (hold)        | Ability wheel — radial picker, open while the key is held, `wheelSlots` slots                                             |
 | K               | Open Ability Binding screen                                                                                              |
 | M               | Open the character sheet (`character_sheet`), else the server Beyonder menu (`menu_action`), else an unsupported message |
 | Left Alt (hold) | Gesture casting — draw a shape, release to cast (only when a gesture is bound)                                           |
@@ -765,6 +995,11 @@ v2 ability list (`active`, `cooldownRemainingTicks`) or live on `coi-client:stat
 
 Extracted from first segment of ability ID (before first `-`):
 `fool`=purple, `door`=blue, `sun`=yellow, `tyrant`=cyan, `demoness`=red, `priest`=orange
+
+The table itself is `ability/Pathways.pathwayRgb` — **one** map for all 25 pathways, shared by the
+HUD slots, the picker, the acting bar, the plate, the sheet and `MythicalFormManager`.
+`AbilityInfo.pathwayColor`/`pathwayColorByName` are thin ARGB wrappers over it, kept because callers
+that only hold an ability id read better that way.
 
 ## Config Files
 
@@ -792,3 +1027,20 @@ config resets)
 
 `src/client/resources/assets/coi-client/lang/en_us.json` + `uk_ua.json`
 Key format: `key.coi.*`, `screen.coi.*`, `notification.coi.*`
+
+## Known gaps
+
+Things that are wrong on purpose, or wrong and known. Written down so the next reader does not have
+to rediscover them.
+
+- **`HudConfig.load()` still NPEs on a truncated or empty `coi_hud.json`.** `GSON.fromJson` returns
+  `null` for an empty or whitespace-only document, `HudConfigReader.read` calls `json.has(...)`
+  straight away, and the `try` only catches `IOException` — so a config file cut short by a crash
+  during a save takes the mod's init down instead of falling back to defaults. Pre-existing;
+  deliberately **not** fixed during a no-behaviour-change refactor, because the fix is a behaviour
+  change (silently resetting a corrupt config) that wants its own decision.
+- **`form/model/VisionaryLowerModel` and `VisionaryLowerAnimations` are generated.** They are
+  Blockbench exports and must be regenerated from the modelling tool, never hand-edited — see
+  *Mythical Creature Forms*.
+- **The vanilla `HEALTH_BAR` height provider still reports heart rows**, so absorption pushes the
+  armour/air bars up and leaves a gap above our one-row bar — see *Beyonder Health Bar*.

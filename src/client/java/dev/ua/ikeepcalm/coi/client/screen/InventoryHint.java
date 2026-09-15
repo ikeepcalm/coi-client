@@ -1,10 +1,13 @@
 package dev.ua.ikeepcalm.coi.client.screen;
 
-import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
-import dev.ua.ikeepcalm.coi.client.ServerCapabilities;
 import dev.ua.ikeepcalm.coi.client.config.ClientStateStore;
-import dev.ua.ikeepcalm.coi.util.CoiIcons;
-import dev.ua.ikeepcalm.coi.util.CoiStyle;
+import dev.ua.ikeepcalm.coi.client.input.CoiKeyBindings;
+import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
+import dev.ua.ikeepcalm.coi.client.ui.CoiIcons;
+import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
+
+import java.util.ArrayList;
+import java.util.List;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -20,9 +23,6 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The strip that explains the empty hotbar slot.
@@ -46,7 +46,7 @@ import java.util.List;
  * {@code coi_client_state.json} beside the tour flag: a player who has read this
  * once has read it, and resetting the HUD config must not bring it back.
  */
-public final class InventoryHint {
+public class InventoryHint {
 
     /**
      * {@code AbstractContainerScreen}'s default panel, and its centring rule
@@ -177,7 +177,7 @@ public final class InventoryHint {
      * new key and an unbound one says so instead of lying about M.
      */
     private static Component keyLine() {
-        KeyMapping mapping = CircleOfImaginationClient.openMenu;
+        KeyMapping mapping = CoiKeyBindings.openMenu;
         if (mapping == null || mapping.isUnbound()) {
             return Component.translatable("screen.coi.inv_hint_line2_unbound");
         }

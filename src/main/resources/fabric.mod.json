@@ -13,10 +13,10 @@
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
-      "dev.ua.ikeepcalm.coi.client.CoiClientDataGenerator"
+      "dev.ua.ikeepcalm.coi.client.DataGenerator"
     ],
     "client": [
-      "dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient"
+      "dev.ua.ikeepcalm.coi.client.CoiClientMod"
     ],
     "main": [
       "dev.ua.ikeepcalm.coi.CoiClient"
@@ -29,7 +29,6 @@
     "fabric-api": "*"
   },
   "mixins": [
-    "coi-client.mixins.json",
     "coi-client.client.mixins.json"
   ]
 }
