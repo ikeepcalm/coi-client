@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.client.hud.render;
 
 import dev.ua.ikeepcalm.coi.client.ability.Pathways;
 import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
+import dev.ua.ikeepcalm.coi.client.hud.HudOpacity;
 import dev.ua.ikeepcalm.coi.client.ui.CoiIcons;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 
@@ -23,6 +24,13 @@ import net.minecraft.resources.Identifier;
  * The interesting decision here is {@link #height}: the card's height is a
  * function of the row <em>counts</em>, so a row with no data is omitted and the
  * card shrinks to fit rather than showing an empty rail.
+ * <p>
+ * <b>Every colour drawn here goes through {@link HudOpacity#apply}</b> — fills,
+ * outlines, text colours and the tints handed to {@code blit} alike. The plate
+ * is the one element with a transparency setting, and one colour that skipped
+ * it would leave a piece of the card solid while the rest faded, which reads as
+ * a bug rather than as a setting. Outside the overlay's push {@code apply} is
+ * the identity, so this costs the preview and the live card nothing.
  */
 public final class PlateCard {
 
@@ -123,7 +131,7 @@ public final class PlateCard {
     public static void draw(GuiGraphicsExtractor ctx, Font font, int x, int y,
                             AbstractClientPlayer player, String name, String pathway, int sequence,
                             List<Gauge> gauges, List<Reserve> reserves) {
-        CoiStyle.drawCard(ctx, x, y, CARD_W, height(gauges.size(), reserves.size()));
+        drawChrome(ctx, x, y, CARD_W, height(gauges.size(), reserves.size()));
         drawHeader(ctx, font, x, y, player, name, pathway, sequence);
 
         int rowY = drawGauges(ctx, font, x, y + PAD + HEADER_H, gauges);
@@ -134,6 +142,23 @@ public final class PlateCard {
             drawReserve(ctx, font, x, rowY, reserve);
             rowY += RES_ROW_H;
         }
+    }
+
+    /**
+     * {@link CoiStyle#drawCard}'s recipe, in {@link CoiStyle}'s own three
+     * colours, with each one put through {@link HudOpacity}.
+     * <p>
+     * It is restated here rather than added to {@code CoiStyle} because that
+     * class is the chrome of the mod's <em>screens</em>, which have no ambient
+     * alpha and would have to import {@code hud} to get one. Only the three
+     * draw calls are duplicated — the colours are still read from
+     * {@code CoiStyle}, so the plate cannot drift away from the card language
+     * the sheet and the menus use.
+     */
+    public static void drawChrome(GuiGraphicsExtractor ctx, int x, int y, int w, int h) {
+        ctx.fill(x, y, x + w, y + h, HudOpacity.apply(CoiStyle.CARD_BG));
+        ctx.outline(x, y, w, h, HudOpacity.apply(CoiStyle.BORDER));
+        ctx.fill(x, y, x + w, y + 1, HudOpacity.apply(CoiStyle.ACCENT));
     }
 
     /**
@@ -157,7 +182,7 @@ public final class PlateCard {
      */
     public static int drawDivider(GuiGraphicsExtractor ctx, int x, int rowY) {
         rowY += DIVIDER_GAP;
-        ctx.fill(x + PAD, rowY, x + CARD_W - PAD, rowY + 1, DIVIDER);
+        ctx.fill(x + PAD, rowY, x + CARD_W - PAD, rowY + 1, HudOpacity.apply(DIVIDER));
         return rowY + 1 + DIVIDER_GAP;
     }
 
@@ -173,7 +198,7 @@ public final class PlateCard {
 
         int textX = headX + HEAD + HEAD_GAP;
         int textW = CARD_W - PAD - (textX - x);
-        ctx.text(font, trim(font, name, textW), textX, y + PAD, CoiStyle.TEXT_BODY, true);
+        ctx.text(font, trim(font, name, textW), textX, y + PAD, HudOpacity.apply(CoiStyle.TEXT_BODY), true);
 
         if (pathway == null || pathway.isEmpty()) return;
         drawPathwayLine(ctx, font, textX, y + PAD + HEADER_LINE_2, pathway, sequence,
@@ -189,13 +214,14 @@ public final class PlateCard {
      */
     public static void drawPathwayLine(GuiGraphicsExtractor ctx, Font font, int x, int y,
                                        String pathway, int sequence, int rgb) {
-        int emblemW = CoiIcons.drawPathwayEmblem(ctx, font, pathway, x, y, EffectPaint.argb(rgb, 255));
+        int argb = HudOpacity.apply(EffectPaint.argb(rgb, 255));
+        int emblemW = CoiIcons.drawPathwayEmblem(ctx, font, pathway, x, y, argb);
         int textX = x + emblemW + CREST_GAP;
         String upper = pathway.toUpperCase(Locale.ROOT);
         Component caption = sequence >= 0
                 ? Component.translatable("hud.coi.plate_pathway", upper, sequence)
                 : Component.translatable("hud.coi.plate_pathway_only", upper);
-        ctx.text(font, caption, textX, y, EffectPaint.argb(rgb, 255), true);
+        ctx.text(font, caption, textX, y, argb, true);
     }
 
     /**
@@ -204,14 +230,17 @@ public final class PlateCard {
      */
     public static void drawHead(GuiGraphicsExtractor ctx, AbstractClientPlayer player, int x, int y) {
         if (player == null) {
-            ctx.fill(x, y, x + HEAD, y + HEAD, EffectPaint.argb(0x2A2A32, 255));
+            ctx.fill(x, y, x + HEAD, y + HEAD, HudOpacity.apply(EffectPaint.argb(0x2A2A32, 255)));
             return;
         }
         Identifier skin = player.getSkin().body().texturePath();
+        // The head is the one blit whose tint is otherwise plain white, which
+        // is exactly how a face ends up floating solid over a faded card
+        int tint = HudOpacity.apply(0xFFFFFFFF);
         ctx.blit(RenderPipelines.GUI_TEXTURED, skin, x, y, 8f, 8f, HEAD, HEAD, 8, 8,
-                SKIN_SHEET, SKIN_SHEET, 0xFFFFFFFF);
+                SKIN_SHEET, SKIN_SHEET, tint);
         ctx.blit(RenderPipelines.GUI_TEXTURED, skin, x, y, 40f, 8f, HEAD, HEAD, 8, 8,
-                SKIN_SHEET, SKIN_SHEET, 0xFFFFFFFF);
+                SKIN_SHEET, SKIN_SHEET, tint);
     }
 
     public static void drawGauge(GuiGraphicsExtractor ctx, Font font, int x, int rowY, Gauge gauge) {
@@ -219,21 +248,24 @@ public final class PlateCard {
 
         int barX = x + GAUGE_BAR_X;
         int barY = rowY + (ROW_H - GAUGE_BAR_H) / 2;
-        CoiBar.frame(ctx, barX, barY, GAUGE_BAR_W, GAUGE_BAR_H, BORDER);
+        // CoiBar owns the frame's background and the fill's bevel, so the fade
+        // has to be handed to it as a factor rather than applied to the colours
+        float fade = HudOpacity.current();
+        CoiBar.frame(ctx, barX, barY, GAUGE_BAR_W, GAUGE_BAR_H, BORDER, fade);
         CoiBar.fill(ctx, barX, barY, GAUGE_BAR_H, CoiBar.lerpWidth(gauge.fill(), 1.0, GAUGE_BAR_W),
-                EffectPaint.argb(gauge.rgb(), 255), darken(gauge.rgb()));
+                EffectPaint.argb(gauge.rgb(), 255), darken(gauge.rgb()), fade);
         drawCeiling(ctx, barX, barY, gauge.cap());
 
         int right = x + CARD_W - PAD;
+        int valueArgb = HudOpacity.apply(EffectPaint.argb(gauge.rgb(), 255));
         if (gauge.sub() == null) {
             // One line: centre it on the symbol rather than on the bar
-            ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 6,
-                    EffectPaint.argb(gauge.rgb(), 255), true);
+            ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 6, valueArgb, true);
             return;
         }
-        ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 1,
-                EffectPaint.argb(gauge.rgb(), 255), true);
-        ctx.text(font, gauge.sub(), right - font.width(gauge.sub()), rowY + 11, CoiStyle.TEXT_MUTED, true);
+        ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 1, valueArgb, true);
+        ctx.text(font, gauge.sub(), right - font.width(gauge.sub()), rowY + 11,
+                HudOpacity.apply(CoiStyle.TEXT_MUTED), true);
     }
 
     /**
@@ -243,22 +275,24 @@ public final class PlateCard {
     private static void drawCeiling(GuiGraphicsExtractor ctx, int barX, int barY, float cap) {
         if (cap >= 1f) return;
         int capX = barX + CoiBar.lerpWidth(cap, 1.0, GAUGE_BAR_W);
-        ctx.fill(capX, barY, barX + GAUGE_BAR_W, barY + GAUGE_BAR_H, 0x90000000);
-        ctx.fill(capX, barY - 1, capX + 1, barY + GAUGE_BAR_H + 1, 0xDDFFFFFF);
+        ctx.fill(capX, barY, barX + GAUGE_BAR_W, barY + GAUGE_BAR_H, HudOpacity.apply(0x90000000));
+        ctx.fill(capX, barY - 1, capX + 1, barY + GAUGE_BAR_H + 1, HudOpacity.apply(0xDDFFFFFF));
     }
 
     public static void drawReserve(GuiGraphicsExtractor ctx, Font font, int x, int rowY, Reserve reserve) {
         ctx.text(font, trim(font, reserve.label(), RES_BAR_X - PAD - 4), x + PAD, rowY + 1,
-                CoiStyle.TEXT_BODY, true);
+                HudOpacity.apply(CoiStyle.TEXT_BODY), true);
 
         int barX = x + RES_BAR_X;
         int barY = rowY + 4;
-        CoiBar.frame(ctx, barX, barY, RES_BAR_W, RES_BAR_H, BORDER);
+        float fade = HudOpacity.current();
+        CoiBar.frame(ctx, barX, barY, RES_BAR_W, RES_BAR_H, BORDER, fade);
         CoiBar.fill(ctx, barX, barY, RES_BAR_H, CoiBar.lerpWidth(reserve.fill(), 1.0, RES_BAR_W),
-                EffectPaint.argb(reserve.rgb(), 255), darken(reserve.rgb()));
+                EffectPaint.argb(reserve.rgb(), 255), darken(reserve.rgb()), fade);
 
         int right = x + CARD_W - PAD;
-        ctx.text(font, reserve.value(), right - font.width(reserve.value()), rowY + 1, VALUE_COLOR, true);
+        ctx.text(font, reserve.value(), right - font.width(reserve.value()), rowY + 1,
+                HudOpacity.apply(VALUE_COLOR), true);
     }
 
     /**
@@ -275,7 +309,7 @@ public final class PlateCard {
         int rowY = y + PAD + HEADER_H + rowIndex * (ROW_GAP + ROW_H) - ROW_H;
         int textY = rowY - 2 - (int) (GRANT_RISE * progress);
         ctx.text(font, text, x + CARD_W - PAD - font.width(text), textY,
-                EffectPaint.argb(rgb, (int) (255 * (1f - progress))), true);
+                HudOpacity.apply(EffectPaint.argb(rgb, (int) (255 * (1f - progress)))), true);
     }
 
     /**

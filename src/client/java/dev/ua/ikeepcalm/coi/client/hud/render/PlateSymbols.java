@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud.render;
 
 import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
+import dev.ua.ikeepcalm.coi.client.hud.HudOpacity;
 import dev.ua.ikeepcalm.coi.client.hud.HudScale;
 import dev.ua.ikeepcalm.coi.client.ui.IconModels;
 
@@ -104,11 +105,13 @@ public final class PlateSymbols {
             return;
         }
 
-        body(ctx, symbol, x, y, EffectPaint.argb(EMPTY_RGB, 255));
-        fillUp(ctx, symbol, x, y, f, EffectPaint.argb(wash, 255));
+        // Every tint here is the blit's own alpha channel, so each one goes
+        // through HudOpacity or a faded plate would keep solid symbols
+        body(ctx, symbol, x, y, HudOpacity.apply(EffectPaint.argb(EMPTY_RGB, 255)));
+        fillUp(ctx, symbol, x, y, f, HudOpacity.apply(EffectPaint.argb(wash, 255)));
         // The dead band goes on last so it also covers any fill that a stale
         // value pushed above the ceiling
-        capBand(ctx, symbol, x, y, c, EffectPaint.argb(CAPPED_RGB, 255));
+        capBand(ctx, symbol, x, y, c, HudOpacity.apply(EffectPaint.argb(CAPPED_RGB, 255)));
     }
 
     /**
@@ -173,9 +176,11 @@ public final class PlateSymbols {
         int bottom = y + SIZE - 2;
         int span = bottom - top;
 
-        roundedRect(ctx, left, top, right, bottom, EffectPaint.argb(EMPTY_RGB, 255));
-        roundedRect(ctx, left, bottom - Math.round(span * fill), right, bottom, EffectPaint.argb(wash, 255));
-        roundedRect(ctx, left, top, right, bottom - Math.round(span * cap), EffectPaint.argb(CAPPED_RGB, 255));
+        roundedRect(ctx, left, top, right, bottom, HudOpacity.apply(EffectPaint.argb(EMPTY_RGB, 255)));
+        roundedRect(ctx, left, bottom - Math.round(span * fill), right, bottom,
+                HudOpacity.apply(EffectPaint.argb(wash, 255)));
+        roundedRect(ctx, left, top, right, bottom - Math.round(span * cap),
+                HudOpacity.apply(EffectPaint.argb(CAPPED_RGB, 255)));
     }
 
     /**

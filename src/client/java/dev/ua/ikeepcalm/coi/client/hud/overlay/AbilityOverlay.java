@@ -78,7 +78,12 @@ public final class AbilityOverlay {
         Minecraft client = Minecraft.getInstance();
         HudConfig.HudSettings settings = HudConfig.getSettings();
 
-        if (HudGate.blocked(client, settings)) {
+        // showAbilityHud hides the boxes and nothing else: the keymappings are
+        // registered at init and keep firing, so a player who knows their
+        // bindings casts exactly as before with a clean screen. Switching the
+        // slots off is not the same as disabling them, and there is no way to
+        // disable them here
+        if (HudGate.blocked(client, settings) || !settings.showAbilityHud) {
             return;
         }
 

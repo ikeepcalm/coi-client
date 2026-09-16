@@ -5,6 +5,7 @@ import dev.ua.ikeepcalm.coi.client.config.HudConfig.HudSettings;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig.SlotPlacement;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.BeyonderHealthOverlay;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.CharacterPlateOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -48,6 +49,7 @@ final class HudConfigReader {
         s.hudYOffset = intOf(json, "hudYOffset", 60);
         s.slotSize = Math.clamp(intOf(json, "slotSize", HudConfig.DEFAULT_SLOT_SIZE),
                 HudConfig.MIN_SLOT_SIZE, HudConfig.MAX_SLOT_SIZE);
+        s.showAbilityHud = flag(json, "showAbilityHud", true);
         s.showKeybinds = flag(json, "showKeybinds", true);
         s.showAbilityNames = flag(json, "showAbilityNames", true);
         s.showGlowEffect = flag(json, "showGlowEffect", true);
@@ -55,11 +57,19 @@ final class HudConfigReader {
         s.activeAbilitySlots = Math.clamp(intOf(json, "activeAbilitySlots", 6), 1, AbilityBindings.MAX_ABILITIES);
     }
 
+    /**
+     * The style is read <em>first</em>, because it is what the vertical
+     * placement defaults to: the three replacing styles sit on the hearts' own
+     * row and {@link dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle#HEARTS}
+     * has to clear it.
+     */
     private static void readBeyonderHealth(JsonObject json, HudSettings s) {
         s.showBeyonderHealth = flag(json, "showBeyonderHealth", true);
+        s.beyonderHealthStyle = string(json, "beyonderHealthStyle", HealthStyle.DEFAULT.name());
+        HealthStyle style = HealthStyle.parse(s.beyonderHealthStyle);
         s.beyonderHealthAnchor = string(json, "beyonderHealthAnchor", BeyonderHealthOverlay.DEFAULT_ANCHOR);
         s.beyonderHealthXOffset = intOf(json, "beyonderHealthXOffset", BeyonderHealthOverlay.DEFAULT_X_OFFSET);
-        s.beyonderHealthYOffset = intOf(json, "beyonderHealthYOffset", BeyonderHealthOverlay.DEFAULT_Y_OFFSET);
+        s.beyonderHealthYOffset = intOf(json, "beyonderHealthYOffset", style.defaultYOffset());
         s.beyonderHealthScale = scale(json, "beyonderHealthScale");
     }
 
@@ -69,6 +79,7 @@ final class HudConfigReader {
         s.characterPlateXOffset = intOf(json, "characterPlateXOffset", 0);
         s.characterPlateYOffset = intOf(json, "characterPlateYOffset", CharacterPlateOverlay.DEFAULT_TOP_Y);
         s.characterPlateScale = scale(json, "characterPlateScale");
+        s.characterPlateOpacity = opacity(json, "characterPlateOpacity");
     }
 
     private static void readBars(JsonObject json, HudSettings s) {
@@ -163,6 +174,25 @@ final class HudConfigReader {
         if (!json.has(key)) return 1.0f;
         try {
             return Math.clamp(json.get(key).getAsFloat(), HudConfig.MIN_ELEMENT_SCALE, HudConfig.MAX_ELEMENT_SCALE);
+        } catch (RuntimeException e) {
+            return 1.0f;
+        }
+    }
+
+    /**
+     * One per-element opacity, clamped into
+     * {@link HudConfig#MIN_ELEMENT_OPACITY}..{@link HudConfig#MAX_ELEMENT_OPACITY};
+     * a missing or malformed entry reads as 1.0.
+     * <p>
+     * Deliberately not {@link #scale}: the two share a shape but not their
+     * bounds, and folding them together would let a later change to the scale
+     * band quietly move the opacity floor that keeps text legible.
+     */
+    private static float opacity(JsonObject json, String key) {
+        if (!json.has(key)) return 1.0f;
+        try {
+            return Math.clamp(json.get(key).getAsFloat(),
+                    HudConfig.MIN_ELEMENT_OPACITY, HudConfig.MAX_ELEMENT_OPACITY);
         } catch (RuntimeException e) {
             return 1.0f;
         }

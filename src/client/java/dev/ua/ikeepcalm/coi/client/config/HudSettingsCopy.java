@@ -31,6 +31,7 @@ final class HudSettingsCopy {
         to.hudX = from.hudX;
         to.hudYOffset = from.hudYOffset;
         to.slotSize = from.slotSize;
+        to.showAbilityHud = from.showAbilityHud;
         to.showKeybinds = from.showKeybinds;
         to.showAbilityNames = from.showAbilityNames;
         to.showGlowEffect = from.showGlowEffect;
@@ -40,6 +41,7 @@ final class HudSettingsCopy {
 
     private static void copyBeyonderHealth(HudSettings from, HudSettings to) {
         to.showBeyonderHealth = from.showBeyonderHealth;
+        to.beyonderHealthStyle = from.beyonderHealthStyle;
         to.beyonderHealthAnchor = from.beyonderHealthAnchor;
         to.beyonderHealthXOffset = from.beyonderHealthXOffset;
         to.beyonderHealthYOffset = from.beyonderHealthYOffset;
@@ -52,6 +54,7 @@ final class HudSettingsCopy {
         to.characterPlateXOffset = from.characterPlateXOffset;
         to.characterPlateYOffset = from.characterPlateYOffset;
         to.characterPlateScale = from.characterPlateScale;
+        to.characterPlateOpacity = from.characterPlateOpacity;
     }
 
     private static void copyBars(HudSettings from, HudSettings to) {

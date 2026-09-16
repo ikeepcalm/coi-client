@@ -4,15 +4,21 @@ import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.HudScale;
 import dev.ua.ikeepcalm.coi.client.hud.layout.LayoutGeometry;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.BeyonderHealthOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * The HP pool bar that stands in for the vanilla hearts. It carries its
- * readout <em>inside</em> the fill rather than above it, so unlike
- * {@link BarElement} the only padding between the fill origin and the drawn
- * bounds is the 1px frame - and since the same scaled pad is added here and
- * taken back off in {@link #moveTo}, the two stay exact inverses at any scale.
+ * The Beyonder HP pool. It carries its readout <em>inside</em> the box rather
+ * than above it, so unlike {@link BarElement} the only padding between the fill
+ * origin and the drawn bounds is the 1px frame - and since the same scaled pad
+ * is added here and taken back off in {@link #moveTo}, the two stay exact
+ * inverses at any scale.
+ * <p>
+ * <b>The geometry is style-independent.</b> All four {@link HealthStyle}s
+ * occupy the same {@code BAR_WIDTH x BAR_HEIGHT} box, so nothing here has to
+ * ask which one is on; only {@link #resetPosition} does, because the styles
+ * ship at different heights - see {@link HealthStyle#defaultYOffset()}.
  */
 public final class BeyonderHealthElement extends AbstractElement {
 
@@ -54,8 +60,6 @@ public final class BeyonderHealthElement extends AbstractElement {
 
     @Override
     public void resetPosition(HudConfig.HudSettings s) {
-        s.beyonderHealthAnchor = BeyonderHealthOverlay.DEFAULT_ANCHOR;
-        s.beyonderHealthXOffset = BeyonderHealthOverlay.DEFAULT_X_OFFSET;
-        s.beyonderHealthYOffset = BeyonderHealthOverlay.DEFAULT_Y_OFFSET;
+        BeyonderHealthOverlay.resetPosition(s, HealthStyle.parse(s.beyonderHealthStyle));
     }
 }

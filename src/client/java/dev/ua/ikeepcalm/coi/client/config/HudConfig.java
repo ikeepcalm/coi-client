@@ -4,6 +4,7 @@ import dev.ua.ikeepcalm.coi.CoiLog;
 import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.BeyonderHealthOverlay;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.CharacterPlateOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -35,10 +36,12 @@ public class HudConfig {
      * Schema version of the positional settings. Bumped to 2 when the madness
      * bar started honouring {@code madnessYOffset} for TOP anchors too, to
      * 3 when {@code hudScale} and {@code slotSpacing} were retired in favour of
-     * {@code slotSize} alone, and to 4 when the Beyonder health bar was widened
-     * — see {@link HudConfigMigrations}.
+     * {@code slotSize} alone, to 4 when the Beyonder health bar was widened,
+     * and to 5 when that bar became one of four selectable
+     * {@link dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle}s — see
+     * {@link HudConfigMigrations}.
      */
-    public static final int LAYOUT_VERSION = 4;
+    public static final int LAYOUT_VERSION = 5;
 
     /**
      * Where the madness bar sat before it was movable; still the default.
@@ -53,6 +56,18 @@ public class HudConfig {
      */
     public static final float MIN_ELEMENT_SCALE = 0.5f;
     public static final float MAX_ELEMENT_SCALE = 2.0f;
+
+    /**
+     * Range of the per-element opacity settings ({@code characterPlateOpacity}
+     * so far) — see {@link dev.ua.ikeepcalm.coi.client.hud.HudOpacity}.
+     * <p>
+     * The floor is 0.15 rather than 0 because the font renderer stops honouring
+     * the alpha channel somewhere below {@code 4/255}: a slider that reached
+     * zero would fade an element's chrome away while its numbers stayed solid.
+     * An element the player wants gone has a show/hide checkbox.
+     */
+    public static final float MIN_ELEMENT_OPACITY = 0.15f;
+    public static final float MAX_ELEMENT_OPACITY = 1.0f;
 
     /**
      * The slot size every hand-tuned constant in {@code AbilitySlotWidget} was
@@ -147,6 +162,11 @@ public class HudConfig {
          * row follows it too.
          */
         public int slotSize = DEFAULT_SLOT_SIZE;
+        /**
+         * The ability slots themselves. Off hides the boxes and nothing else -
+         * the keys keep casting, which is why this is not the master switch.
+         */
+        public boolean showAbilityHud = true;
         public boolean showKeybinds = true;
         public boolean showAbilityNames = true;
         public boolean showGlowEffect = true;
@@ -159,15 +179,18 @@ public class HudConfig {
         public SlotPlacement[] slotPlacements = new SlotPlacement[AbilityBindings.MAX_ABILITIES];
         public boolean epilepsyMode = false;
         /**
-         * The Beyonder HP pool bar <em>replaces</em> the vanilla hearts rather
-         * than sitting beside them, so switching it off is what hands the
-         * hearts back - see {@link BeyonderHealthOverlay}. The defaults put it
-         * exactly where the hearts were.
+         * The Beyonder HP pool, and which of the four
+         * {@link HealthStyle}s draws it. Three of them <em>replace</em> the
+         * vanilla hearts rather than sitting beside them, so switching this off
+         * is what hands the hearts back - see {@link BeyonderHealthOverlay};
+         * the default {@link HealthStyle#HEARTS} leaves them alone and adds
+         * only the numbers ten hearts cannot carry.
          */
         public boolean showBeyonderHealth = true;
+        public String beyonderHealthStyle = HealthStyle.DEFAULT.name();
         public String beyonderHealthAnchor = BeyonderHealthOverlay.DEFAULT_ANCHOR;
         public int beyonderHealthXOffset = BeyonderHealthOverlay.DEFAULT_X_OFFSET;
-        public int beyonderHealthYOffset = BeyonderHealthOverlay.DEFAULT_Y_OFFSET;
+        public int beyonderHealthYOffset = HealthStyle.DEFAULT.defaultYOffset();
         public float beyonderHealthScale = 1.0f;
         /**
          * The character plate supersedes the madness, acting and resource bars:
@@ -180,6 +203,13 @@ public class HudConfig {
         public int characterPlateXOffset = 0;
         public int characterPlateYOffset = CharacterPlateOverlay.DEFAULT_TOP_Y;
         public float characterPlateScale = 1.0f;
+        /**
+         * How solid the card is. The plate sits in the corner the player is
+         * looking past, so being able to see the world through it is a real
+         * request; 1.0 is the behaviour every existing config already has,
+         * which is why this needed no migration.
+         */
+        public float characterPlateOpacity = 1.0f;
         public boolean showMadnessBar = true;
         public int madnessXOffset = 0;
         public int madnessYOffset = DEFAULT_MADNESS_Y;

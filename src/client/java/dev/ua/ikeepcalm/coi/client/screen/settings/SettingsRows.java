@@ -146,6 +146,52 @@ final class SettingsRows {
                 value -> setter.accept((float) value));
     }
 
+    /**
+     * An element's transparency, shown as the percentage the player thinks in
+     * rather than the 0..1 factor it is stored as — {@link #percentRow} exists
+     * for exactly that gap.
+     */
+    void opacityRow(float current, Consumer<Float> setter) {
+        percentRow(SUB_INDENT, Component.translatable("screen.coi.plate_opacity"),
+                Component.translatable("screen.coi.plate_opacity_field"),
+                HudConfig.MIN_ELEMENT_OPACITY, HudConfig.MAX_ELEMENT_OPACITY, current,
+                value -> setter.accept((float) value));
+    }
+
+    /**
+     * A setting with a handful of named values rather than two, stepped by
+     * clicking: the button carries {@code label: value}, and a click advances
+     * it and rebuilds the tab, because the caption it shows is part of the row
+     * and the only way a widget's message changes here is a fresh {@code init}.
+     */
+    void cycleRow(int indent, Component label, Component value, Runnable onCycle) {
+        contentRow(Button.builder(label.copy().append(": ").append(value), b -> {
+            onCycle.run();
+            rebuild.run();
+        }).bounds(contentX + indent, 0, contentW - indent - INDENT, 20).build());
+    }
+
+    /**
+     * A checkbox that decides whether the rows below it are built at all — the
+     * same bargain {@link #elementRow} makes for a bar, for a tab that is one
+     * feature's worth of settings.
+     *
+     * @return whether the feature is on, i.e. whether its own rows follow
+     */
+    boolean collapsingRow(int indent, Component label, boolean selected, Consumer<Boolean> setter) {
+        Checkbox checkbox = Checkbox.builder(label, font)
+                .pos(contentX + indent, 0)
+                .maxWidth(contentW - indent - INDENT)
+                .onValueChange((box, checked) -> {
+                    setter.accept(checked);
+                    rebuild.run();
+                })
+                .selected(selected)
+                .build();
+        contentRow(checkbox);
+        return selected;
+    }
+
     void checkboxRow(int indent, Component label, boolean selected, Consumer<Boolean> setter) {
         Checkbox checkbox = Checkbox.builder(label, font)
                 .pos(contentX + indent, 0)
@@ -234,6 +280,59 @@ final class SettingsRows {
         widgets.add(new ContentWidget(slider, cursor));
         register.accept(slider);
         contentRow(field);
+    }
+
+    /**
+     * A 0..1 setting read and typed as a whole percentage.
+     * <p>
+     * The same shape as {@link #decimalRow}, and separate from it for one
+     * reason: {@code 0.85} is how the value is stored and {@code 85%} is what
+     * the player means, so the conversion belongs in the row rather than in
+     * every caller's lambda — exactly the bargain the General tab's volume
+     * slider already makes.
+     */
+    void percentRow(int indent, Component label, Component fieldLabel, double min, double max,
+                    double initialValue, DoubleConsumer setter) {
+        final EditBox[] fieldRef = new EditBox[1];
+        double clampedInitial = Math.clamp(initialValue, min, max);
+        double sliderValue = (clampedInitial - min) / (max - min);
+        int sliderW = sliderWidth(indent);
+
+        AbstractSliderButton slider = new AbstractSliderButton(contentX + indent, 0, sliderW, 20,
+                label.copy().append(": " + percent(clampedInitial) + "%"), sliderValue) {
+            @Override
+            protected void updateMessage() {
+                int shown = percent(min + this.value * (max - min));
+                setter.accept(Math.clamp(shown / 100.0, min, max));
+                this.setMessage(label.copy().append(": " + shown + "%"));
+                if (fieldRef[0] != null) {
+                    fieldRef[0].setValue(String.valueOf(shown));
+                }
+            }
+
+            @Override
+            protected void applyValue() {
+                updateMessage();
+            }
+        };
+
+        EditBox field = new EditBox(font, contentX + indent + sliderW + 6, 0, FIELD_WIDTH, 20, fieldLabel);
+        field.setValue(String.valueOf(percent(clampedInitial)));
+        field.setResponder(text -> {
+            try {
+                setter.accept(Math.clamp(Integer.parseInt(text) / 100.0, min, max));
+            } catch (NumberFormatException ignored) {
+            }
+        });
+        fieldRef[0] = field;
+
+        widgets.add(new ContentWidget(slider, cursor));
+        register.accept(slider);
+        contentRow(field);
+    }
+
+    private static int percent(double fraction) {
+        return (int) Math.round(fraction * 100);
     }
 
     /** A slider and its number field share a row; the field takes the right edge. */

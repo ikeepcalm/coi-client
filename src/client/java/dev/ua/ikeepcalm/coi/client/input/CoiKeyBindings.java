@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.client.input;
 
 import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
 import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.AbilityOverlay;
 import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
 import dev.ua.ikeepcalm.coi.client.network.payload.AbilityUsePayload;
@@ -186,10 +187,18 @@ public final class CoiKeyBindings {
      * mod's own character sheet, else the plugin's chest menu, else a message.
      * A server that advertised neither has nothing listening, so say so instead
      * of sending into the void.
+     * <p>
+     * {@code useServerMenus} takes the chest GUI first, because a player who
+     * asked for the plugin's own UI should not have to open the sheet and click
+     * its footer to reach it. It only <em>reorders</em> the two, though: on a
+     * server without {@code menu_action} the sheet still opens, since the
+     * preference says "prefer the server's own UI", not "show nothing".
      */
     private static void openServerMenu(Minecraft client) {
         if (client.player == null) return;
-        if (ServerCapabilities.has("character_sheet")) {
+        if (HudConfig.getSettings().useServerMenus && ServerCapabilities.has("menu_action")) {
+            ClientPlayNetworking.send(ActionPayload.of("open_menu"));
+        } else if (ServerCapabilities.has("character_sheet")) {
             client.gui.setScreen(new CharacterSheetScreen(null));
         } else if (ServerCapabilities.has("menu_action")) {
             ClientPlayNetworking.send(ActionPayload.of("open_menu"));

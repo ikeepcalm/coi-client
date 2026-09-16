@@ -95,6 +95,8 @@ dev.ua.ikeepcalm.coi
       │   │                       `HudLayout.editing()` term
       │   ├── HudAnchor         — TOP/BOTTOM × LEFT/CENTER/RIGHT corner math for bars
       │   ├── HudScale          — per-element scaling about the element's own fill origin
+      │   ├── HudOpacity        — HudScale's other half: ambient per-element alpha, pushed
+      │   │                       around one element's draw and read by `apply(argb)`
       │   ├── HudGaslight       — the HUD's madness lies (wrong cooldowns, swapped slots)
       │   ├── overlay/          — everything that draws on the HUD; each gates on HudGate
       │   │   ├── AbilityOverlay        — all ability slots; owns `slotOrigin` / `boxSize` /
@@ -119,6 +121,9 @@ dev.ua.ikeepcalm.coi
       │   │                           ready flash, the cooldown sweep
       │   ├── render/           — the paint the overlays share: no state, no render gates
       │   │   ├── CoiBar            — stateless bar layers (frame/fill/shimmer/notches/label)
+      │   │   ├── HealthStyle       — which shape the HP pool takes (hearts / bar / ornate / pips),
+      │   │   │                       and the per-style default Y offset
+      │   │   ├── HealthBarPaint    — every pixel of all four; the absorption rule lives here
       │   │   ├── MadnessPalette    — the bar's colours and status word, one set per stage
       │   │   ├── MadnessCorruption — the full-screen stage effects: vignette, VHS, static
       │   │   ├── PlateCard         — the character plate's card, header and gauge rows
@@ -583,9 +588,30 @@ Modifier state comes off the `MouseButtonEvent` / `KeyEvent` (`InputWithModifier
 
 Drag snaps to a 4 px grid (Shift for free placement), to the screen centre and to a 10 px margin
 within 6 px; arrows nudge 1 px (Shift 8), `R` resets the selection, right-click resets the element
-under the cursor, `Tab` cycles (all-elements mode only), `Esc` is Done. Opened from HUD Settings it edits **that
-screen's
-working copy**, so only its Done persists; opened otherwise it edits the live settings and saves.
+under the cursor, `Tab` cycles (all-elements mode only), `T` flips the toolbar to the other edge,
+`Esc` is Done.
+
+**The toolbar gets out of the way.** It is opaque chrome over a live HUD and `inToolbar` turns every
+click inside it into a no-op, so an element parked underneath is not merely hard to see — it cannot
+be selected, dragged or right-click reset at all. Parked at the bottom it lands squarely on anything
+bottom-centre, which is what the Beyonder health element is by definition, and that is what players
+reported as the bar they could not move. `chooseToolbarSide` counts how many of the screen's own
+elements each candidate band would cover and takes the emptier edge; ties keep the bottom, where the
+toolbar has always been. The count is taken **once per `init`**, never per frame — re-deciding while
+the player drags would pull the toolbar out from under the cursor mid-gesture — and `T` overrides it
+for good, so a resize cannot park it back on what was just uncovered. The hint lines outside the
+card are **stacked** rather than placed at fixed offsets (`outsideHintY`), since two of the three are
+conditional and the card can be on either edge. Opened from HUD Settings it edits **that screen's working
+copy**; opened otherwise it edits the live settings.
+
+**Done commits, whichever settings object the screen was handed.** `persist()` writes a working copy
+through to the live settings before saving. Leaving the commit to the settings screen's own Done
+meant a player could arrange the whole HUD, press Done here, then press Cancel or Esc on the screen
+*behind* this one and lose every drag — which is not something "Done" can mean, and is what players
+reported as the layout resetting itself. The write-through carries whatever rows the settings screen
+had already changed in that copy too: the two screens edit one object, and a rule that committed
+half of it would be harder to predict than one that commits it. Cancel is unaffected — it restores
+its snapshot into `settings` and never reaches `persist`.
 
 **`slotSize` is the ability HUD's only size knob.** The slot is drawn at
 `HudConfig.BASE_SLOT_SIZE` (40) under a pose scale of `slotSize / 40`, so the keybind chip, the
@@ -613,8 +639,11 @@ madness bar used to ignore `madnessYOffset` while top-anchored (`layoutVersion` 
 `slotSpacing` was a second size knob free to disagree with `slotSize`. Neither has a
 position-preserving conversion (the old scale formula depended on the screen height), so a pre-v3
 file keeps its offsets verbatim and the two keys are simply dropped on the next save — slots 2..N in
-the shared row shift to the derived step. `migrate` guards each step by the version that introduced
-it, so a file at version 0 gets both.
+the shared row shift to the derived step. `layoutVersion` **5** sets `beyonderHealthStyle` to `HEARTS` and re-places the
+health element: a pre-v5 file predates the setting, so its stored placement was calibrated for a bar
+sitting *on* the hearts' row, where the new default's readout would land on the hearts it has just
+handed back. `migrate` guards each step by the version that introduced it, so a file at version 0
+gets all of them.
 
 ## Character Plate
 
@@ -629,6 +658,25 @@ overlay is the gate and the data; `hud/render/PlateCard` is the card, the header
 | sanity  | `100 - madness`                     | brain symbol; permanent madness is a **ceiling** the fill can't reach, drawn as a dark capped band on both symbol and bar |
 | acting  | `ActingState`                 | mask symbol, `mm:ss` method cooldown, the `+N` grant popup                                                                |
 | reserve | `ResourceState`               | under a divider, one compact row each, capped by `resourceMaxBars`                                                        |
+
+**`characterPlateOpacity`** (Elements tab, default `1.0`, clamped
+`HudConfig.MIN_ELEMENT_OPACITY`…`MAX_ELEMENT_OPACITY` = 0.15–1.0) fades the whole card so the world
+shows through it. The floor is **not zero**: below roughly `alpha < 4/255` the font renderer stops
+honouring the alpha channel, so a slider reaching zero would make the numbers behave differently
+from the card they sit on — and an element faded to nothing is indistinguishable from one the
+show/hide checkbox turned off. It needs no migration and no `layoutVersion` bump, since 1.0 is
+exactly the old behaviour.
+
+**Every colour the plate draws goes through `HudOpacity.apply`** — fills, outlines, text colours and
+the ARGB tints handed to `ctx.blit` (the player head, the brain/mask sprites). One colour that skips
+it is a piece of the card that stays solid while the rest fades, which reads as a bug rather than as
+a setting. Two consequences worth knowing: `CoiBar` owns colours the caller cannot reach by dimming
+what it passes in — the frame's background gradient and the fill's two bevel hairlines — so `fill`
+gained the faded overload `frame` already had, both fed `HudOpacity.current()`; and the card chrome
+moved from `CoiStyle.drawCard` to `PlateCard.drawChrome`, which restates the three draw calls but
+still reads its three colours **from `CoiStyle`**, because `ui/` seeing the ambient alpha would mean
+a `ui → hud` import. The one known gap is `CoiIcons.drawCrest`'s centre pip, on the fallback emblem
+for a pathway `Pathways` has no art for — it lives in `ui/` for the same reason.
 
 **Spirituality is deliberately not on the plate** — it keeps its own sprite bar and its own position;
 that bar is the one the user is happy with. Rows with no data are **omitted, not blanked**, so the
@@ -879,8 +927,44 @@ and the mirror is a percentage either way. `maxHealth` still has to come over th
 `conditions`, see the protocol doc) because it is volatile — True Form doubles it, Strata and Death
 marks cut it.
 
-`BAR_WIDTH` is **100** — the widest the bar can be on the hearts' row. It starts at the hotbar's
-left edge (`screenW / 2 - 91`) and ends at `screenW / 2 + 9`; the hearts only reached
+**Four styles, and `HEARTS` is the default.** Replacing the hearts outright took vanilla's
+*absorption* hearts with it, and players said so; `hud/render/HealthStyle` is the answer. The
+overlay stays the shell — the render gate, the vanilla replacement, the derivation, the flash/pulse
+state and the anchor — and `hud/render/HealthBarPaint` owns the pixels of all four:
+
+| Style | Draws |
+|-------|-------|
+| `HEARTS` *(default)* | nothing but the readout. Vanilla keeps its heart row, absorption hearts included, and the mod adds the `1,234 / 1,750` those ten hearts cannot carry, plus a gold `+175` for a shield |
+| `BAR` | the 1.2.0 bar, unchanged |
+| `ORNATE` | the same geometry under carved chrome: near-black border, a bevel cut into the box, gold corner brackets |
+| `PIPS` | ten notched segments draining the way a heart row does, absorption as gold pips growing inward from the right |
+
+Three things a change here must keep:
+
+- **All four occupy the same `BAR_WIDTH × BAR_HEIGHT` box**, so switching style never moves the
+  element and `BeyonderHealthElement`'s `bounds`/`moveTo` stay exact inverses without ever asking
+  which style is on. For `HEARTS` the box is where the *numbers* go — vanilla owns the hearts'
+  position and that style deliberately does not move them.
+- **The replacement hook has three answers, not two.** It used to be
+  `if (!render(ctx)) original.extractRenderState(…)`. `HEARTS` needs *both*, and the hearts have to
+  go down **first** or they land on the readout, so the displaced element is handed in as a
+  `Runnable` the gate calls at the moment it decides. A boolean could express neither the third case
+  nor the ordering.
+- **Absorption is never invisible.** The gold continues past the main fill while the box has room
+  and is drawn *over* the fill's right-hand end when it has not. The original clamped it to
+  `BAR_WIDTH - fillW`, which is zero at full pool — so the one state a shield most needs to announce
+  itself in was the one state that showed nothing.
+
+`HealthStyle.defaultYOffset()` replaces the old single `DEFAULT_Y_OFFSET`: 39 for the three
+replacing styles (the hearts' own row, free precisely because they took the hearts off it) and
+**59** for `HEARTS`, which has to clear both the hearts *and* vanilla's armour bar at `h - 49`. The
+obvious "one line up" at 49 drops the readout onto the armour of every armoured player. Switching
+style **carries the placement across only if the player never moved it**
+(`BeyonderHealthOverlay.applyStyle` / `atDefaults`): a bar somebody dragged somewhere must not be
+snatched back, and one nobody touched must not end up printed over the hearts it just restored.
+
+`BAR_WIDTH` is **96** — the widest the box can be on the hearts' row. It starts at the hotbar's
+left edge (`screenW / 2 - 91`) and ends at `screenW / 2 + 5`; the hearts only reached
 `screenW / 2 - 10`, so replacing them freed the 20px gap in the middle, and the food bar at
 `screenW / 2 + 10` is the hard stop. Staying on this row is what lets the armour bar keep sitting
 directly above it, as it did above the hearts.
@@ -889,8 +973,9 @@ directly above it, as it did above the hearts.
 the element's width, so a stored X offset is only meaningful against the width it was calibrated
 for — hard-coding it once already went wrong: widening the bar from 82 to 100 left the old `-50`
 behind and pushed every existing config 9px to the left. `layoutVersion` **4** resets the bar's
-placement for that reason. The identity only holds for an **even** `BAR_WIDTH`, which is also what
-keeps the centring exact at odd window widths, so the width must stay even.
+placement for that reason, and **5** does it again for the styles. The identity only holds for an
+**even** `BAR_WIDTH`, which is also what keeps the centring exact at odd window widths, so the width
+must stay even — 95 shipped in 1.2.0 and broke exactly that, which is the other reason it is now 96.
 
 `BAR_HEIGHT` is **9**, and the constraint is easy to miss: `CoiBar.frame` draws its border *outside*
 the box, so the drawn footprint is `BAR_HEIGHT + 2`. The heart row only has `h-40 … h-30` before the
@@ -918,8 +1003,8 @@ draws it:
 
 | Tab             | Holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Ability HUD** | `slotSize` (the only size knob), key + wheel slot counts, the three slot-decoration toggles, one *Align* for the whole slot group                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Elements**    | one uniform block per bar/overlay: a show/hide checkbox **labelled with the element's own name** (`screen.coi.layout_el_<id>`) and an *Align* button, then — **only while the element is switched on** — its *Scale* slider and its own extras (spirituality hide-when-full, resource max bars, action-bar lines). `SettingsRows.elementRow` returns the checked state and re-runs the screen's `init()` on toggle, so switching an element off collapses its block instead of leaving dead controls behind. The Character Plate leads the tab; while it is on, the madness / acting / resources blocks are absent entirely and only `resourceMaxBars` survives, since the plate still draws those rows |
+| **Ability HUD** | `showAbilityHud` first — off, and the rest of the tab is **not built**, since there is nothing left for a size, a count or a decoration to apply to. Then `slotSize` (the only size knob), key + wheel slot counts, the three slot-decoration toggles, one *Align* for the whole slot group                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Elements**    | one uniform block per bar/overlay: a show/hide checkbox **labelled with the element's own name** (`screen.coi.layout_el_<id>`) and an *Align* button, then — **only while the element is switched on** — its *Scale* slider and its own extras (the health element's four-way `Style` cycle, spirituality hide-when-full, resource max bars, action-bar lines). `SettingsRows.elementRow` returns the checked state and re-runs the screen's `init()` on toggle, so switching an element off collapses its block instead of leaving dead controls behind. The Character Plate leads the tab; while it is on, the madness / acting / resources blocks are absent entirely and only `resourceMaxBars` survives, since the plate still draws those rows |
 | **General**     | the master `enabled` switch, `useServerMenus` (open the plugin's chest GUIs instead of the mod's menus), `coiTitleScreen` (the Pathway Wheel main menu), accessibility (epilepsy mode, hallucinations, effect volume), Discord presence, "Show Tour Again"                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 The four presets are gone — the layout editor plus per-element scale cover what they used to
@@ -933,6 +1018,13 @@ plus `characterPlateScale`, default `1.0`, clamped to `HudConfig.MIN_ELEMENT_SCA
 ability
 slots have no scale field of their own — theirs is derived from `slotSize` (see above) and is the
 only one that also scales a *step*, so scaled-up slots never overlap.
+
+**Per-element opacity** is so far the character plate's alone (`characterPlateOpacity`), through the
+`hud/HudOpacity` seam. It is deliberately shaped as `HudScale`'s twin — ambient render state pushed
+around one element's draw, popped after, render-thread only, so the draw code inside needs no new
+argument. The asymmetry is forced rather than chosen: `ctx.pose()` is a 2D matrix stack with no
+colour channel, so there is no pose-level alpha to push and opacity has to be applied per colour.
+Nested pushes multiply, so a nested piece can never come out more solid than what encloses it.
 
 The one rule: **every element scales about its own fill origin** — the point its `anchor()` returns.
 `hud/HudScale` implements it as translate (origin) → scale → translate (−origin) on the pose, so the
@@ -1088,7 +1180,7 @@ v2 ability list (`active`, `cooldownRemainingTicks`) or live on `coi-client:stat
 | *(unbound)*     | Ability slots 7–10 — assign in vanilla Controls, activate via `activeAbilitySlots`                                       |
 | G (hold)        | Ability wheel — radial picker, open while the key is held, `wheelSlots` slots                                             |
 | K               | Open Ability Binding screen                                                                                              |
-| M               | Open the character sheet (`character_sheet`), else the server Beyonder menu (`menu_action`), else an unsupported message |
+| M               | With `useServerMenus`, the plugin's chest GUI straight away (`menu_action`); else the character sheet (`character_sheet`), else the server Beyonder menu, else an unsupported message. The preference only *reorders* the first two — a server without `menu_action` still gets the sheet |
 | *(unbound × 7)* | Open one of the sheet's destinations directly (`church`, `abilities`, `mythical`, `uniqueness`, `honorific`, `map`, `seat`) — `ActionPayload.ofOpen`, no sheet behind it, so the menu's back arrow means "close" |
 | Left Alt (hold) | Gesture casting — draw a shape, release to cast (only when a gesture is bound)                                           |
 | F8 *(dev only)* | Open Effect Debug screen                                                                                                 |
@@ -1115,8 +1207,10 @@ acting bar (`showActingBar`, `actingAnchor`, `actingXOffset`, `actingYOffset`), 
 `notificationXOffset`, `notificationYOffset`), `slotPlacements` (a 10-entry array, each entry `null` for "stay in the
 row" or
 `{"anchor":"TOP_LEFT","x":0,"y":0}`), the character plate (`showCharacterPlate`, `characterPlateAnchor`,
-`characterPlateXOffset`, `characterPlateYOffset`, `characterPlateScale`), the health bar (`showBeyonderHealth`,
-`beyonderHealthAnchor`, `beyonderHealthXOffset`, `beyonderHealthYOffset`, `beyonderHealthScale`), `slotSize` (the
+`characterPlateXOffset`, `characterPlateYOffset`, `characterPlateScale`, `characterPlateOpacity`), the health element (`showBeyonderHealth`,
+`beyonderHealthStyle` — `HEARTS` | `BAR` | `ORNATE` | `PIPS`, default `HEARTS` —
+`beyonderHealthAnchor`, `beyonderHealthXOffset`, `beyonderHealthYOffset`, `beyonderHealthScale`),
+`showAbilityHud`, `slotSize` (the
 ability slots' only size knob, 20–80) plus the nine per-element scales (`madnessScale`, `spiritualityScale`,
 `actingScale`, `resourceScale`, `actionBarScale`, `targetHealthScale`, `cogitationScale`, `notificationScale` — all
 `1.0`, clamped 0.5–2.0), `layoutVersion`, `effectSoundVolume`, `enableHallucinations`, `activeAbilitySlots`,

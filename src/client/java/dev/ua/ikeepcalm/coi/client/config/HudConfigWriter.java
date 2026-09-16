@@ -41,6 +41,7 @@ final class HudConfigWriter {
         json.addProperty("hudX", s.hudX);
         json.addProperty("hudYOffset", s.hudYOffset);
         json.addProperty("slotSize", s.slotSize);
+        json.addProperty("showAbilityHud", s.showAbilityHud);
         json.addProperty("showKeybinds", s.showKeybinds);
         json.addProperty("showAbilityNames", s.showAbilityNames);
         json.addProperty("showGlowEffect", s.showGlowEffect);
@@ -50,6 +51,7 @@ final class HudConfigWriter {
 
     private static void writeBeyonderHealth(JsonObject json, HudSettings s) {
         json.addProperty("showBeyonderHealth", s.showBeyonderHealth);
+        json.addProperty("beyonderHealthStyle", s.beyonderHealthStyle);
         json.addProperty("beyonderHealthAnchor", s.beyonderHealthAnchor);
         json.addProperty("beyonderHealthXOffset", s.beyonderHealthXOffset);
         json.addProperty("beyonderHealthYOffset", s.beyonderHealthYOffset);
@@ -62,6 +64,7 @@ final class HudConfigWriter {
         json.addProperty("characterPlateXOffset", s.characterPlateXOffset);
         json.addProperty("characterPlateYOffset", s.characterPlateYOffset);
         json.addProperty("characterPlateScale", s.characterPlateScale);
+        json.addProperty("characterPlateOpacity", s.characterPlateOpacity);
     }
 
     private static void writeBars(JsonObject json, HudSettings s) {

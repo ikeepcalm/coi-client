@@ -46,9 +46,16 @@ public final class SlotElement extends AbstractElement {
         return AbilityOverlay.placement(s, index) == null;
     }
 
+    /**
+     * Switched off by {@code showAbilityHud} rather than dropped from
+     * {@link dev.ua.ikeepcalm.coi.client.hud.layout.HudElements#all}: an
+     * element the player hid stays in the editor under a scrim so it can still
+     * be positioned, and only an element something else has <em>superseded</em>
+     * (the bars the character plate absorbs) leaves the list outright.
+     */
     @Override
     public boolean visible(HudConfig.HudSettings s) {
-        return s.enabled;
+        return s.enabled && s.showAbilityHud;
     }
 
     @Override

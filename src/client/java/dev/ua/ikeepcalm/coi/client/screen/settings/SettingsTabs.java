@@ -4,6 +4,8 @@ import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
 import dev.ua.ikeepcalm.coi.client.config.ClientStateStore;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.layout.HudElements;
+import dev.ua.ikeepcalm.coi.client.hud.overlay.BeyonderHealthOverlay;
+import dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle;
 import dev.ua.ikeepcalm.coi.client.screen.TourScreen;
 
 import net.minecraft.client.Minecraft;
@@ -28,7 +30,19 @@ final class SettingsTabs {
     private SettingsTabs() {
     }
 
+    /**
+     * Everything about the ability slots — behind the one switch that decides
+     * whether they are drawn at all. With the slots hidden there is nothing for
+     * a size, a count or a decoration to apply to, so those rows are not built
+     * rather than left sitting there doing nothing, exactly as
+     * {@code elementRow} collapses a switched-off element's block.
+     */
     static void hud(SettingsRows rows, HudConfig.HudSettings settings) {
+        boolean shown = rows.collapsingRow(SettingsRows.INDENT, Component.translatable("screen.coi.show_ability_hud"),
+                settings.showAbilityHud, checked -> settings.showAbilityHud = checked);
+        rows.hintRow(Component.translatable("screen.coi.show_ability_hud_hint"));
+        if (!shown) return;
+
         rows.headerRow(Component.translatable("screen.coi.layout_el_ability_slots"), HudElements.ABILITY_SLOTS);
         // The single size knob: it scales the whole slot, and the row's spacing
         // follows it, so there is nothing left for a separate scale or spacing
@@ -68,6 +82,7 @@ final class SettingsTabs {
         if (rows.elementRow(HudElements.CHARACTER_PLATE, settings.showCharacterPlate,
                 checked -> settings.showCharacterPlate = checked)) {
             rows.scaleRow(settings.characterPlateScale, value -> settings.characterPlateScale = value);
+            rows.opacityRow(settings.characterPlateOpacity, value -> settings.characterPlateOpacity = value);
             rows.hintRow(Component.translatable("screen.coi.plate_supersedes"));
         }
 
@@ -75,8 +90,15 @@ final class SettingsTabs {
         // hearts rather than another COI bar, so it stands on its own
         if (rows.elementRow(HudElements.BEYONDER_HEALTH, settings.showBeyonderHealth,
                 checked -> settings.showBeyonderHealth = checked)) {
+            HealthStyle style = HealthStyle.parse(settings.beyonderHealthStyle);
+            rows.cycleRow(SettingsRows.SUB_INDENT, Component.translatable("screen.coi.health_style"),
+                    Component.translatable(style.labelKey()),
+                    () -> BeyonderHealthOverlay.applyStyle(settings, style.next()));
             rows.scaleRow(settings.beyonderHealthScale, value -> settings.beyonderHealthScale = value);
-            rows.hintRow(Component.translatable("screen.coi.health_supersedes"));
+            // One hint, and it says what the selected style actually does: the
+            // two answers to "what happens to my hearts" are opposites
+            rows.hintRow(Component.translatable(style.drawsOverVanillaHearts()
+                    ? "screen.coi.health_style_hint" : "screen.coi.health_supersedes"));
         }
 
         if (!settings.showCharacterPlate

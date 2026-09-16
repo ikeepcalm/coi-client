@@ -50,10 +50,21 @@ public final class CoiBar {
      * Filled region with a top highlight / bottom shade bevel.
      */
     public static void fill(GuiGraphicsExtractor ctx, int x, int y, int h, int fillW, int top, int bottom) {
+        fill(ctx, x, y, h, fillW, top, bottom, 1f);
+    }
+
+    /**
+     * Same fill, faded whole — the counterpart of the {@link #frame} overload
+     * above. The bevel's two hairlines are the reason this exists: they are the
+     * bar's own colours rather than the caller's, so a caller fading a bar
+     * cannot reach them by dimming what it passes in.
+     */
+    public static void fill(GuiGraphicsExtractor ctx, int x, int y, int h, int fillW,
+                            int top, int bottom, float alpha) {
         if (fillW <= 0) return;
-        ctx.fillGradient(x, y, x + fillW, y + h, top, bottom);
-        ctx.fill(x, y, x + fillW, y + 1, 0x40FFFFFF);
-        ctx.fill(x, y + h - 1, x + fillW, y + h, 0x40000000);
+        ctx.fillGradient(x, y, x + fillW, y + h, withAlpha(top, alpha), withAlpha(bottom, alpha));
+        ctx.fill(x, y, x + fillW, y + 1, withAlpha(0x40FFFFFF, alpha));
+        ctx.fill(x, y + h - 1, x + fillW, y + h, withAlpha(0x40000000, alpha));
     }
 
     /**

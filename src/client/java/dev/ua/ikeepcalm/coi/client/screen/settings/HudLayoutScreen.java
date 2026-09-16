@@ -41,6 +41,11 @@ import org.jspecify.annotations.Nullable;
  * Holding <b>Ctrl</b> while dragging or nudging a grouped element moves its
  * whole group by the same delta - the ability row keeps its shape while the
  * player slides it about, and the slots pulled out of it come along.
+ * <p>
+ * <b>The toolbar gets out of the way.</b> It is drawn over the HUD and
+ * {@link #inToolbar} swallows every click inside it, so an element parked
+ * underneath it cannot be grabbed at all - which is what a bottom-centre
+ * element like the Beyonder health bar always is. See {@link #chooseToolbarSide}.
  */
 public class HudLayoutScreen extends Screen {
 
@@ -51,6 +56,8 @@ public class HudLayoutScreen extends Screen {
     private static final int NUDGE_FAST = 8;
 
     private static final int TOOLBAR_H = 46;
+    /** Gap between the toolbar card and the screen edge it sits against. */
+    private static final int TOOLBAR_MARGIN = 8;
 
     private final Screen parent;
     private final HudConfig.HudSettings settings;
@@ -78,6 +85,17 @@ public class HudLayoutScreen extends Screen {
     private boolean snappedX, snappedY;
 
     private int toolbarX, toolbarY, toolbarW;
+    /**
+     * Which edge the toolbar sits against. Decided once per {@link #init} by
+     * {@link #chooseToolbarSide}, unless the player has overridden it.
+     */
+    private boolean toolbarTop;
+    /**
+     * True once the player has pressed <b>T</b>. After that the automatic
+     * choice stops running, so a window resize cannot move the toolbar back
+     * onto the element they just uncovered.
+     */
+    private boolean toolbarPinned;
 
     public HudLayoutScreen(Screen parent, @Nullable String preselectId) {
         this(parent, preselectId, HudConfig.getSettings());
@@ -109,7 +127,8 @@ public class HudLayoutScreen extends Screen {
 
         toolbarW = Math.min(360, this.width - 20);
         toolbarX = (this.width - toolbarW) / 2;
-        toolbarY = this.height - TOOLBAR_H - 8;
+        if (!toolbarPinned) toolbarTop = chooseToolbarSide();
+        toolbarY = toolbarY();
 
         int buttonW = (toolbarW - 24) / 3;
         int buttonY = toolbarY + 6;
@@ -132,6 +151,51 @@ public class HudLayoutScreen extends Screen {
     }
 
     /**
+     * Top edge of the toolbar card for the side it is currently on.
+     */
+    private int toolbarY() {
+        return toolbarTop ? TOOLBAR_MARGIN : this.height - TOOLBAR_H - TOOLBAR_MARGIN;
+    }
+
+    /**
+     * Which edge to park the toolbar against: whichever one has fewer of this
+     * screen's elements sitting under it.
+     * <p>
+     * The toolbar is opaque chrome over a live HUD and {@link #inToolbar}
+     * turns every click inside it into a no-op, so an element underneath it is
+     * not merely hard to see - it cannot be selected, dragged or right-click
+     * reset at all. Parked at the bottom it lands squarely on anything
+     * bottom-centre, which is where the Beyonder health element lives by
+     * definition, and players reported exactly that: the bar they could not
+     * move.
+     * <p>
+     * The count is taken <b>once per {@link #init}</b>, never per frame:
+     * re-deciding while the player drags would make the toolbar jump out from
+     * under the cursor mid-gesture. Ties keep the bottom, which is where the
+     * toolbar has always been and where the eye expects chrome.
+     */
+    private boolean chooseToolbarSide() {
+        return covered(TOOLBAR_MARGIN) < covered(this.height - TOOLBAR_H - TOOLBAR_MARGIN);
+    }
+
+    /**
+     * How many elements the toolbar card would overlap with its top edge at
+     * {@code y}. Only the card counts - the hint lines around it are text and
+     * block nothing.
+     */
+    private int covered(int y) {
+        int count = 0;
+        for (HudElement element : elements) {
+            int[] box = element.bounds(this.width, this.height, settings);
+            if (box[0] < toolbarX + toolbarW && box[0] + box[2] > toolbarX
+                    && box[1] < y + TOOLBAR_H && box[1] + box[3] > y) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Resets every element this screen edits, plus the shared origin of each
      * group represented among them - the ability row's, for the slots.
      */
@@ -146,13 +210,27 @@ public class HudLayoutScreen extends Screen {
     }
 
     /**
-     * Only the live settings object is ours to write; a working copy belongs to
-     * the screen that made it.
+     * Done commits, whatever settings object this screen was handed.
+     * <p>
+     * Opened from HUD Settings it edits <em>that</em> screen's working copy, and
+     * leaving the commit to that screen's own Done meant an Esc behind this one
+     * threw away every drag the player had just made - which is not something
+     * "Done" can mean. So a working copy is written through to the live settings
+     * first, then saved.
+     * <p>
+     * The write-through carries whatever rows the settings screen had already
+     * changed in that copy too. That is deliberate: the two screens edit one
+     * object, and a rule that committed half of it would be harder to predict
+     * than one that commits it.
+     * <p>
+     * Cancel is unaffected - it restores {@code snapshot} into {@code settings}
+     * before closing, so nothing reaches here.
      */
     private void persist() {
-        if (settings == HudConfig.getSettings()) {
-            HudConfig.save();
+        if (settings != HudConfig.getSettings()) {
+            HudConfig.copySettings(settings, HudConfig.getSettings());
         }
+        HudConfig.save();
     }
 
     private void close() {
@@ -204,20 +282,37 @@ public class HudLayoutScreen extends Screen {
         }
 
         CoiStyle.drawCard(graphics, toolbarX, toolbarY, toolbarW, TOOLBAR_H);
+        // The lines outside the card are stacked rather than placed, because
+        // two of the three are conditional and the toolbar can be on either
+        // edge - a fixed y per line would gap or collide depending on both
+        int line = 0;
         if (solo) {
             graphics.centeredText(this.font,
                     Component.translatable("screen.coi.layout_title_one",
                             HudElements.groupLabel(preselectId, elements)),
-                    this.width / 2, toolbarY - 13, CoiStyle.ACCENT);
+                    this.width / 2, outsideHintY(line++), CoiStyle.ACCENT);
         }
         if (selected != null && selected.group() != null) {
             graphics.centeredText(this.font, Component.translatable("screen.coi.layout_hint_group"),
-                    this.width / 2, toolbarY - 25, CoiStyle.TEXT_MUTED);
+                    this.width / 2, outsideHintY(line++), CoiStyle.TEXT_MUTED);
         }
+        graphics.centeredText(this.font, Component.translatable("screen.coi.layout_hint_toolbar"),
+                this.width / 2, outsideHintY(line), CoiStyle.TEXT_MUTED);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(this.font,
                 Component.translatable(elements.size() > 1 ? "screen.coi.layout_hint" : "screen.coi.layout_hint_one"),
                 this.width / 2, toolbarY + 32, CoiStyle.TEXT_MUTED);
+    }
+
+    /**
+     * Baseline of hint line {@code row}, counting away from the toolbar card:
+     * upward when the card is at the bottom, downward when it is at the top,
+     * so the stack always grows into the screen rather than off it.
+     */
+    private int outsideHintY(int row) {
+        return toolbarTop
+                ? toolbarY + TOOLBAR_H + 5 + row * 12
+                : toolbarY - 13 - row * 12;
     }
 
     // --- Hit testing ---
@@ -328,6 +423,14 @@ public class HudLayoutScreen extends Screen {
 
         boolean group = event.hasControlDown();
 
+        if (key == InputConstants.KEY_T) {
+            // Pinned from here on: the automatic side stops running, so a
+            // resize cannot park the toolbar back on what was just uncovered
+            toolbarTop = !toolbarTop;
+            toolbarPinned = true;
+            this.init();
+            return true;
+        }
         if (key == InputConstants.KEY_TAB) {
             if (elements.size() > 1) {
                 cycleSelection(event.hasShiftDown() ? -1 : 1);

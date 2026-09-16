@@ -4,6 +4,7 @@ import dev.ua.ikeepcalm.coi.client.ability.Pathways;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.HudAnchor;
 import dev.ua.ikeepcalm.coi.client.hud.HudGate;
+import dev.ua.ikeepcalm.coi.client.hud.HudOpacity;
 import dev.ua.ikeepcalm.coi.client.hud.HudScale;
 import dev.ua.ikeepcalm.coi.client.hud.render.PlateCard;
 import dev.ua.ikeepcalm.coi.client.hud.render.PlateSymbols;
@@ -94,10 +95,12 @@ public final class CharacterPlateOverlay {
         int[] pos = anchor(w, h, settings);
 
         HudScale.push(ctx, pos[0], pos[1], settings.characterPlateScale);
+        HudOpacity.push(settings.characterPlateOpacity);
         PlateCard.draw(ctx, client.font, pos[0], pos[1], client.player,
                 client.player.getName().getString(),
                 BeyonderState.getPathway(), BeyonderState.getSequence(), gauges, reserves);
         drawGrantPopup(ctx, client.font, pos[0], pos[1], gauges);
+        HudOpacity.pop();
         HudScale.pop(ctx);
     }
 
@@ -241,13 +244,18 @@ public final class CharacterPlateOverlay {
         PlateCard.Reserve reserve = new PlateCard.Reserve("Rage Meter", 0.62f, 0xFF5555,
                 Component.translatable("hud.coi.plate_percent", "62"));
 
+        // The preview is faded too: the editor is where the player judges the
+        // setting, so showing them an opaque card there would be showing them
+        // the wrong thing
         HudScale.push(ctx, pos[0], pos[1], s.characterPlateScale);
-        CoiStyle.drawCard(ctx, pos[0], pos[1], CARD_W, previewHeight());
+        HudOpacity.push(s.characterPlateOpacity);
+        PlateCard.drawChrome(ctx, pos[0], pos[1], CARD_W, previewHeight());
         drawPreviewHeader(ctx, client.font, pos[0], pos[1], client.player, fool);
 
         int rowY = PlateCard.drawGauges(ctx, client.font, pos[0], pos[1] + PlateCard.PAD + PlateCard.HEADER_H, gauges);
         rowY = PlateCard.drawDivider(ctx, pos[0], rowY);
         PlateCard.drawReserve(ctx, client.font, pos[0], rowY, reserve);
+        HudOpacity.pop();
         HudScale.pop(ctx);
     }
 
@@ -262,7 +270,7 @@ public final class CharacterPlateOverlay {
                 y + PlateCard.PAD + (PlateCard.HEADER_H - PlateCard.HEAD) / 2);
         int textX = x + PlateCard.PAD + PlateCard.HEAD + PlateCard.HEAD_GAP;
         ctx.text(font, Component.translatable("screen.coi.plate_sample_name"), textX, y + PlateCard.PAD,
-                CoiStyle.TEXT_BODY, true);
+                HudOpacity.apply(CoiStyle.TEXT_BODY), true);
         PlateCard.drawPathwayLine(ctx, font, textX, y + PlateCard.PAD + PlateCard.HEADER_LINE_2, "FOOL", 5, rgb);
     }
 }
