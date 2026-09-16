@@ -1,7 +1,7 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "dev.ua.ikeepcalm.coi.client.mixin",
+  "package": "dev.ua.ikeepcalm.coi.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AvatarRendererMixin",
@@ -12,17 +12,14 @@
     "JoinMultiplayerScreenMixin",
     "LoadingOverlayMixin",
     "PlayerModelMixin",
-    "LivingEntityRendererMixin",
+    "PlayerRendererMixin",
     "OnlineServerEntryMixin",
-    "TitleScreenMixin",
-    "LogoRendererMixin",
-    "SplashRendererMixin",
-    "AbstractButtonMixin"
+    "TitleScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
   },
   "mixins": [
-    "SelectionListEntryInvoker"
+    "EntryInvoker"
   ]
 }

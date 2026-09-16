@@ -1,12 +1,12 @@
 package dev.ua.ikeepcalm.coi.client.gesture;
 
-import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
+import dev.ua.ikeepcalm.coi.client.effects.impl.EffectPaint;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.network.chat.Component;
 
 /**
  * The five recognizable gesture shapes. Direction templates use 8-way codes
@@ -18,19 +18,14 @@ import net.minecraft.network.chat.Component;
  * counter-clockwise from the left matches just as well as the canonical one.
  */
 public enum GestureType {
-
     CIRCLE("circle", "01234567", true, new float[][]{
             {0.5f, 0f}, {0.75f, 0.067f}, {0.933f, 0.25f}, {1f, 0.5f},
             {0.933f, 0.75f}, {0.75f, 0.933f}, {0.5f, 1f}, {0.25f, 0.933f},
             {0.067f, 0.75f}, {0f, 0.5f}, {0.067f, 0.25f}, {0.25f, 0.067f}, {0.5f, 0f}
     }),
-
     V("v", "17", false, new float[][]{{0f, 0f}, {0.5f, 1f}, {1f, 0f}}),
-
     Z("z", "030", false, new float[][]{{0f, 0f}, {1f, 0f}, {0f, 1f}, {1f, 1f}}),
-
     LINE_DOWN("line_down", "2", false, new float[][]{{0.5f, 0f}, {0.5f, 1f}}),
-
     TRIANGLE("triangle", "305", true, new float[][]{{0.5f, 0f}, {0f, 1f}, {1f, 1f}, {0.5f, 0f}});
 
     private final String id;

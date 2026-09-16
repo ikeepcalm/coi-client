@@ -9,10 +9,10 @@ This document outlines the architecture, network protocol, rendering pipeline, a
 The Mythical Creature Forms system allows players to transform into mythical beings based on their pathway (as described in `mythical_creatures.json`). The server controls transformations, and the client handles all procedural rendering.
 
 ### Key Classes
-*   **[`MythicalCreatureForm.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/form/MythicalCreatureForm.java)**: The base interface for all forms. Contains default methods `drawBox` and `addVertex` for drawing 3D geometry.
-*   **[`MythicalFormManager.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/form/MythicalFormManager.java)**: The registry that manages active transformations per player. Handles key normalization (spaces, underscores, casing) and dispatches rendering to the active form.
-*   **[`LivingEntityRendererMixin.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/mixin/LivingEntityRendererMixin.java)**: Intercepts `LivingEntityRenderer`'s `submit` method. If the entity is a player with an active form, it cancels vanilla rendering and submits custom geometry.
-*   **[`EffectDebugScreen.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/screen/debug/EffectDebugScreen.java)**: Developer debug screen (opened via F8 in dev environment) that contains a dynamic cycling button to test all 20 registered forms on the local player.
+*   **[`MythicalCreatureForm.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/effects/MythicalCreatureForm.java)**: The base interface for all forms. Contains default methods `drawBox` and `addVertex` for drawing 3D geometry.
+*   **[`MythicalFormManager.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/effects/MythicalFormManager.java)**: The registry that manages active transformations per player. Handles key normalization (spaces, underscores, casing) and dispatches rendering to the active form.
+*   **[`PlayerRendererMixin.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/mixin/PlayerRendererMixin.java)**: Intercepts `LivingEntityRenderer`'s `submit` method. If the entity is a player with an active form, it cancels vanilla rendering and submits custom geometry.
+*   **[`EffectDebugScreen.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/screen/EffectDebugScreen.java)**: Developer debug screen (opened via F8 in dev environment) that contains a dynamic cycling button to test all 20 registered forms on the local player.
 
 ---
 
@@ -21,7 +21,7 @@ The Mythical Creature Forms system allows players to transform into mythical bei
 In Minecraft 1.21.2+, the traditional `render(...)` model in entity renderers is replaced with a deferred, state-based system using `SubmitNodeCollector`.
 
 ### Interception & Matrix Rotations
-The custom rendering starts in [`LivingEntityRendererMixin.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/mixin/LivingEntityRendererMixin.java):
+The custom rendering starts in [`PlayerRendererMixin.java`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/mixin/PlayerRendererMixin.java):
 1.  **Gaze Alignment**: Before rendering the custom form, the mixin rotates the `PoseStack` around the Y-axis using `state.bodyRot` (which holds the player's head/camera look direction):
     ```java
     poseStack.pushPose();
@@ -41,7 +41,7 @@ The custom rendering starts in [`LivingEntityRendererMixin.java`](file:///F:/Mys
 
 ## 3. Creating & Modifying Forms
 
-All forms are located in the package [`dev.ua.ikeepcalm.coi.client.form.pathway`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/form/pathway) and implement `MythicalCreatureForm`.
+All forms are located in the package [`dev.ua.ikeepcalm.coi.client.effects.forms`](file:///F:/Mysterria/coi-client/src/client/java/dev/ua/ikeepcalm/coi/client/effects/forms) and implement `MythicalCreatureForm`.
 
 ### Draw Helpers
 The `MythicalCreatureForm` interface provides:
@@ -50,11 +50,11 @@ The `MythicalCreatureForm` interface provides:
 
 ### Boilerplate Example
 ```java
-package dev.ua.ikeepcalm.coi.client.form.pathway;
+package dev.ua.ikeepcalm.coi.client.effects.forms;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import dev.ua.ikeepcalm.coi.client.form.MythicalCreatureForm;
+import dev.ua.ikeepcalm.coi.client.mcf.MythicalCreatureForm;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 
 public class MyNewForm implements MythicalCreatureForm {
