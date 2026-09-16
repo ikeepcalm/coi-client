@@ -1,30 +1,15 @@
 package dev.ua.ikeepcalm.coi.client.config;
 
-import dev.ua.ikeepcalm.coi.CoiLog;
-import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
-import dev.ua.ikeepcalm.coi.client.hud.overlay.BeyonderHealthOverlay;
-import dev.ua.ikeepcalm.coi.client.hud.overlay.CharacterPlateOverlay;
-import dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle;
-
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import dev.ua.ikeepcalm.coi.client.CircleOfImaginationClient;
+import net.fabricmc.loader.api.FabricLoader;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import net.fabricmc.loader.api.FabricLoader;
 
-/**
- * Every HUD preference, and the {@code config/coi_hud.json} behind it.
- * <p>
- * The settings themselves are {@link HudSettings}; the field names there are
- * the on-disk keys, so renaming one silently resets that setting for every
- * existing player. The three jobs around them live next door —
- * {@link HudConfigReader} turns the file into settings, {@link HudConfigWriter}
- * turns settings back into the file, and {@link HudConfigMigrations} brings an
- * older file forward — leaving this class as the holder, the defaults and the
- * two disk calls.
- */
 public class HudConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -32,100 +17,71 @@ public class HudConfig {
             .getConfigDir()
             .resolve("coi_hud.json");
 
-    /**
-     * Schema version of the positional settings. Bumped to 2 when the madness
-     * bar started honouring {@code madnessYOffset} for TOP anchors too, to
-     * 3 when {@code hudScale} and {@code slotSpacing} were retired in favour of
-     * {@code slotSize} alone, to 4 when the Beyonder health bar was widened,
-     * and to 5 when that bar became one of four selectable
-     * {@link dev.ua.ikeepcalm.coi.client.hud.render.HealthStyle}s — see
-     * {@link HudConfigMigrations}.
-     */
-    public static final int LAYOUT_VERSION = 5;
-
-    /**
-     * Where the madness bar sat before it was movable; still the default.
-     */
-    public static final int DEFAULT_MADNESS_Y = 20;
-
-    /**
-     * Range of the per-element scale settings ({@code madnessScale} and
-     * friends). Every bar and overlay grows about its own fill origin, so the
-     * spot the player dragged it to stays put - see
-     * {@link dev.ua.ikeepcalm.coi.client.hud.HudScale}.
-     */
-    public static final float MIN_ELEMENT_SCALE = 0.5f;
-    public static final float MAX_ELEMENT_SCALE = 2.0f;
-
-    /**
-     * Range of the per-element opacity settings ({@code characterPlateOpacity}
-     * so far) — see {@link dev.ua.ikeepcalm.coi.client.hud.HudOpacity}.
-     * <p>
-     * The floor is 0.15 rather than 0 because the font renderer stops honouring
-     * the alpha channel somewhere below {@code 4/255}: a slider that reached
-     * zero would fade an element's chrome away while its numbers stayed solid.
-     * An element the player wants gone has a show/hide checkbox.
-     */
-    public static final float MIN_ELEMENT_OPACITY = 0.15f;
-    public static final float MAX_ELEMENT_OPACITY = 1.0f;
-
-    /**
-     * The slot size every hand-tuned constant in {@code AbilitySlotWidget} was
-     * drawn against; {@code slotSize} is expressed as a scale of it.
-     */
-    public static final int BASE_SLOT_SIZE = 40;
-    public static final int DEFAULT_SLOT_SIZE = BASE_SLOT_SIZE;
-
-    /**
-     * Slot size bounds. The range is exactly {@link #MIN_ELEMENT_SCALE}..{@link
-     * #MAX_ELEMENT_SCALE} of {@link #BASE_SLOT_SIZE}, so the derived pose scale
-     * never has to be clamped away from what the slider promised.
-     */
-    public static final int MIN_SLOT_SIZE = Math.round(BASE_SLOT_SIZE * MIN_ELEMENT_SCALE);
-    public static final int MAX_SLOT_SIZE = Math.round(BASE_SLOT_SIZE * MAX_ELEMENT_SCALE);
-
     private static HudSettings settings = new HudSettings();
 
-    /**
-     * Reads the file if there is one, migrates it, and writes a fresh one at
-     * the defaults if there is not.
-     */
     public static void load() {
-        if (!Files.exists(CONFIG_PATH)) {
+        if (Files.exists(CONFIG_PATH)) {
+            try {
+                String content = Files.readString(CONFIG_PATH);
+                JsonObject json = GSON.fromJson(content, JsonObject.class);
+
+                settings.enabled = !json.has("enabled") || json.get("enabled").getAsBoolean();
+                settings.hudX = json.has("hudX") ? json.get("hudX").getAsInt() : 10;
+                settings.hudYOffset = json.has("hudYOffset") ? json.get("hudYOffset").getAsInt() : 60;
+                settings.slotSize = json.has("slotSize") ? json.get("slotSize").getAsInt() : 40;
+                settings.slotSpacing = json.has("slotSpacing") ? json.get("slotSpacing").getAsInt() : 50;
+                settings.showKeybinds = !json.has("showKeybinds") || json.get("showKeybinds").getAsBoolean();
+                settings.showAbilityNames = !json.has("showAbilityNames") || json.get("showAbilityNames").getAsBoolean();
+                settings.showGlowEffect = !json.has("showGlowEffect") || json.get("showGlowEffect").getAsBoolean();
+                settings.hudScale = json.has("hudScale") ? json.get("hudScale").getAsFloat() : 1.0f;
+                settings.wheelSlots = json.has("wheelSlots") ? json.get("wheelSlots").getAsInt() : 8;
+                settings.activeAbilitySlots = json.has("activeAbilitySlots")
+                        ? Math.clamp(json.get("activeAbilitySlots").getAsInt(), 1, CircleOfImaginationClient.MAX_ABILITIES) : 6;
+                settings.epilepsyMode = json.has("epilepsyMode") && json.get("epilepsyMode").getAsBoolean();
+                settings.showMadnessBar = !json.has("showMadnessBar") || json.get("showMadnessBar").getAsBoolean();
+                settings.madnessXOffset = json.has("madnessXOffset") ? json.get("madnessXOffset").getAsInt() : 0;
+                settings.madnessYOffset = json.has("madnessYOffset") ? json.get("madnessYOffset").getAsInt() : 55;
+                settings.madnessAnchor = json.has("madnessAnchor") ? json.get("madnessAnchor").getAsString() : "TOP_LEFT";
+                settings.effectSoundVolume = json.has("effectSoundVolume") ? json.get("effectSoundVolume").getAsFloat() : 1.0f;
+                settings.enableHallucinations = !json.has("enableHallucinations") || json.get("enableHallucinations").getAsBoolean();
+                settings.enableDiscordPresence = !json.has("enableDiscordPresence") || json.get("enableDiscordPresence").getAsBoolean();
+                settings.presenceShowMadness = !json.has("presenceShowMadness") || json.get("presenceShowMadness").getAsBoolean();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
             save();
-            return;
-        }
-        try {
-            JsonObject json = GSON.fromJson(Files.readString(CONFIG_PATH), JsonObject.class);
-            HudConfigReader.read(json, settings);
-            HudConfigMigrations.migrate(settings);
-        } catch (IOException e) {
-            CoiLog.LOG.warn("Failed to read HUD settings", e);
         }
     }
 
     public static void save() {
+        JsonObject json = new JsonObject();
+        json.addProperty("enabled", settings.enabled);
+        json.addProperty("hudX", settings.hudX);
+        json.addProperty("hudYOffset", settings.hudYOffset);
+        json.addProperty("slotSize", settings.slotSize);
+        json.addProperty("slotSpacing", settings.slotSpacing);
+        json.addProperty("showKeybinds", settings.showKeybinds);
+        json.addProperty("showAbilityNames", settings.showAbilityNames);
+        json.addProperty("showGlowEffect", settings.showGlowEffect);
+        json.addProperty("hudScale", settings.hudScale);
+        json.addProperty("wheelSlots", settings.wheelSlots);
+        json.addProperty("activeAbilitySlots", settings.activeAbilitySlots);
+        json.addProperty("epilepsyMode", settings.epilepsyMode);
+        json.addProperty("showMadnessBar", settings.showMadnessBar);
+        json.addProperty("madnessXOffset", settings.madnessXOffset);
+        json.addProperty("madnessYOffset", settings.madnessYOffset);
+        json.addProperty("madnessAnchor", settings.madnessAnchor);
+        json.addProperty("effectSoundVolume", settings.effectSoundVolume);
+        json.addProperty("enableHallucinations", settings.enableHallucinations);
+        json.addProperty("enableDiscordPresence", settings.enableDiscordPresence);
+        json.addProperty("presenceShowMadness", settings.presenceShowMadness);
+
         try {
-            Files.writeString(CONFIG_PATH, GSON.toJson(HudConfigWriter.write(settings)));
+            Files.writeString(CONFIG_PATH, GSON.toJson(json));
         } catch (IOException e) {
-            CoiLog.LOG.warn("Failed to write HUD settings", e);
+            e.printStackTrace();
         }
-    }
-
-    /**
-     * Field-by-field copy, used for the settings screens' working copies and
-     * for the layout editor's Cancel snapshot.
-     */
-    public static void copySettings(HudSettings from, HudSettings to) {
-        HudSettingsCopy.copy(from, to);
-    }
-
-    /**
-     * Puts every ability slot back in the shared row — what the layout editor's
-     * group reset does.
-     */
-    public static void clearSlotPlacements(HudSettings s) {
-        s.slotPlacements = new SlotPlacement[AbilityBindings.MAX_ABILITIES];
     }
 
     public static HudSettings getSettings() {
@@ -142,135 +98,26 @@ public class HudConfig {
         save();
     }
 
-    /**
-     * One ability slot pulled out of the row: an anchor name plus the offsets
-     * inside that anchor's frame, exactly like the bars use.
-     */
-    public record SlotPlacement(String anchor, int x, int y) {
-    }
-
     public static class HudSettings {
         public boolean enabled = true;
         public int hudX = 10;
         public int hudYOffset = 60;
-        /**
-         * On-screen size of one ability slot box. This is the ability HUD's
-         * only size knob: the slot is drawn at {@link #BASE_SLOT_SIZE} under a
-         * pose scale of {@code slotSize / BASE_SLOT_SIZE}, so the keybind chip,
-         * the name and the cooldown readout grow with the box instead of
-         * staying stuck at one font size. The gap between slots in the shared
-         * row follows it too.
-         */
-        public int slotSize = DEFAULT_SLOT_SIZE;
-        /**
-         * The ability slots themselves. Off hides the boxes and nothing else -
-         * the keys keep casting, which is why this is not the master switch.
-         */
-        public boolean showAbilityHud = true;
+        public int slotSize = 40;
+        public int slotSpacing = 50;
         public boolean showKeybinds = true;
         public boolean showAbilityNames = true;
         public boolean showGlowEffect = true;
+        public float hudScale = 1.0f;
         public int wheelSlots = 8;
         public int activeAbilitySlots = 6;
-        /**
-         * Per-slot overrides of the shared row: {@code null} leaves the slot
-         * where {@code hudX}/{@code hudYOffset}/{@code slotSize} put it.
-         */
-        public SlotPlacement[] slotPlacements = new SlotPlacement[AbilityBindings.MAX_ABILITIES];
         public boolean epilepsyMode = false;
-        /**
-         * The Beyonder HP pool, and which of the four
-         * {@link HealthStyle}s draws it. Three of them <em>replace</em> the
-         * vanilla hearts rather than sitting beside them, so switching this off
-         * is what hands the hearts back - see {@link BeyonderHealthOverlay};
-         * the default {@link HealthStyle#HEARTS} leaves them alone and adds
-         * only the numbers ten hearts cannot carry.
-         */
-        public boolean showBeyonderHealth = true;
-        public String beyonderHealthStyle = HealthStyle.DEFAULT.name();
-        public String beyonderHealthAnchor = BeyonderHealthOverlay.DEFAULT_ANCHOR;
-        public int beyonderHealthXOffset = BeyonderHealthOverlay.DEFAULT_X_OFFSET;
-        public int beyonderHealthYOffset = HealthStyle.DEFAULT.defaultYOffset();
-        public float beyonderHealthScale = 1.0f;
-        /**
-         * The character plate supersedes the madness, acting and resource bars:
-         * while it is on, those three stand down rather than drawing the same
-         * numbers twice. Spirituality is not part of the trade - it keeps its
-         * own sprite-built bar either way.
-         */
-        public boolean showCharacterPlate = true;
-        public String characterPlateAnchor = "TOP_LEFT";
-        public int characterPlateXOffset = 0;
-        public int characterPlateYOffset = CharacterPlateOverlay.DEFAULT_TOP_Y;
-        public float characterPlateScale = 1.0f;
-        /**
-         * How solid the card is. The plate sits in the corner the player is
-         * looking past, so being able to see the world through it is a real
-         * request; 1.0 is the behaviour every existing config already has,
-         * which is why this needed no migration.
-         */
-        public float characterPlateOpacity = 1.0f;
         public boolean showMadnessBar = true;
         public int madnessXOffset = 0;
-        public int madnessYOffset = DEFAULT_MADNESS_Y;
+        public int madnessYOffset = 55;
         public String madnessAnchor = "TOP_LEFT";
-        public float madnessScale = 1.0f;
-        public boolean showSpiritualityBar = true;
-        public String spiritualityAnchor = "TOP_LEFT";
-        public int spiritualityXOffset = 0;
-        public int spiritualityYOffset = 50;
-        public boolean spiritualityHideWhenFull = true;
-        public float spiritualityScale = 1.0f;
-        public boolean showActingBar = true;
-        public String actingAnchor = "TOP_LEFT";
-        public int actingXOffset = 0;
-        public int actingYOffset = 80;
-        public float actingScale = 1.0f;
-        public boolean showResourceBars = true;
-        public String resourceAnchor = "TOP_LEFT";
-        public int resourceXOffset = 0;
-        public int resourceYOffset = 100;
-        public int resourceMaxBars = 4;
-        public float resourceScale = 1.0f;
-        public boolean showActionBar = true;
-        public int actionBarXOffset = 0;
-        public int actionBarYOffset = 72;
-        public int actionBarLines = 0;
-        public float actionBarScale = 1.0f;
-        public boolean showTargetHealth = true;
-        public int targetHealthXOffset = 0;
-        public int targetHealthYOffset = 18;
-        public float targetHealthScale = 1.0f;
-        public boolean showCogitationOverlay = true;
-        public int cogitationXOffset = 0;
-        public int cogitationYOffset = -70;
-        public float cogitationScale = 1.0f;
-        public boolean showNotifications = true;
-        public int notificationXOffset = 12;
-        public int notificationYOffset = 12;
-        public float notificationScale = 1.0f;
         public float effectSoundVolume = 1.0f;
         public boolean enableHallucinations = true;
         public boolean enableDiscordPresence = true;
         public boolean presenceShowMadness = true;
-        /**
-         * Opt out of the mod's own menus: every sheet button then asks the
-         * server for its original InvUI chest GUI instead of a
-         * {@code coi-client:menu} document. Off by default - the point of the
-         * menu protocol is that the player never sees a chest again - but the
-         * old screens stay one checkbox away.
-         */
-        public boolean useServerMenus = false;
-        /**
-         * The Lord of the Mysteries main menu. Off falls the whole takeover
-         * through to vanilla — panorama, logo, splash placement and button
-         * sprites — leaving only the title-screen haunting, which predates it.
-         */
-        public boolean coiTitleScreen = true;
-        /**
-         * Layout schema of the file this was read from; see
-         * {@link HudConfigMigrations}.
-         */
-        public int layoutVersion = LAYOUT_VERSION;
     }
 }
