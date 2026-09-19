@@ -15,7 +15,7 @@ import com.google.gson.JsonParser;
  * ({@link #cooldownRemainingNow()}) so the HUD reads like a real timer rather
  * than a value that jumps once every three seconds.
  */
-public final class ActingState {
+public class ActingState {
 
     /**
      * How long a {@code +N} gain popup stays on screen.

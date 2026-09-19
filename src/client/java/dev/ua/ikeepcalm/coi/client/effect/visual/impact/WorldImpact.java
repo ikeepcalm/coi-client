@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
  * seeded with, and every layer is drawn through {@link ImpactRenderer} against
  * a single normalised progress {@code p}.
  */
-public final class WorldImpact {
+public class WorldImpact {
 
     private static final long MIN_WORLD_DURATION = 450;
 

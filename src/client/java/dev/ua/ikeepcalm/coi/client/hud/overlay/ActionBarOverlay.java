@@ -23,7 +23,7 @@ import net.minecraft.resources.Identifier;
  * Only COI's own entries move — vanilla action bars from other plugins are
  * untouched.
  */
-public final class ActionBarOverlay {
+public class ActionBarOverlay {
 
     private static final Identifier ACTION_BAR_LAYER = Identifier.fromNamespaceAndPath("coi-client", "actionbar");
 

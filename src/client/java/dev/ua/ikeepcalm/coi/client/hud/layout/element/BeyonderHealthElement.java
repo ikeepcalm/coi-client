@@ -20,7 +20,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * ask which one is on; only {@link #resetPosition} does, because the styles
  * ship at different heights - see {@link HealthStyle#defaultYOffset()}.
  */
-public final class BeyonderHealthElement extends AbstractElement {
+public class BeyonderHealthElement extends AbstractElement {
 
     public BeyonderHealthElement() {
         super(ElementIds.BEYONDER_HEALTH);

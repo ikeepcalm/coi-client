@@ -26,7 +26,7 @@ import net.minecraft.resources.Identifier;
  * their own once their TTL runs out, so a passive that stops refreshing takes
  * its bar with it.
  */
-public final class ResourceOverlay {
+public class ResourceOverlay {
 
     private static final Identifier RESOURCE_LAYER = Identifier.fromNamespaceAndPath("coi-client", "resources");
 

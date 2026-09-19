@@ -23,7 +23,7 @@ import net.fabricmc.loader.api.FabricLoader;
  * written by whatever the player last bound, and a set that has never been
  * touched simply is not in it.
  */
-public final class AbilityConfig {
+public class AbilityConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance()

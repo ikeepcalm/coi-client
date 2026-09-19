@@ -12,7 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * sprite overhangs the fill on every side, so the offsets between the fill
  * origin and the drawn bounds come from the overlay itself.
  */
-public final class SpiritualityElement extends AbstractElement {
+public class SpiritualityElement extends AbstractElement {
 
     /**
      * Where a TOP-anchored bar sits out of the box, between the madness and

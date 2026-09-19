@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Server-supplied casting categories. Keys stay opaque; labels never identify a cast. */
-public final class AbilityCategories {
+public class AbilityCategories {
     public record Category(String id, String name, int cooldownSeconds, long readyAt) {
         public int remainingTicks() {
             return (int) Math.min(Integer.MAX_VALUE, Math.max(0, readyAt - System.currentTimeMillis() + 49) / 50);

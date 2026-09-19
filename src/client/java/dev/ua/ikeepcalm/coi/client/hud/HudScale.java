@@ -24,7 +24,7 @@ import net.minecraft.util.Mth;
  * <p>
  * Render-thread only: the push/pop pairing is tracked in a static stack.
  */
-public final class HudScale {
+public class HudScale {
 
     /**
      * Scales this close to 1 are treated as "no scaling at all" and skip the

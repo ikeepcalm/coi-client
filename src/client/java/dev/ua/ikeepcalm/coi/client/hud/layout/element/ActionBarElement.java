@@ -15,7 +15,7 @@ import net.minecraft.util.Mth;
  * and y a distance up from the bottom edge, so it tracks the hotbar the way
  * the vanilla action bar does.
  */
-public final class ActionBarElement extends AbstractElement {
+public class ActionBarElement extends AbstractElement {
 
     private static final int SAMPLE_W = 200;
     /**

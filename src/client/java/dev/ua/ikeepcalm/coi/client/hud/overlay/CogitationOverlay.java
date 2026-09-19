@@ -23,7 +23,7 @@ import net.minecraft.resources.Identifier;
  * The server only sweeps for timeouts every 40 ticks, so the bar can sit empty
  * for a moment before the {@code fail} packet lands — it just holds at 0.
  */
-public final class CogitationOverlay {
+public class CogitationOverlay {
 
     private static final Identifier COGITATION_LAYER = Identifier.fromNamespaceAndPath("coi-client", "cogitation");
 

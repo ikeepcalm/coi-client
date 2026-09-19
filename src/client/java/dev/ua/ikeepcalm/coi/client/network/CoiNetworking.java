@@ -21,7 +21,7 @@ import net.minecraft.client.Minecraft;
  * The wire: every payload this client speaks, and the receivers that hand an
  * incoming one to whichever piece of state owns it.
  */
-public final class CoiNetworking {
+public class CoiNetworking {
 
     private CoiNetworking() {
     }

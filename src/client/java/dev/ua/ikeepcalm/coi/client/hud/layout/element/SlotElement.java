@@ -13,7 +13,7 @@ import net.minecraft.network.chat.Component;
  * own pins it to its own anchor instead ({@code slotPlacements[index]}),
  * which is how a player puts two slots on the left and two on the right.
  */
-public final class SlotElement extends AbstractElement {
+public class SlotElement extends AbstractElement {
 
     /**
      * Where the shared row sits out of the box: 10px in from the left edge,

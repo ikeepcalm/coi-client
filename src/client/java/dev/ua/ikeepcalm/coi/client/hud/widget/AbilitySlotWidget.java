@@ -32,7 +32,7 @@ import net.minecraft.util.Mth;
  * sweep stays smooth at any framerate; {@link SlotAnimations} owns the cast and
  * ready flourishes.
  */
-public final class AbilitySlotWidget {
+public class AbilitySlotWidget {
 
     private static final int BORDER_COLOR = 0xFF90EE90;
     private static final int BACKGROUND_GRADIENT_TOP = 0xFF98FB98;

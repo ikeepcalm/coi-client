@@ -15,7 +15,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * editor entirely while the character plate is on, which lists the same meters
  * as its reserve rows.
  */
-public final class ResourceElement extends AbstractElement {
+public class ResourceElement extends AbstractElement {
 
     private static final int GHOST = 0x60FFFFFF;
 

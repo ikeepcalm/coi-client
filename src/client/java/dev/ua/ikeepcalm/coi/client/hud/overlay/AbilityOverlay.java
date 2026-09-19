@@ -33,7 +33,7 @@ import net.minecraft.util.Mth;
  * makes the keybind chip, the name line and the cooldown readout grow with the
  * box instead of staying at one font size.
  */
-public final class AbilityOverlay {
+public class AbilityOverlay {
 
     private static final Identifier ABILITY_LAYER = Identifier.fromNamespaceAndPath("coi-client", "abilities");
     private static AbilitySlotWidget[] abilitySlots;

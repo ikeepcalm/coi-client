@@ -12,7 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * from the screen's centre in both axes, since it belongs to the crosshair
  * rather than to an edge.
  */
-public final class TargetHealthElement extends AbstractElement {
+public class TargetHealthElement extends AbstractElement {
 
     /**
      * Name line above the bar, readout below it.

@@ -29,7 +29,7 @@ import net.minecraft.resources.Identifier;
  * next frame; only the retreat is slow. With the setting off it stays as a
  * dimmed idle bar instead of vanishing.
  */
-public final class SpiritualityOverlay {
+public class SpiritualityOverlay {
 
     private static final Identifier SPIRITUALITY_LAYER = Identifier.fromNamespaceAndPath("coi-client", "spirituality");
 
@@ -131,7 +131,7 @@ public final class SpiritualityOverlay {
         HudScale.push(ctx, pos[0], pos[1], settings.spiritualityScale);
         drawTrail(ctx, pos[0], pos[1], fillW, max, alpha, time);
         drawFill(ctx, pos[0], pos[1], fillW, alpha, idle, epilepsy, time, ratio, regenFlare(regen, epilepsy));
-        drawFlash(ctx, pos[0], pos[1], fillW, alpha);
+        if (!epilepsy) drawFlash(ctx, pos[0], pos[1], fillW, alpha);
         drawFrames(ctx, pos[0], pos[1], alpha, mix, ratio);
         drawLabel(ctx, client.font, pos[0], pos[1], Math.round(predicted), max, ratio, alpha);
         HudScale.pop(ctx);
@@ -163,16 +163,21 @@ public final class SpiritualityOverlay {
      * opaque — no hide-when-full, no data requirement, no shared state touched.
      */
     public static void renderPreview(GuiGraphicsExtractor ctx, int screenW, int screenH, HudConfig.HudSettings s, long timeMs) {
+        renderPreview(ctx, screenW, screenH, s, timeMs, 0.72f);
+    }
+
+    public static void renderPreview(GuiGraphicsExtractor ctx, int screenW, int screenH,
+                                     HudConfig.HudSettings s, long timeMs, float ratio) {
         Minecraft client = Minecraft.getInstance();
         int[] pos = anchor(screenW, screenH, s);
         int max = 500;
-        float ratio = 0.72f;
+        ratio = Math.clamp(ratio, 0f, 1f);
         int fillW = CoiBar.lerpWidth(max * ratio, max, BAR_WIDTH);
         float flare = s.epilepsyMode ? 1f : 1f + 0.6f * (float) Math.abs(Math.sin(timeMs * 0.0015));
 
         HudScale.push(ctx, pos[0], pos[1], s.spiritualityScale);
         drawFill(ctx, pos[0], pos[1], fillW, 1f, false, s.epilepsyMode, timeMs, ratio, flare);
-        drawFrames(ctx, pos[0], pos[1], 1f, 0f, ratio);
+        drawFrames(ctx, pos[0], pos[1], 1f, ratio < CRITICAL_THRESHOLD ? 1f : 0f, ratio);
         drawLabel(ctx, client.font, pos[0], pos[1], Math.round(max * ratio), max, ratio, 1f);
         HudScale.pop(ctx);
     }
@@ -281,7 +286,8 @@ public final class SpiritualityOverlay {
         if (alpha < 0.05f) return;
         String text = value + " / " + max;
         int color = ratio < LABEL_LOW_THRESHOLD ? LABEL_LOW_COLOR : LABEL_COLOR;
-        ctx.text(font, text, x + BAR_WIDTH - font.width(text), y + LABEL_DY, CoiBar.withAlpha(color, alpha), true);
+        int labelX = x + BAR_WIDTH - font.width(text);
+        ctx.text(font, text, labelX, y + LABEL_DY, CoiBar.withAlpha(color, alpha), true);
     }
 
     /**

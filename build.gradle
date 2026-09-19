@@ -32,12 +32,13 @@ loom {
         }
     }
 
-    if (project.hasProperty('archivePreview') || project.hasProperty('portraitPreview')) {
+    if (project.hasProperty('archivePreview') || project.hasProperty('portraitPreview') || project.hasProperty('hudPreview')) {
         runs.client {
             runDir 'build/archive-preview'
             programArgs '--width', '1440', '--height', '900', '--quickPlaySingleplayer', 'Preview'
             vmArg '-Dcoi.archivePreview=true'
             if (project.hasProperty('portraitPreview')) vmArg '-Dcoi.portraitPreview=true'
+            if (project.hasProperty('hudPreview')) vmArg '-Dcoi.hudPreview=true'
         }
     }
 

@@ -14,7 +14,7 @@ import net.minecraft.resources.Identifier;
  * where they are declared — <b>read that comment before changing one</b>; several of them sit in
  * different coordinate spaces and do not mean what their names suggest in isolation.
  */
-public final class FormModelLayers {
+public class FormModelLayers {
 
     public static final ModelLayerLocation VISIONARY_LOWER =
             new ModelLayerLocation(Identifier.fromNamespaceAndPath("coi-client", "visionary_lower"), "main");

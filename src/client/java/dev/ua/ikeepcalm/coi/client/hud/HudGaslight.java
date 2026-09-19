@@ -14,7 +14,7 @@ import java.util.Random;
  * <p>
  * Gated behind the same toggle as the rest of the hallucination family.
  */
-public final class HudGaslight {
+public class HudGaslight {
 
     private enum Lie {NONE, COOLDOWN, KEYBIND, SWAP}
 

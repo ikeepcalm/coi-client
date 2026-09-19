@@ -13,7 +13,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
  * <p>Procedural geometry, drawn once per frame against a blank texture; there is no baked model
  * and no texture atlas behind any of it.
  */
-public final class JusticiarForm implements MythicalCreatureForm {
+public class JusticiarForm implements MythicalCreatureForm {
 
     private static final float BEAM_THICKNESS = 0.022f;
 

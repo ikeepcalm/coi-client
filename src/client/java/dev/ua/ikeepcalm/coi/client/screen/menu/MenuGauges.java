@@ -12,7 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * gauge is the one shape here with arithmetic of its own — a fraction, a cap
  * and a track — where everything else in the theme is a colour and a fill.
  */
-public final class MenuGauges {
+public class MenuGauges {
 
     /**
      * The unlit half of a gauge, and the band a {@code cap} puts out of reach.

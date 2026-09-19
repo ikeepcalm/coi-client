@@ -19,7 +19,7 @@ import net.minecraft.client.Minecraft;
  * server has sent any data, the character plate superseding it) stays in the
  * overlay, because no two of those agree.
  */
-public final class HudGate {
+public class HudGate {
 
     private HudGate() {
     }

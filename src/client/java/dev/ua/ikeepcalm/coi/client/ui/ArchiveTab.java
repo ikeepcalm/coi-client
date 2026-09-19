@@ -8,7 +8,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
 /** A keyboard-focusable index tab with the same hit area at every GUI scale. */
-public final class ArchiveTab extends Button {
+public class ArchiveTab extends Button {
     private final BooleanSupplier selected;
 
     public ArchiveTab(Component label, Runnable action, BooleanSupplier selected) {

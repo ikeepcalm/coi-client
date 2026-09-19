@@ -19,7 +19,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * the middle of one reads as a different program — which is precisely how the
  * InvUI chest menus these documents replace used to read.
  */
-public final class MenuTheme {
+public class MenuTheme {
 
     public static final int INFO = 0xFF7FC8FF;
     public static final int SUCCESS = 0xFF5FD35F;

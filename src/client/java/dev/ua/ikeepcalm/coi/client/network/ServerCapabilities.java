@@ -18,7 +18,7 @@ import java.util.Set;
  * returns false — which is exactly how the client hides UI an old server has
  * no data for. Cleared on disconnect.
  */
-public final class ServerCapabilities {
+public class ServerCapabilities {
 
     /**
      * What a reply that names no version is recorded as; the empty string means

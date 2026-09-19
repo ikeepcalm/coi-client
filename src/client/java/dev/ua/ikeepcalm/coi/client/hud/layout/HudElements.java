@@ -29,7 +29,7 @@ import net.minecraft.network.chat.Component;
  * {@link LayoutGeometry}, and the Ctrl-drag and <em>Align</em> rules in
  * {@link LayoutGroups}.
  */
-public final class HudElements {
+public class HudElements {
 
     /**
      * Group id shared by every {@code slot_N} element; also the id the HUD

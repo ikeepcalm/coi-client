@@ -17,7 +17,7 @@ import net.minecraft.util.Mth;
  * settings fields to write, while everything about <em>where</em> a dropped
  * element lands is decided here, once, for all of them.
  */
-public final class LayoutGeometry {
+public class LayoutGeometry {
 
     /**
      * How close to the screen's centre line an element has to land before it

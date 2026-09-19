@@ -11,7 +11,7 @@ import net.minecraft.util.Mth;
  * fill, shimmer, notches, label. Anything stage- or resource-specific
  * (glitch slices, cracks, markers) stays in the overlay that owns it.
  */
-public final class CoiBar {
+public class CoiBar {
 
     /**
      * Background gradient of an empty bar; the fill is drawn over it.

@@ -16,7 +16,7 @@ import net.minecraft.resources.Identifier;
  * listener (and on disconnect, since the next server may key icons
  * differently).
  */
-public final class IconModels {
+public class IconModels {
 
     private static final Map<String, Boolean> CACHE = new ConcurrentHashMap<>();
 

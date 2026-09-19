@@ -17,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
  * come from per-vertex alpha gradients, so none of them needs a texture — plus
  * the screen-scope edge pulse.
  */
-public final class ImpactRenderer {
+public class ImpactRenderer {
 
     private static final int FULL_BRIGHT = 0x00F000F0;
 

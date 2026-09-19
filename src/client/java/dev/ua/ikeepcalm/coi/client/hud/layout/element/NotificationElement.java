@@ -12,7 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * data, the other two ghosted — so the grab box covers the stack at its
  * fullest rather than growing under the cursor when a toast arrives.
  */
-public final class NotificationElement extends AbstractElement {
+public class NotificationElement extends AbstractElement {
 
     private static final int SLOTS = 3;
     private static final int STRIDE = NotificationOverlay.CARD_H_1_LINE + NotificationOverlay.CARD_GAP;

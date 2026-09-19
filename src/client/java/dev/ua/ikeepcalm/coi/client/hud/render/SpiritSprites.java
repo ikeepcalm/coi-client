@@ -21,7 +21,7 @@ import net.minecraft.resources.Identifier;
  * </ul>
  * Every blit takes an ARGB tint, so the whole composite can fade as one.
  */
-public final class SpiritSprites {
+public class SpiritSprites {
 
     private static final Identifier FILL =
             Identifier.fromNamespaceAndPath("coi-client", "textures/gui/hud/spirituality_fill.png");

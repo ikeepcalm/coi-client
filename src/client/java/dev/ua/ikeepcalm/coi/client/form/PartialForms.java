@@ -15,7 +15,7 @@ import org.joml.Matrix4f;
  * {@link PartialFormLayer} itself) has to answer the same two questions about a render state, so
  * they answer them here rather than four times over.
  */
-public final class PartialForms {
+public class PartialForms {
 
     /**
      * One query-only baked model per spec, reused every frame. Kept apart from

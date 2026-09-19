@@ -17,7 +17,7 @@ import com.google.gson.JsonObject;
  * been parsed, which is what made the same six methods appear in every
  * {@code client.state} class before they were lifted here.
  */
-public final class JsonRead {
+public class JsonRead {
 
     private JsonRead() {
     }

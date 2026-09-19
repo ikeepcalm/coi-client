@@ -13,7 +13,7 @@ import com.google.gson.JsonParser;
  * one-tick action-bar publishes; the drain animation from {@code before} to
  * {@code after} is played out client-side.
  */
-public final class TargetState {
+public class TargetState {
 
     /**
      * How long the bar stays on screen after the last hit.

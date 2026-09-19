@@ -11,7 +11,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * it stands in for a vanilla title, so it belongs to the middle of the screen
  * rather than to an edge.
  */
-public final class CogitationElement extends AbstractElement {
+public class CogitationElement extends AbstractElement {
 
     public CogitationElement() {
         super(ElementIds.COGITATION);

@@ -20,7 +20,7 @@ import java.util.Map;
  * {@code ttlMs} expire locally, which is what keeps the HUD clean when the
  * server stops sending (logout, death, ability cancelled).
  */
-public final class ResourceState {
+public class ResourceState {
 
     /**
      * One bar. {@code expiresAt == 0} means "persistent until an explicit remove".

@@ -10,7 +10,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * The madness bar. Absent from the editor entirely while the character plate
  * is on — the plate carries madness as its sanity gauge.
  */
-public final class MadnessElement extends BarElement {
+public class MadnessElement extends BarElement {
 
     /**
      * Sample values for the preview: a clearly-filled bar with a visible

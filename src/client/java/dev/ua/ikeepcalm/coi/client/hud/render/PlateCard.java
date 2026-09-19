@@ -5,15 +5,15 @@ import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
 import dev.ua.ikeepcalm.coi.client.hud.HudOpacity;
 import dev.ua.ikeepcalm.coi.client.ui.CoiIcons;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
-
-import java.util.List;
-import java.util.Locale;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+
+import java.util.List;
+import java.util.Locale;
 
 /**
  * The character plate's paint: the card, its header and one row per gauge or
@@ -32,7 +32,7 @@ import net.minecraft.resources.Identifier;
  * a bug rather than as a setting. Outside the overlay's push {@code apply} is
  * the identity, so this costs the preview and the live card nothing.
  */
-public final class PlateCard {
+public class PlateCard {
 
     /**
      * The card's fixed width. Every interior column below is measured off it,
@@ -43,16 +43,16 @@ public final class PlateCard {
     public static final int PAD = 6;
 
     /**
-     * The header block: a 16px head beside two 8px text lines (name, pathway),
-     * which is what sets the 20 rather than the head's own height.
+     * The header block: a 24px head beside two text lines (name, pathway),
+     * with room below for an inset separator.
      */
-    public static final int HEADER_H = 20;
-    public static final int HEAD = 16;
+    public static final int HEADER_H = 30;
+    public static final int HEAD = 24;
     public static final int HEAD_GAP = 6;
     /**
      * The second header line (the pathway) sits under the first.
      */
-    public static final int HEADER_LINE_2 = 11;
+    public static final int HEADER_LINE_2 = 14;
     private static final int SKIN_SHEET = 64;
     private static final int CREST_GAP = 3;
 
@@ -78,7 +78,7 @@ public final class PlateCard {
     private static final int RES_BAR_X = CARD_W - PAD - RES_VALUE_W - 4 - RES_BAR_W;
 
     private static final int BORDER = 0xCC000000;
-    private static final int DIVIDER = 0x40FFFFFF;
+    private static final int DIVIDER = 0x304D535C;
     private static final int VALUE_COLOR = 0xFFE0E0E0;
 
     /**
@@ -145,22 +145,12 @@ public final class PlateCard {
     }
 
     /**
-     * {@link CoiStyle#drawCard}'s recipe, in {@link CoiStyle}'s own three
-     * colours, with each one put through {@link HudOpacity}.
-     * <p>
-     * It is restated here rather than added to {@code CoiStyle} because that
-     * class is the chrome of the mod's <em>screens</em>, which have no ambient
-     * alpha and would have to import {@code hud} to get one. Only the three
-     * draw calls are duplicated — the colours are still read from
-     * {@code CoiStyle}, so the plate cannot drift away from the card language
-     * the sheet and the menus use.
+     * A quiet, translucent surface; the pathway artwork carries the identity.
      */
     public static void drawChrome(GuiGraphicsExtractor ctx, int x, int y, int w, int h) {
-        ctx.fill(x, y, x + w, y + h, HudOpacity.apply(CoiStyle.CARD_BG));
-        ctx.outline(x, y, w, h, HudOpacity.apply(CoiStyle.BORDER));
-        ctx.fill(x, y, x + w, y + 1, HudOpacity.apply(CoiStyle.ACCENT));
+        ctx.fillGradient(x, y, x + w, y + h, HudOpacity.apply(0xCC191C21), HudOpacity.apply(0xB0101217));
+        ctx.outline(x, y, w, h, HudOpacity.apply(0x60434951));
     }
-
     /**
      * Draws every gauge row from {@code rowY} down.
      *
@@ -189,8 +179,11 @@ public final class PlateCard {
     /**
      * Head, name, and the pathway line the crest colours.
      */
-    private static void drawHeader(GuiGraphicsExtractor ctx, Font font, int x, int y,
+    public static void drawHeader(GuiGraphicsExtractor ctx, Font font, int x, int y,
                                    AbstractClientPlayer player, String name, String pathway, int sequence) {
+        int rgb = Pathways.pathwayRgb(pathway);
+        CoiIcons.drawPathwayArtwork(ctx, font, pathway, x + CARD_W - 39, y + 3, 32,
+                HudOpacity.current() * 0.12f);
         int headX = x + PAD;
         // Centred against the two text lines, not against the padding
         int headY = y + PAD + (HEADER_H - HEAD) / 2;
@@ -205,19 +198,17 @@ public final class PlateCard {
                 Pathways.pathwayRgb(pathway));
     }
 
-    /**
-     * Emblem plus caption. The mod ships a real 9px emblem for every pathway
-     * behind the {@code pathway_icons} font, which is what the character sheet
-     * has always drawn — the plate uses the same one so the two screens can
-     * never show a player two different symbols for the same pathway. Names
-     * stay English and upper-cased, as everywhere else in the mod.
-     */
+    /** Quality pathway artwork with a caption that always reserves space for the sequence. */
     public static void drawPathwayLine(GuiGraphicsExtractor ctx, Font font, int x, int y,
                                        String pathway, int sequence, int rgb) {
         int argb = HudOpacity.apply(EffectPaint.argb(rgb, 255));
-        int emblemW = CoiIcons.drawPathwayEmblem(ctx, font, pathway, x, y, argb);
+        CoiIcons.drawPathwayArtwork(ctx, font, pathway, x, y - 1, 10, HudOpacity.current());
+        int emblemW = 10;
         int textX = x + emblemW + CREST_GAP;
-        String upper = pathway.toUpperCase(Locale.ROOT);
+        String upper = pathway.toUpperCase(Locale.ROOT).replace('_', ' ');
+        int available = CARD_W - PAD * 2 - HEAD - HEAD_GAP - emblemW - CREST_GAP;
+        int suffixWidth = sequence >= 0 ? font.width(Component.translatable("hud.coi.plate_pathway", "", sequence)) : 0;
+        upper = trim(font, upper, Math.max(0, available - suffixWidth));
         Component caption = sequence >= 0
                 ? Component.translatable("hud.coi.plate_pathway", upper, sequence)
                 : Component.translatable("hud.coi.plate_pathway_only", upper);
@@ -260,11 +251,11 @@ public final class PlateCard {
         int valueArgb = HudOpacity.apply(EffectPaint.argb(gauge.rgb(), 255));
         if (gauge.sub() == null) {
             // One line: centre it on the symbol rather than on the bar
-            ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 6, valueArgb, true);
+            ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + (ROW_H - font.lineHeight) / 2, valueArgb, true);
             return;
         }
-        ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 1, valueArgb, true);
-        ctx.text(font, gauge.sub(), right - font.width(gauge.sub()), rowY + 11,
+        ctx.text(font, gauge.value(), right - font.width(gauge.value()), rowY + 6, valueArgb, true);
+        ctx.text(font, gauge.sub(), right - font.width(gauge.sub()), rowY + 17,
                 HudOpacity.apply(CoiStyle.TEXT_MUTED), true);
     }
 

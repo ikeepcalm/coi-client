@@ -8,7 +8,7 @@ package dev.ua.ikeepcalm.coi.client.hud.render;
  * and the layout editor's preview can share it and can never disagree about
  * what "Unhinged" looks like.
  */
-public final class MadnessPalette {
+public class MadnessPalette {
 
     private MadnessPalette() {
     }

@@ -9,7 +9,7 @@ import dev.ua.ikeepcalm.coi.client.screen.settings.HudLayoutScreen;
  * screen draws sample-data previews in their place, so the player drags one
  * picture of each element instead of two copies fighting over the same pixels.
  */
-public final class HudLayout {
+public class HudLayout {
 
     private static boolean editing = false;
 

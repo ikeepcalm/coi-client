@@ -26,7 +26,7 @@ import net.minecraft.resources.Identifier;
  * sequence has come, the method cooldown when one is running, and a short
  * {@code +N} popup whenever the server reports a grant.
  */
-public final class ActingOverlay {
+public class ActingOverlay {
 
     private static final Identifier ACTING_LAYER = Identifier.fromNamespaceAndPath("coi-client", "acting");
 

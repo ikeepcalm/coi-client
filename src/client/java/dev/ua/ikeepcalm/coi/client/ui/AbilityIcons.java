@@ -25,7 +25,7 @@ import net.minecraft.world.item.Items;
  *   <li>otherwise the bundled {@code textures/icons/<category>/<tier>.png}.</li>
  * </ol>
  */
-public final class AbilityIcons {
+public class AbilityIcons {
 
     /**
      * The category folders that actually ship in this mod's assets. Anything

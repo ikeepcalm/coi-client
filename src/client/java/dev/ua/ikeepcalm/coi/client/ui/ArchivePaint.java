@@ -4,7 +4,7 @@ import dev.ua.ikeepcalm.coi.client.effect.visual.EffectPaint;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** Stationery and engraved registration marks, drawn at the current GUI resolution. */
-public final class ArchivePaint {
+public class ArchivePaint {
     public static final int PAPER = 0xFFD6CCB5;
     public static final int INK = 0xFF35352F;
     public static final int FAINT_INK = 0xFF797363;

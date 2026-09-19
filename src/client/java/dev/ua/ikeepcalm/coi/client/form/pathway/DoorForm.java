@@ -14,7 +14,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
  * <p>Procedural geometry, drawn once per frame against a blank texture; there is no baked model
  * and no texture atlas behind any of it.
  */
-public final class DoorForm implements MythicalCreatureForm {
+public class DoorForm implements MythicalCreatureForm {
 
     @Override
     public String getPathwayName() {

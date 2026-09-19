@@ -136,7 +136,7 @@ public class HealthBarPaint {
     }
 
     /**
-     * The bar exactly as 1.2.0 drew it, save for the absorption rule above.
+     * The compact health bar, with absorption layered over the health pool.
      */
     private static void bar(GuiGraphicsExtractor ctx, int x, int y, int w, int h,
                             double current, double max, double absorption, float flash, float pulse) {
@@ -169,8 +169,8 @@ public class HealthBarPaint {
         if (span != null) CoiBar.fill(ctx, span[0], y + 1, h - 2, span[1], ABSORB_TOP, ABSORB_BOTTOM);
 
         bevel(ctx, x, y, w, h);
-        brackets(ctx, x, y, w, h);
         flash(ctx, x, y, w, h, flash);
+        brackets(ctx, x, y, w, h);
         readoutInside(ctx, x, y, w, h, current, max);
     }
 

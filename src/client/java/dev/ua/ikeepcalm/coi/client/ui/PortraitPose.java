@@ -1,4 +1,4 @@
-﻿package dev.ua.ikeepcalm.coi.client.ui;
+package dev.ua.ikeepcalm.coi.client.ui;
 
 import dev.ua.ikeepcalm.coi.client.ability.Pathways;
 import net.minecraft.client.model.player.PlayerModel;

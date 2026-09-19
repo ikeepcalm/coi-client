@@ -23,7 +23,7 @@ import net.minecraft.resources.Identifier;
  * cannot be defeated by the player's resource pack, which is why a server names
  * it for anything conceptual.
  */
-public final class MenuIcons {
+public class MenuIcons {
 
     /**
      * How faint the document's pathway emblem sits behind the card. Any louder

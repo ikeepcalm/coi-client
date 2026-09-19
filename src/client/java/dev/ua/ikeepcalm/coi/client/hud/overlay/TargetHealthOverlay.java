@@ -22,7 +22,7 @@ import net.minecraft.resources.Identifier;
  * per hit. The chunk between {@code before} and {@code after} flashes white
  * briefly so the damage itself is legible, then settles to dark red.
  */
-public final class TargetHealthOverlay {
+public class TargetHealthOverlay {
 
     private static final Identifier TARGET_LAYER = Identifier.fromNamespaceAndPath("coi-client", "target");
 

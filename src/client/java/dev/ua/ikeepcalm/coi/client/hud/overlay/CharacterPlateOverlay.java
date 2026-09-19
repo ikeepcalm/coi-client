@@ -11,7 +11,6 @@ import dev.ua.ikeepcalm.coi.client.hud.render.PlateSymbols;
 import dev.ua.ikeepcalm.coi.client.state.ActingState;
 import dev.ua.ikeepcalm.coi.client.state.BeyonderState;
 import dev.ua.ikeepcalm.coi.client.state.ResourceState;
-import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +44,7 @@ import net.minecraft.util.Mth;
  * This class reads the state and decides which rows exist; {@link PlateCard}
  * paints them.
  */
-public final class CharacterPlateOverlay {
+public class CharacterPlateOverlay {
 
     private static final Identifier PLATE_LAYER = Identifier.fromNamespaceAndPath("coi-client", "character_plate");
 
@@ -266,11 +265,7 @@ public final class CharacterPlateOverlay {
      */
     private static void drawPreviewHeader(GuiGraphicsExtractor ctx, Font font,
                                           int x, int y, AbstractClientPlayer player, int rgb) {
-        PlateCard.drawHead(ctx, player, x + PlateCard.PAD,
-                y + PlateCard.PAD + (PlateCard.HEADER_H - PlateCard.HEAD) / 2);
-        int textX = x + PlateCard.PAD + PlateCard.HEAD + PlateCard.HEAD_GAP;
-        ctx.text(font, Component.translatable("screen.coi.plate_sample_name"), textX, y + PlateCard.PAD,
-                HudOpacity.apply(CoiStyle.TEXT_BODY), true);
-        PlateCard.drawPathwayLine(ctx, font, textX, y + PlateCard.PAD + PlateCard.HEADER_LINE_2, "FOOL", 5, rgb);
+        PlateCard.drawHeader(ctx, font, x, y, player,
+                Component.translatable("screen.coi.plate_sample_name").getString(), "fool", 5);
     }
 }

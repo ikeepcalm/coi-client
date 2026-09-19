@@ -14,7 +14,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
  * <p>Procedural geometry, drawn once per frame against a blank texture; there is no baked model
  * and no texture atlas behind any of it.
  */
-public final class DarknessForm implements MythicalCreatureForm {
+public class DarknessForm implements MythicalCreatureForm {
 
     private static final float SPIDER_LEG_THICKNESS = 0.032f;
 

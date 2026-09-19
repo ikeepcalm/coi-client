@@ -23,7 +23,7 @@ import net.minecraft.world.item.component.CustomData;
  * end up looking the same: the pathway emblem in front of the item's name, and
  * the sequence spelled out underneath in the pathway's colour.
  */
-public final class IngredientTooltips {
+public class IngredientTooltips {
 
     /** Bukkit stores an item's persistent data under this tag. */
     private static final String BUKKIT_VALUES = "PublicBukkitValues";

@@ -46,7 +46,7 @@ import net.minecraft.world.phys.Vec3;
  * every spelling of a pathway name onto its form, while {@code TRANSFORMED} follows the
  * {@code coi-client:mythical} packets and is cleared on disconnect.
  */
-public final class MythicalFormManager {
+public class MythicalFormManager {
 
     /** Player UUID to the pathway they are currently transformed into. */
     private static final Map<String, String> TRANSFORMED = new ConcurrentHashMap<>();

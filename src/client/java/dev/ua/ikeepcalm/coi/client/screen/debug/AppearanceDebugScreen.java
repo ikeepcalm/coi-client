@@ -19,7 +19,7 @@ import org.jspecify.annotations.NonNull;
  * inventory-style render, so a trait's geometry can be judged without a server
  * to send the packet.
  */
-public final class AppearanceDebugScreen extends Screen {
+public class AppearanceDebugScreen extends Screen {
 
     private static final int PANEL_W = 560;
     private static final int PANEL_H = 330;

@@ -10,7 +10,7 @@ package dev.ua.ikeepcalm.coi.client.hud.layout.element;
  * {@code HudElements} re-exports each one, which is the name the rest of the
  * mod uses.
  */
-public final class ElementIds {
+public class ElementIds {
 
     /**
      * Group id shared by every {@code slot_N} element; also the id the HUD

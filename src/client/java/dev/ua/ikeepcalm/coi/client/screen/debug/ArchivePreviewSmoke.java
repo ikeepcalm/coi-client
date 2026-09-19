@@ -43,6 +43,18 @@ public class ArchivePreviewSmoke {
         long handle = client.getWindow().handle();
         GLFW.glfwGetWindowSize(handle, width, height);
         GLFW.glfwSetCursorPos(handle, width[0] * x, height[0] * y);
+        // Unfocused capture windows may not receive GLFW's move callback.
+        // This runner is development-only; keep its synthetic pointer deterministic.
+        try {
+            var mouseX = net.minecraft.client.MouseHandler.class.getDeclaredField("xpos");
+            var mouseY = net.minecraft.client.MouseHandler.class.getDeclaredField("ypos");
+            mouseX.setAccessible(true);
+            mouseY.setAccessible(true);
+            mouseX.setDouble(client.mouseHandler, width[0] * x);
+            mouseY.setDouble(client.mouseHandler, height[0] * y);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Cannot position capture pointer", exception);
+        }
     }
 
     private static void capture(Minecraft client, String name) {
@@ -61,7 +73,7 @@ public class ArchivePreviewSmoke {
                  "health":40,"maxHealth":40,"spirituality":1200,"maxSpirituality":1600,
                  "actions":{"church":true,"abilities":true,"mythical":true,"uniqueness":true,
                  "honorific":true,"map":true,"seat":true}}
-                """.formatted(pathway, pathway, sequence, name));
+                """.formatted(pathway, Pathways.formatPathwayName(pathway), sequence, name));
         client.gui.setScreen(new CharacterSheetScreen(null));
     }
 
@@ -161,6 +173,31 @@ public class ArchivePreviewSmoke {
     private void tick(Minecraft client) {
         if (client.player == null || !client.hasSingleplayerServer()) return;
         ticks++;
+        // Keep hover tooltips out of exports, except during the cursor-follow captures.
+        if (!Boolean.getBoolean("coi.portraitPreview") || ticks < 40 + (Pathways.RING.size() + 1) * 32 + 48)
+            cursor(client, .99, .01);
+        if (Boolean.getBoolean("coi.hudPreview")) {
+            if (ticks == 40) {
+                client.options.guiScale().set(2);
+                client.resizeGui();
+                client.gui.setScreen(new HudPreviewScreen(false));
+            }
+            if (ticks == 65) capture(client, "hud-instruments");
+            if (ticks == 70) {
+                client.options.guiScale().set(3);
+                client.resizeGui();
+            }
+            if (ticks == 95) capture(client, "hud-instruments-large");
+            if (ticks == 100) client.gui.setScreen(new HudPreviewScreen(true));
+            if (ticks == 120) capture(client, "hud-health-large");
+            if (ticks == 125) {
+                client.options.guiScale().set(2);
+                client.resizeGui();
+            }
+            if (ticks == 145) capture(client, "hud-health");
+            if (ticks == 150) client.stop();
+            return;
+        }
         if (Boolean.getBoolean("coi.portraitPreview")) {
             portraitTick(client);
             return;
@@ -170,6 +207,7 @@ public class ArchivePreviewSmoke {
                 HudConfig.getSettings().epilepsyMode = true;
                 client.options.guiScale().set(2);
                 client.resizeGui();
+                ServerCapabilities.handle("{\"protocol\":2,\"features\":[\"menu_archive\",\"character_sheet\"]}");
                 SheetState.debugInject();
                 client.gui.setScreen(new CharacterSheetScreen(null));
             }
@@ -266,7 +304,7 @@ public class ArchivePreviewSmoke {
                     throw new IllegalStateException("Direct category picker failed");
             }
             case 705 -> click(client, client.gui.screen().width / 2, 110);
-            case 710 -> type(client, "Secondary action");
+            case 710 -> type(client, net.minecraft.client.resources.language.I18n.get("screen.coi.manual_secondary"));
             case 715 -> {
                 client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
                 String stored = AbilityConfig.loadBindings()[0];
@@ -369,7 +407,7 @@ public class ArchivePreviewSmoke {
             int sequence = shot % 2 == 0 ? 9 : 0;
             if (phase % 16 == 0) {
                 HudConfig.getSettings().epilepsyMode = false;
-                portrait(client, pathway, sequence, "Portrait preview");
+                portrait(client, pathway, sequence, "");
             } else if (phase % 16 == 12) capture(client, "pathway-" + pathway + "-" + sequence);
             return;
         }

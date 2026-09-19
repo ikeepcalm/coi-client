@@ -24,7 +24,7 @@ import net.minecraft.util.FormattedCharSequence;
  * Each toast slides in, holds for its own duration and fades out; under
  * {@code epilepsyMode} the slide is dropped and it simply fades.
  */
-public final class NotificationOverlay {
+public class NotificationOverlay {
 
     private static final Identifier NOTIFY_LAYER = Identifier.fromNamespaceAndPath("coi-client", "notify");
 

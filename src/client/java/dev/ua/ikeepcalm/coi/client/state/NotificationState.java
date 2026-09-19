@@ -19,7 +19,7 @@ import java.util.List;
  * and are promoted (with a fresh {@code shownAt}) as slots free up, so a burst
  * of events reads as a sequence rather than a pile.
  */
-public final class NotificationState {
+public class NotificationState {
 
     public static final int MAX_VISIBLE = 3;
     public static final long SLIDE_MS = 250;

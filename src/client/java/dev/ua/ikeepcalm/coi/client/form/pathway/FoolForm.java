@@ -13,7 +13,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
  * <p>Procedural geometry, drawn once per frame against a blank texture; there is no baked model
  * and no texture atlas behind any of it.
  */
-public final class FoolForm implements MythicalCreatureForm {
+public class FoolForm implements MythicalCreatureForm {
 
     @Override
     public String getPathwayName() {

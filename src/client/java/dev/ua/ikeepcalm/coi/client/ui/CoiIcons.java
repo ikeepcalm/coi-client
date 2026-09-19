@@ -25,7 +25,7 @@ import net.minecraft.resources.Identifier;
  * cached per identifier and cleared on resource reload, exactly as
  * {@code IconModels} does for item models.
  */
-public final class CoiIcons {
+public class CoiIcons {
 
     /**
      * Settings cog, beside the HUD settings title.

@@ -18,7 +18,7 @@ import net.minecraft.util.Mth;
  * three lines: a slot still sitting in the shared row has to move <em>with the
  * row</em> rather than be pinned where it happens to be standing.
  */
-public final class LayoutGroups {
+public class LayoutGroups {
 
     private LayoutGroups() {
     }

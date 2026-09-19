@@ -39,7 +39,7 @@ import net.minecraft.util.Mth;
  * plate sits inside a {@link HudScale} push, whereas a sub-rect composes with
  * whatever transform is already on the pose.
  */
-public final class PlateSymbols {
+public class PlateSymbols {
 
     /**
      * The sheet's edge, and the size the symbol is drawn at — the two are equal

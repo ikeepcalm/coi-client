@@ -15,7 +15,7 @@ import com.google.gson.JsonParser;
  * timeouts every 40 ticks, so the local time bar can sit at 0 for up to two
  * seconds before a {@code fail} actually arrives.
  */
-public final class CogitationState {
+public class CogitationState {
 
     /**
      * How long the "Wrong!" line stays up after a failed action.

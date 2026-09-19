@@ -46,7 +46,7 @@ import net.minecraft.util.Mth;
  * {@link HealthStyle} owns which shape is drawn and {@link HealthBarPaint} owns
  * the pixels of all four.
  */
-public final class BeyonderHealthOverlay {
+public class BeyonderHealthOverlay {
 
     /**
      * The box every style occupies. It runs from the hotbar's left edge

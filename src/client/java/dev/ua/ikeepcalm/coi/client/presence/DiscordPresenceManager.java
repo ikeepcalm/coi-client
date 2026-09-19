@@ -28,7 +28,7 @@ import java.util.Set;
  * image keys are the pathway names ("fool", "door", …) with "logo" as the
  * fallback
  */
-public final class DiscordPresenceManager {
+public class DiscordPresenceManager {
 
     private static final long APP_ID = 1525950133848506419L;
 

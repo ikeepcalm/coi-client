@@ -13,7 +13,7 @@ import net.minecraft.client.resources.language.I18n;
  * The acting bar. Absent from the editor entirely while the character plate is
  * on — the plate carries the same number as its mask gauge.
  */
-public final class ActingElement extends BarElement {
+public class ActingElement extends BarElement {
 
     /**
      * Sample progress for the preview, drawn in the Fool's colour.

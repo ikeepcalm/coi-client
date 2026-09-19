@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
  * name, so it cannot drift between call sites, and the lines land in the game's
  * log with a level and a timestamp like every other mod's.
  */
-public final class CoiLog {
+public class CoiLog {
 
     public static final Logger LOG = LoggerFactory.getLogger("COI Client");
 

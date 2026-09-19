@@ -20,7 +20,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * renderer centres the scaled block inside the box the caller asked for — a
  * 16px box gives 2px cells, a 32px box 4px ones, both exact.
  */
-public final class SheetGlyphs {
+public class SheetGlyphs {
 
     /**
      * The bundled 16px glyphs this screen names, one per section heading and one

@@ -20,7 +20,7 @@ import net.minecraft.network.chat.ComponentSerialization;
  * the list wholesale, and entries then expire locally at
  * {@code receivedAt + ttlMs} so the HUD keeps draining between pushes.
  */
-public final class ActionBarState {
+public class ActionBarState {
 
     /**
      * One channel's message. {@code expiresAtMs} is already absolute.

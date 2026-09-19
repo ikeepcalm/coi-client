@@ -15,7 +15,7 @@ import dev.ua.ikeepcalm.coi.client.menu.MenuParser;
  * Comparing {@code version} would not do: the server mints a fresh session (and
  * restarts its versions) for every menu it opens.
  */
-public final class MenuState {
+public class MenuState {
 
     private static MenuDocument document;
     private static int revision;

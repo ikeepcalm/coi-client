@@ -16,7 +16,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * The screen effects cover the whole window, so a caller draws them
  * <em>outside</em> any per-element scale push.
  */
-public final class MadnessCorruption {
+public class MadnessCorruption {
 
     private static final String GLITCH_GLYPHS = "#%&@!?/\\";
 

@@ -9,7 +9,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * dark/gold look). Every custom screen draws from here so the mod reads as one
  * interface.
  */
-public final class CoiStyle {
+public class CoiStyle {
 
     public static final int CARD_BG = 0xF0121216;
     public static final int TAB_BG_UNSELECTED = 0xC0121216;

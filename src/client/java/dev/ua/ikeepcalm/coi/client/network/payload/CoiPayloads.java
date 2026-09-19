@@ -21,7 +21,7 @@ import net.minecraft.resources.Identifier;
  * ability list or a whole menu document blows straight through, and both ends
  * have to agree on the number or the packet is rejected mid-flight.
  */
-public final class CoiPayloads {
+public class CoiPayloads {
 
     /**
      * The plugin-message namespace both repos use.

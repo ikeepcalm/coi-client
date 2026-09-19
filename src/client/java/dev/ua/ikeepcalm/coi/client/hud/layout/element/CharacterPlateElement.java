@@ -16,7 +16,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * and shrinks with whatever the server is sending, but the editor draws the
  * preview, so the grab box has to match that instead.
  */
-public final class CharacterPlateElement extends AbstractElement {
+public class CharacterPlateElement extends AbstractElement {
 
     public CharacterPlateElement() {
         super(ElementIds.CHARACTER_PLATE);

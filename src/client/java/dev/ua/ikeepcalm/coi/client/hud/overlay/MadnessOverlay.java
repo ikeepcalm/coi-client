@@ -30,12 +30,12 @@ import net.minecraft.util.Mth;
  * The bar itself is a readout and stands down for the plate's sanity gauge.
  * <p>
  * From stage 2 the bar stops being a clean rail: it trembles, tears, cracks
- * and eventually corrupts its own label. Each of those is one layer below,
+ * while its numerical readout remains legible. Each of those is one layer below,
  * drawn in the order they stack — on the cadence
  * {@link MadnessCorruption#bursting} hands out, which is also what the screen
  * effects run on, so the HUD comes apart as one thing.
  */
-public final class MadnessOverlay {
+public class MadnessOverlay {
 
     private static final Identifier MADNESS_LAYER = Identifier.fromNamespaceAndPath("coi-client", "madness");
 
@@ -107,6 +107,7 @@ public final class MadnessOverlay {
     private static void renderMadnessBar(GuiGraphicsExtractor ctx, Minecraft client, int[] pos,
                                          double madness, double permMadness, int freezeStacks, int mentalPressure, double tiredness, int stage) {
         Font textRenderer = client.font;
+        boolean calm = HudConfig.getSettings().epilepsyMode;
         long time = System.currentTimeMillis();
 
         smoothTowards(madness, time);
@@ -115,12 +116,12 @@ public final class MadnessOverlay {
         int barWidth = BAR_WIDTH;
         int barHeight = BAR_HEIGHT;
 
-        float flash = BeyonderState.getFlashIntensity();
-        int[] shaken = shake(pos[0], pos[1], stage, time, flash);
+        float flash = calm ? 0f : BeyonderState.getFlashIntensity();
+        int[] shaken = calm ? pos : shake(pos[0], pos[1], stage, time, flash);
         int barX = shaken[0];
         int barY = shaken[1];
 
-        MadnessPalette.Style style = MadnessPalette.of(stage, time);
+        MadnessPalette.Style style = MadnessPalette.of(stage, HudConfig.getSettings().epilepsyMode ? 0 : time);
         int mainColorTop = style.top();
         int mainColorBottom = style.bottom();
         int textColor = style.text();
@@ -139,9 +140,9 @@ public final class MadnessOverlay {
         }
 
         // 3. Primary filled region for current (smoothed) madness
-        int madnessWidth = unsteadyWidth(barWidth, stage, time);
+        int madnessWidth = calm ? CoiBar.lerpWidth(shownMadness, 100.0, barWidth) : unsteadyWidth(barWidth, stage, time);
 
-        boolean burst = MadnessCorruption.bursting(time); // shared cadence with the glitch overlay
+        boolean burst = !calm && MadnessCorruption.bursting(time); // shared cadence with the glitch overlay
 
         // Stage 4: RGB-split ghost copies bleeding out from under the fill
         if (stage == 4 && madnessWidth > 0 && burst) {
@@ -152,7 +153,7 @@ public final class MadnessOverlay {
         CoiBar.fill(ctx, barX, barY, barHeight, madnessWidth, mainColorTop, mainColorBottom);
 
         // 4. Calm stages get a slow shimmer sweeping across the fill
-        if (stage <= 1) {
+        if (stage <= 1 && !calm) {
             CoiBar.shimmer(ctx, barX, barY, barHeight, madnessWidth, time, SHIMMER_PERIOD_MS);
         }
 
@@ -174,10 +175,11 @@ public final class MadnessOverlay {
         // 8. Threshold notches at 25 / 50 / 75
         CoiBar.notches(ctx, barX, barY, barWidth, barHeight, 4, 0x50000000);
 
+
         // 9. permanentMadness marker line — blinks once the mind starts slipping
         if (permWidth > 0 && permWidth <= barWidth) {
             int markerA = 0xDD;
-            if (stage >= 3) {
+            if (stage >= 3 && !calm) {
                 markerA = (int) (0x66 + 0x77 * (0.5f + 0.5f * Math.sin(time * 0.012)));
             }
             ctx.fill(barX + permWidth - 1, barY - 1, barX + permWidth + 1, barY + barHeight + 1, (markerA << 24) | 0xFFFFFF);
@@ -189,12 +191,7 @@ public final class MadnessOverlay {
             ctx.fill(barX, barY, barX + madnessWidth, barY + barHeight, flashColor);
         }
 
-        // 11. Text Indicator: Madness: 42.5% / 100% (Status, Min: 5.0%)
-        String text = label(madness, statusName, permMadness);
-        if (stage == 4 && burst) {
-            text = MadnessCorruption.corruptText(text, time);
-        }
-        CoiBar.label(ctx, textRenderer, text, barX, barY, barWidth, textColor);
+        drawReadout(ctx, textRenderer, barX, barY, madness, permMadness, statusName, textColor);
 
         // 12. Render other conditions (Freeze, Mental Pressure, Tiredness) below the bar
         drawExtras(ctx, textRenderer, barX, barY, barWidth, barHeight, freezeStacks, mentalPressure, tiredness);
@@ -323,10 +320,15 @@ public final class MadnessOverlay {
         ctx.text(textRenderer, extraText, extraX, extraY, 0xFF77AADD, true);
     }
 
-    private static String label(double madness, String statusName, double permMadness) {
-        return String.format("Madness: %.1f%% / 100%% (%s, Min: %.1f%%)", madness, statusName, permMadness);
+    private static void drawReadout(GuiGraphicsExtractor ctx, Font font, int x, int y,
+                                    double value, double permanent, String status, int color) {
+        String number = String.format(java.util.Locale.ROOT, "Madness %.1f%%", value);
+        String detail = permanent > 0 ? status + String.format(java.util.Locale.ROOT, " · Min %.0f%%", permanent) : status;
+        int room = BAR_WIDTH - font.width(number) - 8;
+        detail = font.plainSubstrByWidth(detail, Math.max(0, room));
+        ctx.text(font, number, x + 1, y - 10, color, true);
+        ctx.text(font, detail, x + BAR_WIDTH - font.width(detail), y - 10, 0xFFC2BBAA, true);
     }
-
     /**
      * Top-left corner of the bar. {@code madnessYOffset} feeds both anchor
      * families, so the layout editor can drag the bar in either one.
@@ -358,7 +360,7 @@ public final class MadnessOverlay {
                                  double shownValue, double permanentValue, long time) {
         Font font = Minecraft.getInstance().font;
         int stage = stageOf(shownValue);
-        MadnessPalette.Style style = MadnessPalette.of(stage, time);
+        MadnessPalette.Style style = MadnessPalette.of(stage, HudConfig.getSettings().epilepsyMode ? 0 : time);
 
         CoiBar.frame(ctx, barX, barY, BAR_WIDTH, BAR_HEIGHT, style.border());
 
@@ -369,14 +371,14 @@ public final class MadnessOverlay {
 
         int fillWidth = CoiBar.lerpWidth(shownValue, 100.0, BAR_WIDTH);
         CoiBar.fill(ctx, barX, barY, BAR_HEIGHT, fillWidth, style.top(), style.bottom());
-        CoiBar.shimmer(ctx, barX, barY, BAR_HEIGHT, fillWidth, time, SHIMMER_PERIOD_MS);
+        if (!HudConfig.getSettings().epilepsyMode)
+            CoiBar.shimmer(ctx, barX, barY, BAR_HEIGHT, fillWidth, time, SHIMMER_PERIOD_MS);
         CoiBar.notches(ctx, barX, barY, BAR_WIDTH, BAR_HEIGHT, 4, 0x50000000);
 
         if (permWidth > 0 && permWidth <= BAR_WIDTH) {
             ctx.fill(barX + permWidth - 1, barY - 1, barX + permWidth + 1, barY + BAR_HEIGHT + 1, 0xDDFFFFFF);
         }
 
-        CoiBar.label(ctx, font, label(shownValue, style.status(), permanentValue),
-                barX, barY, BAR_WIDTH, style.text());
+        drawReadout(ctx, font, barX, barY, shownValue, permanentValue, style.status(), style.text());
     }
 }

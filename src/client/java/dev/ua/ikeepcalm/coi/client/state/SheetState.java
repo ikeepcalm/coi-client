@@ -18,7 +18,7 @@ import java.util.List;
  * fields somebody has to remember to extend. Parsing lives next door in
  * {@code SheetParser}.
  */
-public final class SheetState {
+public class SheetState {
 
     /**
      * One acting ledger row: how much a single source has contributed and the
