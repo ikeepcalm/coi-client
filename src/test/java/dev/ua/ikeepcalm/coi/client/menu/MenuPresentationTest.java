@@ -4,6 +4,14 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MenuPresentationTest {
+    @Test void manualPresentationRetainsServerControls() {
+        MenuDocument doc = document("{\"template\":\"ability_manual\"}");
+        assertTrue(doc.presentation().abilityManual());
+        assertFalse(doc.presentation().specimen());
+        MenuComponent.Button button = (MenuComponent.Button) doc.sections().getFirst().components().getFirst();
+        assertEquals("server-action", button.id());
+        assertFalse(button.enabled());
+    }
     private MenuDocument document(String presentation) {
         return MenuParser.parse("""
                 {"session":"token","version":12,"screen":"any.server.screen",

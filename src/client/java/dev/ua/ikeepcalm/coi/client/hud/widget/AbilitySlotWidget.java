@@ -351,6 +351,7 @@ public final class AbilitySlotWidget {
     }
 
     public void setAbility(String abilityId) {
+        if (!Objects.equals(this.abilityId, abilityId)) setCooldown(0, 0);
         this.abilityId = abilityId;
         this.categoryLabel = null;
         if (abilityId != null && abilityId.contains(" - ")) {
@@ -385,8 +386,10 @@ public final class AbilitySlotWidget {
     }
 
     public void setCategoryLabel(String categoryLabel) {
-        this.categoryLabel = categoryLabel;
+        this.categoryLabel = AbilityInfo.extractCategory(abilityId).isEmpty() ? categoryLabel : null;
     }
+
+    public String boundCategory() { return AbilityInfo.extractCategory(abilityId); }
 
     /**
      * Exact-id match - {@code contains} used to let {@code sun-9-0} light up

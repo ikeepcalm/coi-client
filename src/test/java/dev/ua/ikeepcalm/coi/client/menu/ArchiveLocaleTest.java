@@ -15,7 +15,8 @@ class ArchiveLocaleTest {
         Pattern argument = Pattern.compile("%(?:\\d+\\$)?[sd]");
         for (String key : english.keySet()) {
             if (!key.startsWith("screen.coi.sheet_") && !key.startsWith("screen.coi.dossier_")
-                    && !key.startsWith("screen.coi.specimen_")) continue;
+                    && !key.startsWith("screen.coi.specimen_") && !key.startsWith("screen.coi.manual_")
+                    && !key.startsWith("screen.coi.picker_") && !key.equals("screen.coi.category_unavailable")) continue;
             assertTrue(ukrainian.has(key), key);
             String translation = ukrainian.get(key).getAsString();
             assertFalse(translation.isBlank(), key);

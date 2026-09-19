@@ -15,6 +15,7 @@ public record AbilityInfo(String abilityId, String localizedName, String english
     public static final String ACTION_EXECUTE = "execute";
     public static final String ACTION_LEFT_CLICK = "left_click";
     private static final String LEFT_CLICK_MARKER = "#left_click";
+    private static final String CATEGORY_MARKER = "#category=";
 
     /**
      * Wire values of the {@code kind} field.
@@ -50,9 +51,38 @@ public record AbilityInfo(String abilityId, String localizedName, String english
         return locked || blocked;
     }
 
+    public AbilityInfo withCastingStats(int newCost, double newDrain, int newCooldown) {
+        return new AbilityInfo(abilityId, localizedName, englishName, category, hasLeftClick, kind, description,
+                newCost, newDrain, newCooldown, pathway, sequence, active, locked, blocked, blockedBy, icon);
+    }
+
+    public AbilityInfo withActive(boolean newActive) {
+        return new AbilityInfo(abilityId, localizedName, englishName, category, hasLeftClick, kind, description,
+                cost, drainPerSecond, cooldownSeconds, pathway, sequence, newActive, locked, blocked, blockedBy, icon);
+    }
+
     public static String formatStored(String abilityId, String displayName, String action) {
         String storedId = ACTION_LEFT_CLICK.equals(action) ? abilityId + LEFT_CLICK_MARKER : abilityId;
         return storedId + " - " + displayName;
+    }
+
+    public static String formatCategory(String abilityId, String displayName, String category) {
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(category.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return abilityId + CATEGORY_MARKER + encoded + " - " + displayName;
+    }
+
+    public static String extractCategory(String stored) {
+        if (stored == null) return "";
+        String id = stored.split(" - ", 2)[0];
+        int marker = id.indexOf(CATEGORY_MARKER);
+        if (marker < 0) return "";
+        try {
+            return new String(java.util.Base64.getUrlDecoder().decode(id.substring(marker + CATEGORY_MARKER.length())),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ignored) {
+            return "";
+        }
     }
 
     /**
@@ -61,6 +91,7 @@ public record AbilityInfo(String abilityId, String localizedName, String english
     public static String extractId(String stored) {
         if (stored == null) return null;
         String id = stored.contains(" - ") ? stored.split(" - ")[0] : stored;
+        if (id.contains(CATEGORY_MARKER)) return id.substring(0, id.indexOf(CATEGORY_MARKER));
         return id.endsWith(LEFT_CLICK_MARKER) ? id.substring(0, id.length() - LEFT_CLICK_MARKER.length()) : id;
     }
 

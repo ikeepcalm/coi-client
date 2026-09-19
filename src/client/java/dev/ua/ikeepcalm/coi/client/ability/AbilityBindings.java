@@ -141,6 +141,7 @@ public class AbilityBindings {
         return AbilityRegistry.entries().stream()
                 .filter(a -> Objects.equals(AbilityInfo.extractId(a), boundId))
                 .filter(a -> Objects.equals(AbilityInfo.extractAction(a), boundAction))
+                .filter(a -> Objects.equals(AbilityInfo.extractCategory(a), AbilityInfo.extractCategory(storedAbility)))
                 .findFirst()
                 .orElse(null);
     }

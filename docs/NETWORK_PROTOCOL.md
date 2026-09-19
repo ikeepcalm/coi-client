@@ -613,3 +613,9 @@ picker, the acting bar and the mythical-form burst all read from it. `eternalaeo
 | 2 (batch 4) | Still protocol 2. Adds `sheet` and the `character_sheet` feature id on both sides, plus the `sheet_open`, `sheet_close`, `open` and `toggle_terrain` actions on `coi-client:action`. No change to `conditions`. |
 | 2 (batch 5) | Still protocol 2. Adds `resource` and the `resource_bar` feature id on both sides — client-rendered resource meters replace the server's RESERVE glyph bars and per-ability reserve boss bars. No change to `conditions`. |
 | 2 (batch 6) | Still protocol 2. Adds `menu` and `menu_action` and the `menu_ui` feature id on both sides — declarative client-rendered menus replace the InvUI chest GUIs — plus the `ui` field on `coi-client:action`'s `open`. No change to `conditions`. |
+
+## Category casts and manual presentation
+
+Protocol 2 peers may advertise ability_categories and ability_manual. See
+[ABILITY_MANUAL.md](ABILITY_MANUAL.md#protocol-additions-protocol-2) for the use_category
+channel, category metadata/state fields, compatibility behavior and binding storage contract.

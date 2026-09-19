@@ -177,9 +177,22 @@ public final class CoiKeyBindings {
 
         String abilityId = AbilityInfo.extractId(abilityIdWithName);
         String action = AbilityInfo.extractAction(abilityIdWithName);
-
-        ClientPlayNetworking.send(new AbilityUsePayload(abilityId, action));
-        AbilityOverlay.onAbilityCast(abilityId);
+        String category = AbilityInfo.extractCategory(abilityIdWithName);
+        if (!category.isEmpty()) {
+            if (!dev.ua.ikeepcalm.coi.client.network.ServerCapabilities.has("ability_categories")
+                    || dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.find(abilityId, category) == null
+                    || !ClientPlayNetworking.canSend(dev.ua.ikeepcalm.coi.client.network.payload.AbilityCategoryUsePayload.ID)) {
+                com.google.gson.JsonObject message = new com.google.gson.JsonObject();
+                message.addProperty("title", Component.translatable("screen.coi.category_unavailable").getString());
+                dev.ua.ikeepcalm.coi.client.state.NotificationState.handle(message.toString());
+                return;
+            }
+            ClientPlayNetworking.send(new dev.ua.ikeepcalm.coi.client.network.payload.AbilityCategoryUsePayload(abilityId, category));
+        } else {
+            if (!ClientPlayNetworking.canSend(AbilityUsePayload.ID)) return;
+            ClientPlayNetworking.send(new AbilityUsePayload(abilityId, action));
+        }
+        AbilityOverlay.onAbilityCast(abilityIdWithName);
     }
 
     /**

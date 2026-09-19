@@ -37,7 +37,7 @@ public final class ClientFeatures {
             "character_sheet",
             "resource_bar",
             "menu_ui",
-            "menu_specimen"
+            "menu_specimen", "ability_categories", "ability_manual"
     );
 
     private ClientFeatures() {

@@ -1,13 +1,12 @@
 package dev.ua.ikeepcalm.coi.client.screen.ability;
 
-import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
-import dev.ua.ikeepcalm.coi.client.screen.ability.PickerModel.Row;
-import dev.ua.ikeepcalm.coi.client.screen.ability.PickerModel.RowKind;
-import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
-
+import dev.ua.ikeepcalm.coi.client.ability.*;
+import dev.ua.ikeepcalm.coi.client.ui.*;
+import dev.ua.ikeepcalm.coi.client.screen.menu.MenuTheme;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -15,262 +14,389 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
-/**
- * Modal ability chooser: a search box over a list bracketed by pathway <em>and
- * sequence</em>, each ability a two-line card carrying the numbers that tell one
- * spell from another (cost, cooldown, category, kind). Not a screen child — the owning
- * screen renders it last (on its own stratum) and routes all input here while
- * {@link #isOpen()}.
- * <p>
- * The list is a flat {@link Row} list mixing clickable entries with inert
- * headers and messages, so scrolling, hit-testing and keyboard arithmetic all
- * walk the same structure instead of guessing at index offsets. This class owns
- * the panel geometry and the input; {@link PickerModel} owns the rows and the
- * pixel arithmetic, {@link PickerPainter} draws them.
- */
+/** Field manual shared by the server catalogue and all three local binding pickers. */
 public class AbilityPickerOverlay {
-
-    private boolean open = false;
-    private Component title = Component.empty();
-    private String currentSelection;
-    private Consumer<String> onSelect;
-    private EditBox searchBox;
+    private record Hit(int x, int y, int w, int h, Runnable action) {
+        boolean contains(double mx, double my) { return mx >= x && mx < x+w && my >= y && my < y+h; }
+    }
     private final PickerModel model = new PickerModel();
-    private int scrollOffset = 0;
-    /** Whether this connection carries cost/cooldown numbers at all — see {@link PickerModel#detectMeta()}. */
-    private boolean metaAvailable = false;
+    private final List<Hit> hits = new ArrayList<>();
+    private boolean open, browsing, detailsOnly, assigning;
+    private Component contextTitle = Component.empty();
+    private Consumer<String> onSelect;
+    private EditBox search;
+    private String selected, feedback = "";
+    private int x, y, w, h, top, bottom, indexW, detailX, detailW, listScroll, detailScroll, detailHeight;
+    private boolean wide, paintingDetails;
+    private long feedbackUntil;
+    private int feedbackColor = MenuTheme.SUCCESS;
+    private int keyboardHit = -1;
+    private Runnable onExit;
+    private dev.ua.ikeepcalm.coi.client.menu.MenuDocument serverDocument;
+    private Consumer<String> serverAction;
 
-    // Panel geometry, recomputed every render frame; mouse events reuse the last frame's values
-    private int panelX, panelY, panelW, panelH, listTop, listH;
-
-    // Row under the cursor this frame; the tooltip for it is emitted after the
-    // list's scissor is popped, otherwise it would be clipped away
-    private String hoveredOption;
-
-    public void open(Component contextTitle, String currentSelection, Consumer<String> onSelect) {
-        this.open = true;
-        this.title = contextTitle;
-        this.currentSelection = currentSelection;
-        this.onSelect = onSelect;
-        this.scrollOffset = 0;
-        this.metaAvailable = PickerModel.detectMeta();
-
-        Font font = Minecraft.getInstance().font;
-        this.searchBox = new EditBox(font, 0, 0, 100, PickerMetrics.SEARCH_H, Component.translatable("screen.coi.picker_search_hint"));
-        searchBox.setMaxLength(60);
-        searchBox.setHint(Component.translatable("screen.coi.picker_search_hint").withStyle(ChatFormatting.DARK_GRAY));
-        searchBox.setResponder(s -> {
-            refilter();
-            scrollOffset = 0;
-        });
-        searchBox.setFocused(true);
-        refilter();
-    }
-
-    public void close() {
-        open = false;
-        searchBox = null;
-    }
-
-    public boolean isOpen() {
-        return open;
-    }
-
-    private void refilter() {
-        model.refilter(query());
-    }
-
-    private String query() {
-        return searchBox == null ? "" : searchBox.getValue();
-    }
-
-    // --- Geometry ---
-
-    private void updateGeometry(int screenW, int screenH) {
-        panelW = Math.clamp(screenW * 3 / 5, PickerMetrics.MIN_PANEL_W, Math.max(PickerMetrics.MIN_PANEL_W, screenW - 20));
-        panelW = Math.min(panelW, PickerMetrics.MAX_PANEL_W);
-
-        int headerH = headerHeight();
-        // The floor keeps Unbind plus one real ability row reachable even at gui
-        // scale 4 in a small window, where the honest fit would be zero rows.
-        int floor = PickerMetrics.UNBIND_H + PickerMetrics.ROW_H;
-        int room = screenH - 60 - headerH - PickerMetrics.PAD;
-        listH = Math.min(model.contentHeight(), Math.max(room, floor));
-
-        panelH = headerH + listH + PickerMetrics.PAD;
-        panelX = Math.max(0, (screenW - panelW) / 2);
-        panelY = Math.max(0, (screenH - panelH) / 2);
-        listTop = panelY + headerH;
-
-        scrollOffset = Mth.clamp(scrollOffset, 0, model.maxScroll(listH));
-
-        if (searchBox != null) {
-            searchBox.setX(panelX + PickerMetrics.PAD);
-            searchBox.setY(panelY + searchBoxOffset());
-            searchBox.setWidth(panelW - PickerMetrics.PAD * 2);
+    public void setServerControls(dev.ua.ikeepcalm.coi.client.menu.MenuDocument document, Consumer<String> action) {
+        serverDocument = document;
+        serverAction = action;
+        if (document.toast() != null && !document.toast().text().isBlank()) {
+            feedback = document.toast().text();
+            feedbackColor = switch (document.toast().style()) {
+                case "error" -> MenuTheme.DANGER;
+                case "warn" -> MenuTheme.WARN;
+                default -> MenuTheme.INFO;
+            };
+            feedbackUntil = System.currentTimeMillis() + 5000;
         }
     }
 
-    /** Title line, then the search box, then the gap above the list. */
-    private static int headerHeight() {
-        return searchBoxOffset() + PickerMetrics.SEARCH_H + 6;
-    }
-
-    private static int searchBoxOffset() {
-        return PickerMetrics.PAD + 9 + 6;
-    }
-
-    // --- Rendering ---
-
-    public void render(GuiGraphicsExtractor graphics, Font font, int screenW, int screenH, int mouseX, int mouseY, float delta) {
-        if (!open) return;
-        updateGeometry(screenW, screenH);
-
-        graphics.fill(0, 0, screenW, screenH, CoiStyle.BACKDROP);
-        CoiStyle.drawCard(graphics, panelX, panelY, panelW, panelH);
-
-        Component trimmedTitle = Component.literal(font.plainSubstrByWidth(title.getString(), panelW - PickerMetrics.PAD * 2));
-        graphics.text(font, trimmedTitle, panelX + PickerMetrics.PAD, panelY + PickerMetrics.PAD, CoiStyle.ACCENT);
-
-        if (searchBox != null) {
-            searchBox.extractRenderState(graphics, mouseX, mouseY, delta);
-        }
-
-        int listBottom = listTop + listH;
-        renderRows(graphics, font, listBottom, mouseX, mouseY);
-
-        if (hoveredOption != null) {
-            PickerPainter.tooltip(graphics, font, hoveredOption, mouseX, mouseY);
-        }
-
-        int content = model.contentHeight();
-        if (content > listH) {
-            PickerPainter.scrollbar(graphics, panelX, panelW, listTop, listBottom, listH,
-                    model.heightAbove(scrollOffset), content);
-        }
-    }
-
-    private void renderRows(GuiGraphicsExtractor graphics, Font font, int listBottom, int mouseX, int mouseY) {
-        List<Row> rows = model.rows();
-        hoveredOption = null;
-        graphics.enableScissor(panelX + 1, listTop, panelX + panelW - 1, listBottom);
-        int y = listTop;
-        for (int i = scrollOffset; i < rows.size() && y < listBottom; i++) {
-            Row row = rows.get(i);
-            int height = PickerModel.rowHeight(row);
-            boolean hovered = row.clickable() && isRowHovered(mouseX, mouseY, y, height, listBottom);
-            switch (row.kind()) {
-                case UNBIND -> PickerPainter.unbindRow(graphics, font, panelX, panelW, y, hovered);
-                case HEADER -> PickerPainter.headerRow(graphics, font, panelX, panelW, row, y);
-                case MESSAGE -> PickerPainter.messageRow(graphics, font, panelX, panelW, y, query());
-                case ABILITY -> {
-                    if (hovered) hoveredOption = row.option();
-                    PickerPainter.abilityRow(graphics, font, panelX, panelW, row, y, hovered,
-                            metaAvailable, isCurrentSelection(row.option()));
+    private dev.ua.ikeepcalm.coi.client.menu.MenuComponent.Row passiveControl(String id) {
+        if (serverDocument == null) return null;
+        for (var section : serverDocument.sections()) {
+            for (var component : section.components()) {
+                if (component instanceof dev.ua.ikeepcalm.coi.client.menu.MenuComponent.ListView list) {
+                    for (var row : list.rows()) if (id.equals(row.id())) return row;
                 }
             }
-            y += height;
         }
-        graphics.disableScissor();
+        return null;
     }
 
-    private boolean isRowHovered(int mouseX, int mouseY, int rowY, int height, int listBottom) {
-        return mouseX >= panelX + 1 && mouseX < panelX + panelW - 1
-                && mouseY >= rowY && mouseY < rowY + height
-                && mouseY >= listTop && mouseY < listBottom;
+    public void open(Component title, String current, Consumer<String> onSelect) {
+        this.open = true;
+        this.browsing = false;
+        this.contextTitle = title;
+        this.onSelect = onSelect;
+        this.selected = current;
+        listScroll = detailScroll = 0;
+        assigning = detailsOnly = false;
+        feedbackUntil = 0;
+        keyboardHit = -1;
+        Font font = Minecraft.getInstance().font;
+        search = new EditBox(font, 0, 0, 100, 18, Component.translatable("screen.coi.picker_search_hint"));
+        search.setMaxLength(60);
+        search.setHint(Component.translatable("screen.coi.picker_search_hint"));
+        search.setResponder(value -> {
+            model.refilter(value);
+            listScroll = 0;
+            select(model.filtered().isEmpty() ? null : model.filtered().getFirst());
+        });
+        search.setFocused(true);
+        model.refilter("");
+        if (selected == null && !model.filtered().isEmpty()) selected = model.filtered().getFirst();
     }
 
-    private boolean isCurrentSelection(String option) {
-        if (currentSelection == null) return false;
-        return AbilityInfo.extractId(option).equals(AbilityInfo.extractId(currentSelection))
-                && AbilityInfo.extractAction(option).equals(AbilityInfo.extractAction(currentSelection));
+    public void openManual(Component title) {
+        open(title, null, null);
+        browsing = true;
+    }
+    public void setOnExit(Runnable action) { onExit = action; }
+    public void close() { open = false; hits.clear(); }
+    public boolean isOpen() { return open; }
+
+    private void geometry(int screenW, int screenH) {
+        w = Math.max(160, Math.min(browsing ? 920 : 620, screenW - 24));
+        h = Math.max(120, screenH - 28);
+        x = (screenW - w) / 2; y = (screenH - h) / 2;
+        top = y + (browsing ? 63 : 77); bottom = y + h - 34;
+        wide = browsing && w >= 570;
+        indexW = wide ? Math.min(290, w * 2 / 5) : w - 24;
+        detailX = wide ? x + indexW + 24 : x + 12;
+        detailW = wide ? w - indexW - 36 : w - 24;
+        search.setX(x + 12); search.setY(y + 37); search.setWidth(indexW);
+        listScroll = Mth.clamp(listScroll, 0, model.maxScroll(bottom - top));
+        detailScroll = Mth.clamp(detailScroll, 0, Math.max(0, detailHeight - (bottom - top)));
     }
 
-    // --- Input ---
+    public void render(GuiGraphicsExtractor g, Font font, int sw, int sh, int mx, int my, float delta) {
+        if (!open) return;
+        model.refilter(search.getValue()); // Catalogue pushes can arrive while the manual is open.
+        if (selected != null && AbilityRegistry.getAbilityInfo(AbilityInfo.extractId(selected)) == null
+                && !AbilityRegistry.getAvailableAbilities().contains(selected)) selected = null;
+        if (selected == null && !model.filtered().isEmpty()) select(model.filtered().getFirst());
+        geometry(sw, sh);
+        hits.clear();
+        g.fill(0, 0, sw, sh, CoiStyle.BACKDROP);
+        ArchivePaint.folio(g, x, y, w, h);
+        g.text(font, I18n.get(browsing ? "screen.coi.manual_title" : "screen.coi.picker_choose"), x + 12, y + 11, ArchivePaint.LABEL, false);
+        String context = font.plainSubstrByWidth(contextTitle.getString(), Math.max(20, w - 210));
+        g.text(font, context, x + w - 12 - font.width(context), y + 11, CoiStyle.TEXT_MUTED, false);
+        if (!browsing) g.text(font, I18n.get("screen.coi.picker_pick_hint"), x+12, y+62, CoiStyle.TEXT_MUTED, false);
+        if (!browsing || wide || !detailsOnly) {
+            search.extractRenderState(g, mx, my, delta);
+            drawIndex(g, font, mx, my);
+        } else {
+            button(g, font, x + 12, y + 36, 100, 18, I18n.get("screen.coi.manual_index"),
+                    () -> { detailsOnly = false; assigning = false; }, mx, my);
+        }
+        if (browsing && (wide || detailsOnly)) drawDetails(g, font, mx, my);
+        if (wide) g.fill(detailX - 7, top, detailX - 6, bottom, 0xFF494C43);
+        int footY = y + h - 25;
+        button(g, font, x + 12, footY, Math.min(150, (w - 30) / 2), 18,
+                I18n.get(browsing ? "screen.coi.manual_controls" : "gui.cancel"), this::close, mx, my);
+        if (!browsing) button(g, font, x + w - 112, footY, 100, 18,
+                I18n.get("screen.coi.manual_unbind"), () -> pick(null), mx, my);
+        else if (onExit != null && System.currentTimeMillis() >= feedbackUntil) button(g, font, x+w-112, footY, 100, 18,
+                I18n.get("gui.done"), onExit, mx, my);
+        if (System.currentTimeMillis() < feedbackUntil)
+            g.text(font, font.plainSubstrByWidth(feedback, Math.max(20,w-174)), x + 174, footY + 5, feedbackColor, false);
+        if (keyboardHit >= 0 && keyboardHit < hits.size()) {
+            Hit hit = hits.get(keyboardHit);
+            g.outline(hit.x(), hit.y(), hit.w(), hit.h(), ArchivePaint.LABEL);
+        }
+    }
+
+    private void drawIndex(GuiGraphicsExtractor g, Font font, int mx, int my) {
+        int ry = top;
+        List<PickerModel.Row> rows = model.rows();
+        g.enableScissor(x + 12, top, x + 12 + indexW, bottom);
+        for (int i = listScroll; i < rows.size() && ry < bottom; i++) {
+            var row = rows.get(i);
+            int rh = PickerModel.rowHeight(row);
+            if (row.kind() == PickerModel.RowKind.ABILITY) {
+                String option = row.option();
+                String id = AbilityInfo.extractId(option);
+                boolean chosen = sameBinding(option, selected);
+                boolean hover = mx >= x+12 && mx < x+12+indexW && my >= ry && my < Math.min(bottom, ry+rh);
+                int accent = AbilityInfo.pathwayColor(id);
+                g.fill(x + 12, ry, x + 12 + indexW, ry + rh - 2, chosen ? 0xFF363B35 : hover ? 0xFF2C302C : 0xFF202521);
+                if (chosen) g.fill(x+12, ry, x+14, ry+rh-2, accent);
+                AbilityIcons.draw(g, option, x + 18, ry + 5, 18, 255);
+                AbilityInfo info = PickerModel.infoFor(option);
+                g.text(font, font.plainSubstrByWidth(PickerModel.entryLabel(option), indexW - 36),
+                        x+42, ry+4, info != null && info.isUnavailable() ? 0xFFB48B85 : ArchivePaint.LABEL, false);
+                g.text(font, font.plainSubstrByWidth(entryMeta(option, info), indexW - 36),
+                        x+42, ry+16, CoiStyle.TEXT_MUTED, false);
+                int hitY = Math.max(top, ry), hitH = Math.min(bottom, ry+rh)-hitY;
+                hits.add(new Hit(x+12, hitY, indexW, hitH, () -> { if (!browsing) pick(option); else { select(option); detailsOnly = true; search.setFocused(false); } }));
+                if (hover && !browsing) {
+                    String description = info == null ? "" : info.description();
+                    var lines = new ArrayList<>(font.split(Component.literal(PickerModel.displayNameOf(option)
+                            + (description.isBlank() ? "" : "\n" + description)), Math.min(250, w-32)));
+                    int limit = Math.max(3, Math.min(12, (h-32)/11));
+                    if (lines.size() > limit) {
+                        lines.subList(limit-1, lines.size()).clear();
+                        lines.add(Component.literal("…").getVisualOrderText());
+                    }
+                    g.setTooltipForNextFrame(font, lines, mx, my);
+                }
+            } else if (row.kind() == PickerModel.RowKind.SPELL) {
+                g.fill(x+12, ry+3, x+12+indexW, ry+rh-2, 0xFF363B35);
+                g.text(font, font.plainSubstrByWidth(PickerModel.baseName(row.option()), indexW-12),
+                        x+18, ry+9, ArchivePaint.LABEL, false);
+            } else if (row.kind() == PickerModel.RowKind.HEADER) {
+                PickerPainter.headerRow(g, font, x+11, indexW+2, row, ry);
+            } else if (row.kind() == PickerModel.RowKind.MESSAGE) {
+                g.text(font, I18n.get("screen.coi.manual_no_results"), x+18, ry+4, CoiStyle.TEXT_MUTED, false);
+            } else { // The global Unbind command lives in the footer.
+                rh = 0;
+            }
+            ry += rh;
+        }
+        g.disableScissor();
+        if (model.contentHeight() > bottom-top)
+            PickerPainter.scrollbar(g, x+11, indexW+2, top, bottom, bottom-top, model.heightAbove(listScroll), model.contentHeight());
+    }
+
+    private void select(String option) {
+        selected = option;
+
+        detailScroll = 0;
+        assigning = false;
+        keyboardHit = -1;
+    }
+
+    private void drawDetails(GuiGraphicsExtractor g, Font font, int mx, int my) {
+        if (selected == null) {
+            g.text(font, I18n.get("screen.coi.manual_waiting"), detailX+8, top+8, CoiStyle.TEXT_MUTED, false);
+            return;
+        }
+        String id = AbilityInfo.extractId(selected);
+        AbilityInfo info = AbilityRegistry.getAbilityInfo(id);
+        int accent = AbilityInfo.pathwayColor(id);
+        g.enableScissor(detailX, top, detailX+detailW, bottom);
+        paintingDetails = true;
+        int ry = top - detailScroll;
+        int titleHeight = font.split(Component.literal(PickerModel.displayNameOf(selected)), Math.max(1, detailW-53)).size() * 11;
+        int identityHeight = Math.max(52, titleHeight + 34);
+        ArchivePaint.paper(g, detailX, ry, detailW, identityHeight);
+        AbilityIcons.draw(g, selected, detailX+6, ry+6, 32, 255);
+        int textX = detailX+47;
+        ry = paragraph(g, font, PickerModel.displayNameOf(selected), textX, ry+6, detailW-53, ArchivePaint.INK);
+        if (info != null) {
+            ry = paragraph(g, font, I18n.get("screen.coi.manual_sequence", info.sequence()) + " · "
+                    + PickerLabels.category(info).getString(), textX, ry+4, detailW-53, ArchivePaint.FAINT_INK);
+        }
+        ry = Math.max(top-detailScroll+identityHeight+8, ry+12);
+        g.fill(detailX+6, ry, detailX+detailW-6, ry+1, accent);
+        ry += 12;
+        if (info != null) {
+            if (PickerModel.detectMeta()) {
+                var fixedCategory = AbilityCategories.find(id, AbilityInfo.extractCategory(selected));
+                String stats = fixedCategory == null
+                        ? PickerLabels.cost(info).getString() + " · " + PickerLabels.cooldown(info).getString()
+                        : I18n.get("screen.coi.picker_meta_cooldown", fixedCategory.cooldownSeconds());
+                ry = paragraph(g, font, stats, detailX+6, ry, detailW-12, ArchivePaint.LABEL) + 8;
+                if (fixedCategory == null && !AbilityCategories.get(id).isEmpty()) ry = paragraph(g, font,
+                        I18n.get("screen.coi.manual_current_cost"), detailX+6, ry, detailW-12, CoiStyle.TEXT_MUTED) + 8;
+            }
+            var reason = PickerLabels.blockReason(info);
+            if (reason != null) ry = paragraph(g, font, reason.getString(), detailX+6, ry, detailW-12, 0xFFE39B90) + 8;
+            ry = paragraph(g, font, info.description().isBlank() ? I18n.get("screen.coi.manual_no_description") : info.description(),
+                    detailX+6, ry, detailW-12, CoiStyle.TEXT_BODY) + 14;
+        }
+        String option = chosenOption();
+        if (assigning) {
+            ry = paragraph(g, font, I18n.get("screen.coi.manual_assign_to"),
+                    detailX+6, ry, detailW-12, ArchivePaint.LABEL) + 6;
+            ry = drawTargets(g, font, ry, mx, my);
+        } else if (option != null) {
+            if (info != null && AbilityInfo.KIND_PASSIVE.equals(info.kind())) {
+                var control = passiveControl(id);
+                String status = control != null && !control.subtitle().isBlank() ? control.subtitle()
+                        : I18n.get(info.active() ? "screen.coi.manual_passive_enabled" : "screen.coi.manual_passive_disabled");
+                ry = paragraph(g, font, status, detailX+6, ry, detailW-12, ArchivePaint.LABEL) + 6;
+                if (control != null && control.enabled() && control.action() != null && !control.action().isBlank()
+                        && serverAction != null) {
+                    button(g, font, detailX+6, ry, detailW-12, 22,
+                            I18n.get(info.active() ? "screen.coi.manual_passive_disable" : "screen.coi.manual_passive_enable"),
+                            () -> serverAction.accept(control.action()), mx, my);
+                    ry += 30;
+                } else if (control != null && !control.disabledReason().isBlank()) {
+                    ry = paragraph(g, font, control.disabledReason(), detailX+6, ry, detailW-12, CoiStyle.TEXT_MUTED) + 8;
+                }
+            }
+            for (var target : ManualBindings.targets()) {
+                if (sameBinding(option, target.existing()))
+                    ry = paragraph(g, font, target.label(), detailX+6, ry, detailW-12,
+                            target.conflict() ? 0xFFE39B90 : CoiStyle.TEXT_MUTED) + 3;
+            }
+            button(g, font, detailX+6, ry+5, detailW-12, 22, I18n.get("screen.coi.manual_bind"),
+                    () -> { assigning = true; detailScroll = 0; keyboardHit = -1; }, mx, my);
+            ry += 33;
+        }
+        detailHeight = ry - (top-detailScroll) + 6;
+        paintingDetails = false;
+        g.disableScissor();
+        if (detailHeight > bottom-top)
+            PickerPainter.scrollbar(g, detailX, detailW, top, bottom, bottom-top, detailScroll, detailHeight);
+    }
+
+    private int drawTargets(GuiGraphicsExtractor g, Font font, int ry, int mx, int my) {
+        for (var target : ManualBindings.targets()) {
+            String existing = target.existing() == null ? I18n.get("screen.coi.manual_empty") : PickerModel.displayNameOf(target.existing());
+            String label = target.label() + " — " + existing;
+            button(g, font, detailX+6, ry, detailW-12, 25, label, () -> {
+                String option = chosenOption();
+                if (option == null) return;
+                target.assign().accept(option);
+                feedback = I18n.get("screen.coi.manual_assigned", target.label());
+                feedbackColor = MenuTheme.SUCCESS;
+                feedbackUntil = System.currentTimeMillis()+4000;
+                assigning = false; detailScroll = 0;
+            }, mx, my);
+            ry += 29;
+            if (target.conflict()) ry = paragraph(g, font, I18n.get("screen.coi.manual_key_conflict"),
+                    detailX+6, ry, detailW-12, 0xFFE39B90) + 5;
+        }
+        return ry;
+    }
+
+    private String chosenOption() {
+        if (selected == null) return null;
+        return AbilityRegistry.getAvailableAbilities().stream()
+                .filter(option -> sameBinding(option, selected)).findFirst().orElse(null);
+    }
+
+    private String entryMeta(String option, AbilityInfo info) {
+        var category = AbilityCategories.find(AbilityInfo.extractId(option), AbilityInfo.extractCategory(option));
+        if (category != null) return I18n.get("screen.coi.picker_meta_cooldown", category.cooldownSeconds());
+        if (PickerModel.hasModes(option) && AbilityInfo.extractCategory(option).isEmpty()
+                && AbilityInfo.ACTION_EXECUTE.equals(AbilityInfo.extractAction(option))) {
+            var current = AbilityCategories.find(AbilityInfo.extractId(option), AbilityCategories.selected(AbilityInfo.extractId(option)));
+            if (current != null) return current.name();
+        }
+        return PickerLabels.kindTag(info).getString();
+    }
+    private static boolean sameBinding(String a, String b) {
+        return a != null && b != null && Objects.equals(AbilityInfo.extractId(a), AbilityInfo.extractId(b))
+                && AbilityInfo.extractCategory(a).equals(AbilityInfo.extractCategory(b))
+                && AbilityInfo.extractAction(a).equals(AbilityInfo.extractAction(b));
+    }
+
+    private int paragraph(GuiGraphicsExtractor g, Font font, String text, int px, int py, int width, int color) {
+        for (var line : font.split(Component.literal(text), Math.max(1,width))) {
+            g.text(font, line, px, py, color, false); py += 11;
+        }
+        return py;
+    }
+
+    private void button(GuiGraphicsExtractor g, Font font, int bx, int by, int bw, int bh, String label,
+                        Runnable action, int mx, int my) {
+        boolean inDetail = paintingDetails;
+        boolean hover = mx >= bx && mx < bx+bw && my >= by && my < by+bh
+                && (!inDetail || my >= top && my < bottom);
+        g.fill(bx, by, bx+bw, by+bh, hover ? 0xFF41473E : 0xFF2D332D);
+        g.fill(bx, by+bh-1, bx+bw, by+bh, 0xFF777967);
+        g.text(font, font.plainSubstrByWidth(label, Math.max(1,bw-12)), bx+6, by+(bh-8)/2, ArchivePaint.LABEL, false);
+        if (hover && font.width(label) > bw-12) g.setTooltipForNextFrame(font, Component.literal(label), mx, my);
+        int hitTop = inDetail ? Math.max(top,by) : by;
+        int hitBottom = inDetail ? Math.min(bottom,by+bh) : by+bh;
+        if (hitBottom > hitTop) hits.add(new Hit(bx, hitTop, bw, hitBottom-hitTop, action));
+    }
 
     public boolean mouseClicked(MouseButtonEvent event) {
         if (!open) return false;
-        double mx = event.x();
-        double my = event.y();
-
-        if (mx < panelX || mx >= panelX + panelW || my < panelY || my >= panelY + panelH) {
-            close();
-            return true;
+        if (event.button() != 0) return true;
+        if ((wide || !detailsOnly) && search.isMouseOver(event.x(),event.y())) {
+            search.setFocused(true); search.mouseClicked(event,false); return true;
         }
-
-        if (searchBox != null && searchBox.isMouseOver(mx, my)) {
-            searchBox.setFocused(true);
-            searchBox.mouseClicked(event, false);
-            return true;
-        }
-
-        int listBottom = listTop + listH;
-        if (my >= listTop && my < listBottom) {
-            pickRowAt(my, listBottom);
-        }
+        search.setFocused(false);
+        keyboardHit = -1;
+        for (Hit hit : List.copyOf(hits)) if (hit.contains(event.x(),event.y())) { hit.action().run(); break; }
         return true;
     }
-
-    private void pickRowAt(double my, int listBottom) {
-        List<Row> rows = model.rows();
-        int y = listTop;
-        for (int i = scrollOffset; i < rows.size() && y < listBottom; i++) {
-            Row row = rows.get(i);
-            int height = PickerModel.rowHeight(row);
-            if (my >= y && my < y + height) {
-                // Headers and messages simply swallow the click
-                if (row.kind() == RowKind.UNBIND) pick(null);
-                else if (row.kind() == RowKind.ABILITY) pick(row.option());
-                return;
-            }
-            y += height;
-        }
-    }
-
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+    public boolean mouseScrolled(double mx, double my, double horizontal, double vertical) {
         if (!open) return false;
-        scrollOffset = Mth.clamp(scrollOffset + (verticalAmount > 0 ? -1 : 1), 0, model.maxScroll(listH));
+        if (browsing && ((wide && mx >= detailX) || (!wide && detailsOnly)))
+            detailScroll = Mth.clamp(detailScroll - (int)(vertical*22), 0, Math.max(0,detailHeight-(bottom-top)));
+        else listScroll = Mth.clamp(listScroll + (vertical>0?-1:1), 0, model.maxScroll(bottom-top));
         return true;
     }
-
     public boolean keyPressed(KeyEvent event) {
         if (!open) return false;
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
-            close();
-            return true;
-        }
-        if (event.key() == GLFW.GLFW_KEY_ENTER || event.key() == GLFW.GLFW_KEY_KP_ENTER) {
-            List<String> filtered = model.filtered();
-            if (!filtered.isEmpty()) {
-                pick(filtered.getFirst());
+        int key = event.key();
+        if (key == GLFW.GLFW_KEY_ESCAPE) {
+            if (assigning) assigning = false;
+            else if (!wide && detailsOnly) detailsOnly = false;
+            else close();
+        } else if (key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
+            var list = model.filtered();
+            if (!list.isEmpty()) {
+                int index = -1;
+                for (int i=0;i<list.size();i++) if (sameBinding(list.get(i), selected)) index=i;
+                select(list.get(Math.floorMod(index+(key==GLFW.GLFW_KEY_DOWN?1:-1),list.size())));
+                for (int i=0;i<model.rows().size();i++) if (Objects.equals(model.rows().get(i).option(), selected)) { listScroll=i; break; }
             }
-            return true;
+        } else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyboardHit >= 0 && keyboardHit < hits.size()) { hits.get(keyboardHit).action().run(); keyboardHit = -1; }
+            else if (!browsing && chosenOption()!=null) pick(chosenOption());
+            else if (browsing && !wide && !detailsOnly) { detailsOnly=true; search.setFocused(false); }
+            else { assigning=!assigning; detailScroll=0; }
+        } else if (key == GLFW.GLFW_KEY_PAGE_DOWN || key == GLFW.GLFW_KEY_PAGE_UP) {
+            detailScroll = Mth.clamp(detailScroll+(key==GLFW.GLFW_KEY_PAGE_DOWN?1:-1)*(bottom-top),0,Math.max(0,detailHeight-(bottom-top)));
+        } else if (key == GLFW.GLFW_KEY_TAB) {
+            search.setFocused(false);
+            keyboardHit++;
+            if (keyboardHit >= hits.size()) { keyboardHit = -1; search.setFocused(true); }
         }
-        if (searchBox != null) {
-            searchBox.keyPressed(event);
-        }
+        else search.keyPressed(event);
         return true;
     }
-
-    public boolean charTyped(CharacterEvent event) {
-        if (!open) return false;
-        if (searchBox != null) {
-            searchBox.charTyped(event);
-        }
-        return true;
-    }
-
-    private void pick(String option) {
-        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-        if (onSelect != null) {
-            onSelect.accept(option);
-        }
-        close();
-    }
+    public boolean charTyped(CharacterEvent event) { if (open && search.isFocused()) search.charTyped(event); return open; }
+    private void pick(String option) { if (onSelect != null) onSelect.accept(option); close(); }
 }

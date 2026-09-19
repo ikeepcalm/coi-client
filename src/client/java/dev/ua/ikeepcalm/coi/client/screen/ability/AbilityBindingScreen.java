@@ -79,11 +79,6 @@ public class AbilityBindingScreen extends Screen {
         // Request abilities from server when screen opens
         CoiNetworking.requestAbilitiesFromServer();
 
-        // For testing purposes, add sample abilities if none are available
-        if (AbilityRegistry.getAvailableAbilities().isEmpty()) {
-            AbilityRegistry.addTestAbilities();
-        }
-
         contentW = CoiStyle.formWidth(this.width);
         contentX = (this.width - contentW) / 2;
 

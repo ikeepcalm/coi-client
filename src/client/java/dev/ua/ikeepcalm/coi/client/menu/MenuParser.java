@@ -64,7 +64,7 @@ public final class MenuParser {
         if (element == null || !element.isJsonObject()) return MenuDocument.Presentation.NONE;
         JsonObject node = element.getAsJsonObject();
         String template = MenuJson.string(node, "template", MenuLimits.MAX_ID);
-        if (!template.equals("specimen")) return MenuDocument.Presentation.NONE;
+        if (!template.equals("specimen") && !template.equals("ability_manual")) return MenuDocument.Presentation.NONE;
         return new MenuDocument.Presentation(template,
                 MenuJson.string(node, "subject", MenuLimits.MAX_ID),
                 MenuJson.string(node, "caption", MenuLimits.MAX_TITLE));

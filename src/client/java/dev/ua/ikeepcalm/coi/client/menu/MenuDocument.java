@@ -21,6 +21,7 @@ public record MenuDocument(String session, int version, String screen,
     public record Presentation(String template, String subject, String caption) {
         public static final Presentation NONE = new Presentation("", "", "");
         public boolean specimen() { return template.equals("specimen") && !subject.isEmpty(); }
+        public boolean abilityManual() { return template.equals("ability_manual"); }
     }
 
     /**

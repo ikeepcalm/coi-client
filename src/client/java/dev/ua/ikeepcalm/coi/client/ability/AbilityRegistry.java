@@ -42,8 +42,18 @@ public class AbilityRegistry {
     private static final List<String> availableAbilities = new ArrayList<>();
     private static final Map<String, AbilityInfo> abilityInfoMap = new HashMap<>();
 
+    public static void reset() {
+        availableAbilities.clear();
+        abilityInfoMap.clear();
+        AbilityCategories.clear();
+        AbilityBindings.updateHudWithCurrentBindings();
+        AbilityOverlay.clearServerState();
+    }
+
     public static void handleAbilityData(String data) {
         availableAbilities.clear();
+        abilityInfoMap.clear();
+        AbilityCategories.clear();
 
         if (data.isEmpty()) {
             CoiLog.LOG.info("Received empty ability data");
@@ -92,6 +102,7 @@ public class AbilityRegistry {
     public static void handleAbilityDataV2(String json) {
         availableAbilities.clear();
         abilityInfoMap.clear();
+        AbilityCategories.clear();
 
         if (json == null || json.isBlank()) {
             CoiLog.LOG.info("Received empty ability data (v2)");
@@ -106,6 +117,7 @@ public class AbilityRegistry {
                 JsonObject entry = element.getAsJsonObject();
                 AbilityInfo info = parseAbility(entry);
                 if (info == null) continue;
+                AbilityCategories.read(info.abilityId(), entry);
                 storeAbility(info);
                 int remaining = JsonRead.intOf(entry, "cooldownRemainingTicks");
                 if (remaining > 0) cooldowns.put(info.abilityId(), remaining);
@@ -156,6 +168,10 @@ public class AbilityRegistry {
                     info.englishName() + " (Left Click)", AbilityInfo.ACTION_LEFT_CLICK));
         }
         abilityInfoMap.put(info.abilityId(), info);
+        for (var category : AbilityCategories.get(info.abilityId())) {
+            availableAbilities.add(AbilityInfo.formatCategory(info.abilityId(),
+                    info.englishName() + " · " + category.name(), category.id()));
+        }
     }
 
     /**
@@ -165,6 +181,10 @@ public class AbilityRegistry {
     private static void applyServerAbilityState(Map<String, Integer> cooldowns) {
         for (AbilityInfo info : abilityInfoMap.values()) {
             AbilityOverlay.setActive(info.abilityId(), info.active());
+            if (!AbilityCategories.get(info.abilityId()).isEmpty()) {
+                AbilityOverlay.applyCategories(info.abilityId());
+                continue;
+            }
             Integer remaining = cooldowns.get(info.abilityId());
             if (remaining != null) {
                 AbilityOverlay.setCooldown(info.abilityId(), remaining,
@@ -183,8 +203,20 @@ public class AbilityRegistry {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             String id = JsonRead.string(root, "id");
             if (id.isEmpty()) return;
+            AbilityCategories.read(id, root);
+            AbilityInfo info = abilityInfoMap.get(id);
+            if (info != null && root.has("selectedCost")) abilityInfoMap.put(id, info.withCastingStats(
+                    JsonRead.intOf(root, "selectedCost"), JsonRead.dbl(root, "selectedDrainPerSecond"),
+                    JsonRead.intOf(root, "selectedCooldownSeconds")));
+            if (root.has("castCategories") && abilityInfoMap.containsKey(id)) {
+                availableAbilities.removeIf(option -> id.equals(AbilityInfo.extractId(option)));
+                storeAbility(abilityInfoMap.get(id));
+            }
+            if (root.has("castCategories") || root.has("category")) AbilityOverlay.applyCategories(id);
             if (root.has("active")) {
-                AbilityOverlay.setActive(id, root.get("active").getAsBoolean());
+                boolean active = root.get("active").getAsBoolean();
+                abilityInfoMap.computeIfPresent(id, (key, current) -> current.withActive(active));
+                AbilityOverlay.setActive(id, active);
             }
             if (root.has("category") || root.has("categoryName")) {
                 AbilityOverlay.setCategoryLabel(id,
@@ -196,6 +228,7 @@ public class AbilityRegistry {
     }
 
     public static void handleCooldownData(String abilityId, int cooldownTicks) {
+        if (!AbilityCategories.get(abilityId).isEmpty()) return;
         AbilityOverlay.setCooldown(abilityId, cooldownTicks);
     }
 

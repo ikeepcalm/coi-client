@@ -67,6 +67,8 @@ public class MenuScreen extends Screen implements MenuContext {
     private final MenuScrollbar scrollbar = new MenuScrollbar();
     private final MenuConfirmModal confirm = new MenuConfirmModal(this);
     private final MenuSpecimen specimen = new MenuSpecimen();
+    private final dev.ua.ikeepcalm.coi.client.screen.ability.AbilityPickerOverlay manual =
+            new dev.ua.ikeepcalm.coi.client.screen.ability.AbilityPickerOverlay();
     private int specimenW;
     private int specimenH;
 
@@ -169,6 +171,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     protected void init() {
+        manual.setOnExit(this::onClose);
         rebuild();
     }
 
@@ -243,6 +246,11 @@ public class MenuScreen extends Screen implements MenuContext {
 
         boolean sameScreen = doc != null && doc.screen().equals(next.screen());
         if (!sameScreen) {
+            manual.close();
+            if (next.presentation().abilityManual()) {
+                manual.openManual(Component.literal(next.title()));
+                dev.ua.ikeepcalm.coi.client.network.CoiNetworking.requestAbilitiesFromServer();
+            }
             specimen.reset();
             scrollbar.toTop();
             fields.clear();
@@ -257,6 +265,7 @@ public class MenuScreen extends Screen implements MenuContext {
         }
 
         doc = next;
+        manual.setServerControls(next, action -> fire(action, null));
         docRevision = MenuState.revision();
         confirm.dismiss();
         pressedAction = null;
@@ -452,6 +461,10 @@ public class MenuScreen extends Screen implements MenuContext {
             super.extractRenderState(g, mouseX, mouseY, partial);
             return;
         }
+        if (manual.isOpen()) {
+            manual.render(g, font, width, height, mouseX, mouseY, partial);
+            return;
+        }
 
         long now = System.currentTimeMillis();
         // A first frame, or one after a long stall, must not jump every tween
@@ -484,6 +497,8 @@ public class MenuScreen extends Screen implements MenuContext {
         }
 
         super.extractRenderState(g, mouseX, mouseY, partial);
+        if (doc.presentation().abilityManual()) g.text(font,
+                Component.translatable("screen.coi.manual_return"), 8, height - 14, ArchivePaint.LABEL, false);
     }
 
     private void drawContent(GuiGraphicsExtractor g, int mouseX, int mouseY) {
@@ -509,6 +524,12 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
+        if (manual.isOpen()) return manual.mouseClicked(event);
+        if (doc != null && doc.presentation().abilityManual() && event.x() >= 8 && event.x() < 180
+                && event.y() >= height-18 && event.y() < height && event.button() == 0) {
+            manual.openManual(Component.literal(doc.title()));
+            return true;
+        }
         if (doc == null) return super.mouseClicked(event, doubleClick);
         double mx = event.x();
         double my = event.y();
@@ -536,6 +557,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean mouseDragged(@NonNull MouseButtonEvent event, double dragX, double dragY) {
+        if (manual.isOpen()) return true;
         if (confirm.active()) return true;
         if (specimen.drag(dragX)) return true;
         if (scrollbar.drag(event.y())) return true;
@@ -584,6 +606,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        if (manual.isOpen()) return manual.mouseScrolled(mouseX, mouseY, horizontal, vertical);
         if (confirm.active()) return true;
         if (doc != null && doc.presentation().specimen() && specimen.zoom(mouseX, mouseY, vertical)) return true;
         scrollbar.scrollBy(-(int) Math.signum(vertical) * SCROLL_STEP);
@@ -592,6 +615,11 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
+        if (manual.isOpen()) return manual.keyPressed(event);
+        if (doc != null && doc.presentation().abilityManual() && focusedField == null && event.key() == GLFW.GLFW_KEY_M) {
+            manual.openManual(Component.literal(doc.title()));
+            return true;
+        }
         if (confirm.active()) return confirm.keyPressed(event);
         if (focusedField != null) {
             if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
@@ -609,6 +637,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean charTyped(@NonNull CharacterEvent event) {
+        if (manual.isOpen()) return manual.charTyped(event);
         if (!confirm.active() && focusedField != null && focusedField.charTyped(event)) return true;
         return super.charTyped(event);
     }

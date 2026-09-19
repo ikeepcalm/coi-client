@@ -151,6 +151,7 @@ public class CoiClientMod implements ClientModInitializer {
         MenuState.reset();
         AppearanceState.reset();
         ServerCapabilities.reset();
+        AbilityRegistry.reset();
         SpiritualityOverlay.reset();
         BeyonderHealthOverlay.reset();
         // The next server may key its ability icons against a different pack

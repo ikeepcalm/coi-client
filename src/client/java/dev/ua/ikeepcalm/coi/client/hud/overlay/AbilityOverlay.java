@@ -1,5 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.hud.overlay;
 
+import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
+
 import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.HudAnchor;
@@ -315,13 +317,33 @@ public final class AbilityOverlay {
         forEachSlot(abilityId, slot -> slot.setCategoryLabel(label));
     }
 
-    public static void onAbilityCast(String abilityId) {
-        forEachSlot(abilityId, AbilitySlotWidget::triggerCastAnimation);
+    public static void applyCategories(String abilityId) {
+        forEachSlot(abilityId, slot -> {
+            String selected = slot.boundCategory().isEmpty()
+                    ? dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.selected(abilityId) : slot.boundCategory();
+            var category = dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.find(abilityId, selected);
+            if (category == null) { slot.setCooldown(0, 0); slot.setCategoryLabel(""); return; }
+            slot.setCategoryLabel(category.name());
+            int remaining = Math.max(category.remainingTicks(), dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.lockTicks(abilityId));
+            slot.setCooldown(remaining, Math.max(remaining, category.cooldownSeconds() * 20));
+        });
+    }
+
+    public static void onAbilityCast(String binding) {
+        forEachSlot(AbilityInfo.extractId(binding), slot -> {
+            if (slot.boundCategory().equals(AbilityInfo.extractCategory(binding))) slot.triggerCastAnimation();
+        });
+    }
+
+    public static void clearServerState() {
+        if (abilitySlots == null) return;
+        for (var slot : abilitySlots) { slot.setCooldown(0, 0); slot.setCategoryLabel(""); slot.setToggled(false); }
     }
 
     public static void updateAbilitySlot(int slot, String abilityId) {
         if (abilitySlots != null && slot >= 0 && slot < abilitySlots.length) {
             abilitySlots[slot].setAbility(abilityId);
+            if (abilityId != null) applyCategories(AbilityInfo.extractId(abilityId));
         }
     }
 }

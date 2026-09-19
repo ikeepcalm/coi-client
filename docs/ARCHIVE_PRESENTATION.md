@@ -65,14 +65,14 @@ For repeatable runtime screenshots, put a disposable singleplayer world at
 .\gradlew.bat runClient -ParchivePreview --offline
 ```
 
-This uses a separate game directory, opens thirteen views at three GUI scales (including partial
+This uses a separate game directory, opens twenty-seven views at three GUI scales (including partial
 and unknown forms, spacious Status, and the compact tabs at their scroll limits), writes screenshots under
 `build/archive-preview/screenshots`, and exits. The capture hook requires both development mode
 and the explicit `coi.archivePreview` JVM property; it also refuses multiplayer worlds.
 
-The first release covers the dossier and fixed mythical forms. Visionary's form selection remains
-its existing server-owned flow. Ability manuals, church ledgers, relic presentation and milestone
-sequences are subsequent work; they are not implemented by this change.
+The presentation covers the dossier, fixed mythical forms and the [ability field manual](ABILITY_MANUAL.md).
+Visionary's form selection remains its existing server-owned flow. Church ledgers, relic
+presentation and milestone sequences remain future work.
 
 ## Verification performed
 

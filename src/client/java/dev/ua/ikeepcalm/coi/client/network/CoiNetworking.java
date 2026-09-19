@@ -38,6 +38,7 @@ public final class CoiNetworking {
     private static void registerTypes() {
         // C2S (client → server = serverboundPlay)
         PayloadTypeRegistry.serverboundPlay().register(AbilityUsePayload.ID, AbilityUsePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(AbilityCategoryUsePayload.ID, AbilityCategoryUsePayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(AbilityRequestPayload.ID, AbilityRequestPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(HelloPayload.ID, HelloPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ActionPayload.ID, ActionPayload.CODEC);
@@ -115,7 +116,7 @@ public final class CoiNetworking {
 
     public static void requestAbilitiesFromServer() {
         Minecraft client = Minecraft.getInstance();
-        if (client.player != null) {
+        if (client.player != null && ClientPlayNetworking.canSend(AbilityRequestPayload.ID)) {
             CoiLog.LOG.info("Requesting abilities from server");
             ClientPlayNetworking.send(AbilityRequestPayload.INSTANCE);
         }

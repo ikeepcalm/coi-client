@@ -20,7 +20,7 @@ import java.util.Locale;
  */
 final class PickerModel {
 
-    enum RowKind {UNBIND, HEADER, ABILITY, MESSAGE}
+    enum RowKind {UNBIND, HEADER, SPELL, ABILITY, MESSAGE}
 
     /**
      * One visual line. Headers and the no-results message are inert: they take up
@@ -53,7 +53,9 @@ final class PickerModel {
     private static final Comparator<String> LIST_ORDER =
             Comparator.comparing(PickerModel::pathwayOf)
                     .thenComparingInt(PickerModel::sequenceOf)
-                    .thenComparing(PickerModel::displayNameOf, String.CASE_INSENSITIVE_ORDER);
+                    .thenComparing(PickerModel::baseName, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(AbilityInfo::extractId)
+                    .thenComparingInt(PickerModel::modeOrder);
 
     /** Matching abilities in display order; Enter still picks the first of these. */
     private final List<String> filtered = new ArrayList<>();
@@ -86,6 +88,7 @@ final class PickerModel {
         if (query.isEmpty()) return true;
         if (displayNameOf(option).toLowerCase(Locale.ROOT).contains(query)) return true;
         if (pathwayOf(option).contains(query)) return true;
+        if (entryLabel(option).toLowerCase(Locale.ROOT).contains(query)) return true;
         AbilityInfo info = infoFor(option);
         return info != null && info.category() != null
                 && info.category().toLowerCase(Locale.ROOT).contains(query);
@@ -100,7 +103,6 @@ final class PickerModel {
      */
     private void rebuildRows(boolean searching) {
         rows.clear();
-        rows.add(Row.unbind());
 
         if (filtered.isEmpty()) {
             if (searching) rows.add(Row.message());
@@ -109,6 +111,7 @@ final class PickerModel {
 
         String lastPathway = null;
         int lastSequence = Integer.MIN_VALUE;
+        String lastId = null;
         for (String option : filtered) {
             String pathway = pathwayOf(option);
             int sequence = sequenceOf(option);
@@ -117,6 +120,10 @@ final class PickerModel {
                 lastPathway = pathway;
                 lastSequence = sequence;
             }
+            String id = AbilityInfo.extractId(option);
+            if (!id.equals(lastId) && hasModes(option))
+                rows.add(new Row(RowKind.SPELL, option, pathway, sequence));
+            lastId = id;
             rows.add(Row.ability(option, pathway));
         }
     }
@@ -127,6 +134,7 @@ final class PickerModel {
         return switch (row.kind()) {
             case UNBIND -> PickerMetrics.UNBIND_H;
             case HEADER -> PickerMetrics.HEADER_H;
+            case SPELL -> 23;
             case MESSAGE -> PickerMetrics.MESSAGE_H;
             case ABILITY -> PickerMetrics.ROW_H;
         };
@@ -201,7 +209,43 @@ final class PickerModel {
         return AbilityInfo.sequenceOf(AbilityInfo.extractId(option));
     }
 
+    static String baseName(String option) {
+        AbilityInfo info = infoFor(option);
+        return info == null ? AbilityInfo.extractDisplayName(option) : info.localizedName();
+    }
+
+    static boolean hasModes(String option) {
+        AbilityInfo info = infoFor(option);
+        return (info != null && info.hasLeftClick())
+                || !dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.get(AbilityInfo.extractId(option)).isEmpty();
+    }
+
+    private static int modeOrder(String option) {
+        if (!AbilityInfo.extractCategory(option).isEmpty()) return 0;
+        if (AbilityInfo.ACTION_LEFT_CLICK.equals(AbilityInfo.extractAction(option))) return 1;
+        return dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.get(AbilityInfo.extractId(option)).isEmpty() ? 0 : 2;
+    }
+
+    static String entryLabel(String option) {
+        var category = dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.find(
+                AbilityInfo.extractId(option), AbilityInfo.extractCategory(option));
+        if (category != null) return category.name();
+        if (AbilityInfo.ACTION_LEFT_CLICK.equals(AbilityInfo.extractAction(option)))
+            return net.minecraft.client.resources.language.I18n.get("screen.coi.manual_secondary");
+        if (!dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.get(AbilityInfo.extractId(option)).isEmpty())
+            return net.minecraft.client.resources.language.I18n.get("screen.coi.manual_current_mode");
+        return hasModes(option) ? net.minecraft.client.resources.language.I18n.get("screen.coi.picker_primary") : baseName(option);
+    }
+
     static String displayNameOf(String option) {
+        AbilityInfo info = infoFor(option);
+        if (info != null) {
+            var category = dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.find(info.abilityId(), AbilityInfo.extractCategory(option));
+            if (category != null) return info.localizedName() + " · " + category.name();
+            if (AbilityInfo.ACTION_LEFT_CLICK.equals(AbilityInfo.extractAction(option)))
+                return info.localizedName() + " · " + net.minecraft.client.resources.language.I18n.get("screen.coi.manual_secondary");
+            return info.localizedName();
+        }
         String name = AbilityInfo.extractDisplayName(option);
         return name == null ? option : name;
     }
