@@ -101,4 +101,25 @@ public final class MenuState {
         MenuDocument sample = MenuParser.parse(MenuSample.DOCUMENT);
         if (sample != null) adopt(sample);
     }
+
+    public static void debugSpecimen() {
+        debugSpecimen("giant");
+    }
+
+    public static void debugSpecimen(String pathway) {
+        adopt(MenuParser.parse("""
+                {"session":"debug","version":1,"screen":"debug.specimen",
+                 "title":"Mythical form","subtitle":"Human form","back":true,
+                 "accent":"9CAB8D","icon":{"kind":"pathway","value":"giant"},
+                 "presentation":{"template":"specimen","subject":"%s","caption":"Form study"},
+                 "sections":[{"title":"Form record","components":[
+                   {"type":"kv","rows":[{"label":"State","value":"Human form"},
+                     {"label":"Stability","value":"Incomplete"},{"label":"Cooldown","value":"Ready"}]},
+                   {"type":"note","style":"warn","text":"Gain 20 madness on transformation. Madness continues to rise while transformed."},
+                   {"type":"details","id":"effects","summary":"Transformation effects","text":[
+                     "Transformation replaces your body's attributes with the form's and grants 20 absorption.",
+                     "The five-minute cooldown begins when you transform. Reverting does not reset it."]}]}],
+                 "footer":[{"label":"Transform","enabled":false,"disabledReason":"Preview only"}]}
+                """.formatted(pathway)));
+    }
 }

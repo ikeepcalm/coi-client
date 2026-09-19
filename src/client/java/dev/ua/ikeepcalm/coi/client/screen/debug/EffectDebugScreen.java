@@ -255,7 +255,11 @@ public class EffectDebugScreen extends Screen {
         addRenderableWidget(Button.builder(
                 Component.literal("Appearance Traits — Local Preview").withStyle(ChatFormatting.AQUA),
                 btn -> minecraft.gui.setScreen(new AppearanceDebugScreen(this))
-        ).bounds(panelX, y, PANEL_W, 20).build());
+        ).bounds(panelX, y, PANEL_W / 2 - 2, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Specimen preview"), btn -> {
+            MenuState.debugSpecimen();
+            minecraft.gui.setScreen(new MenuScreen(this));
+        }).bounds(panelX + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
         y += CONTROL_ROW_H;
 
         // Stop All

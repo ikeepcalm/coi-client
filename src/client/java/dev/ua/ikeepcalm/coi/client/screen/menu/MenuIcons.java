@@ -65,10 +65,7 @@ public final class MenuIcons {
         if (!icon.present()) return false;
         return switch (icon.kind()) {
             case PATHWAY -> {
-                int color = MenuTheme.withAlpha(0xFF000000 | Pathways.pathwayRgb(icon.value()), alpha);
-                // Scaled to the slot. Drawing the font's own 9px inside a 32px hero
-                // made the emblem read as a speck beside a 1.5x title.
-                CoiIcons.drawPathwayEmblem(g, font, icon.value(), x, y, size, color);
+                CoiIcons.drawPathwayArtwork(g, font, icon.value(), x, y, size, alpha);
                 yield true;
             }
             case ITEM -> AbilityIcons.drawItemModel(g, icon.value(), x, y, size);

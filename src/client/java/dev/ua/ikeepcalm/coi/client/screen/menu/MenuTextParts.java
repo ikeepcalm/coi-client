@@ -57,7 +57,13 @@ final class MenuTextParts {
         @Override
         void render(GuiGraphicsExtractor g, int x, int top, int mouseX, int mouseY) {
             if (heading == null) {
-                MenuTheme.heading(g, font, title, x, top + 3, ctx.contentW(), ctx.accent());
+                if (ctx.archival()) {
+                    String caption = font.plainSubstrByWidth(title, ctx.contentW());
+                    g.text(font, caption, x, top + 3, 0xFFE4D9BF, false);
+                    MenuTheme.headingRule(g, x + font.width(caption) + 8, top + 7, x + ctx.contentW(), ctx.accent());
+                } else {
+                    MenuTheme.heading(g, font, title, x, top + 3, ctx.contentW(), ctx.accent());
+                }
                 return;
             }
             int y = top + 3;

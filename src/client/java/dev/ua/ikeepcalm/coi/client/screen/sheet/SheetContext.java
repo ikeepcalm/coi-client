@@ -52,6 +52,8 @@ final class SheetContext {
     private int viewBottom;
     private float frameDelta;
     private boolean compact;
+    private int spareHeight;
+    private int spareGaps;
 
     SheetContext(Font font, Consumer<String> opener) {
         this.font = font;
@@ -115,6 +117,18 @@ final class SheetContext {
         return compact ? 4 : 8;
     }
 
+    void distributeSpace(int pixels, int gaps) {
+        spareHeight = Math.max(0, pixels);
+        spareGaps = gaps;
+    }
+
+    int expandedGap(int minimum) {
+        if (spareGaps <= 0) return minimum;
+        int extra = spareHeight / spareGaps--;
+        spareHeight -= extra;
+        return minimum + extra;
+    }
+
     /**
      * One step of a tween toward {@code target}, frame-rate independent. Under
      * {@code epilepsyMode} it returns the target outright, which is what makes
@@ -128,19 +142,19 @@ final class SheetContext {
     }
 
     /**
-     * A section caption: small-caps, the subject's colour, a rule out to the
-     * card's edge — {@link MenuTheme#headingCaption}, so the sheet's sections
-     * and a document's sections are the same object.
+     * A plain caption and a pathway-colored rule. Letter spacing is kept natural for reading.
      */
     int section(GuiGraphicsExtractor graphics, int x, int y, int w, String key, String glyph) {
+        if (graphics == null) return y + HEADING_H;
         int accent = accent();
         int left = x;
         if (MenuIcons.draw(graphics, font(), new MenuIcon(MenuIcon.Kind.GLYPH, glyph),
                 left, y + 1, SMALL_ICON, 1f)) {
             left += SMALL_ICON + 3;
         }
-        int used = MenuTheme.headingCaption(graphics, font(), I18n.get(key), left, y + 3,
-                x + w - left, accent);
+        String caption = trim(I18n.get(key), x + w - left);
+        graphics.text(font(), caption, left, y + 3, 0xFFE4D9BF, false);
+        int used = font().width(caption);
         MenuTheme.headingRule(graphics, left + used + 5, y + 6, x + w, accent);
         return y + HEADING_H;
     }

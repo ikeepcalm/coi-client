@@ -17,6 +17,19 @@ public class AvatarRenderStateMixin implements AvatarRenderStateAccessor {
     @Unique
     private String coi$playerUuid;
 
+    @Unique
+    private String coi$previewForm;
+
+    @Override
+    public String coi$getPreviewForm() {
+        return coi$previewForm;
+    }
+
+    @Override
+    public void coi$setPreviewForm(String form) {
+        coi$previewForm = form;
+    }
+
     @Override
     public String coi$getPlayerUuid() {
         return coi$playerUuid;

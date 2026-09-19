@@ -1,11 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.screen.sheet;
 
 /**
- * The sheet's measurements, and the one hit test its cards use.
- * <p>
- * The card geometry at the top is shared verbatim with the menu screen, which
- * is the point: the sheet is drawn as a menu document, so a number here that
- * disagrees with one there is a number that has drifted.
+ * Measurements for the dossier's record rows and destination hit areas.
  */
 final class SheetMetrics {
 
@@ -14,9 +10,7 @@ final class SheetMetrics {
     static final int SMALL_ICON = 12;
     static final int HEADING_H = 15;
     static final int LINE = 11;
-    static final int HEAD = 32;
     static final int SYMBOL = 32;
-    static final int SEQ_BADGE_W = 34;
 
     /**
      * Hover tints ease over this. Suppressed outright under {@code epilepsyMode}
@@ -30,7 +24,6 @@ final class SheetMetrics {
      * muted line (madness with a floor, acting with a cooldown) grows by one.
      */
     static final int VITAL_ROW_H = SYMBOL;
-    static final int VITAL_NOTE_H = 11;
     static final int VITAL_GAP = 4;
     static final int BAR_H = 6;
 
@@ -52,7 +45,6 @@ final class SheetMetrics {
      */
     static final int THREE_COLUMN_MIN = 540;
 
-    static final int SKIN_SHEET = 64;
 
     private SheetMetrics() {
     }

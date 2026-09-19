@@ -136,6 +136,22 @@ public final class CoiIcons {
     /** The emblem's authored height — the bitmaps behind the pathway font are 9px. */
     public static final int EMBLEM = 9;
 
+    /** Full artwork for menu slots; retain the font route for inline text and missing textures. */
+    public static void drawPathwayArtwork(GuiGraphicsExtractor ctx, Font font, String pathway,
+                                          int x, int y, int size, float alpha) {
+        Identifier texture = Pathways.qualityEmblemTexture(pathway);
+        if (texture == null || !present(texture)) texture = Pathways.emblemTexture(pathway);
+        int opacity = Math.round(Math.clamp(alpha, 0f, 1f) * 255);
+        if (texture != null && present(texture)) {
+            // Unit source dimensions map the complete image to UV 0..1 at any source resolution.
+            ctx.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f,
+                    size, size, 1, 1, 1, 1, EffectPaint.argb(0xFFFFFF, opacity));
+        } else {
+            drawPathwayEmblem(ctx, font, pathway, x, y, size,
+                    EffectPaint.argb(Pathways.pathwayRgb(pathway), opacity));
+        }
+    }
+
     /**
      * The same emblem, scaled to fill a {@code size}-tall slot.
      * <p>

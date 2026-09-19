@@ -15,7 +15,13 @@ public record MenuDocument(String session, int version, String screen,
                            String title, String subtitle, int accentRgb, MenuIcon icon,
                            boolean back, boolean closable, Toast toast,
                            List<Section> sections, List<MenuComponent.Button> footer,
-                           boolean closed) {
+                           boolean closed, Presentation presentation) {
+
+    /** Optional decoration only. Every fact and action is still present in sections/footer. */
+    public record Presentation(String template, String subject, String caption) {
+        public static final Presentation NONE = new Presentation("", "", "");
+        public boolean specimen() { return template.equals("specimen") && !subject.isEmpty(); }
+    }
 
     /**
      * The mod's own gold, for a document that names no accent.
@@ -39,7 +45,7 @@ public record MenuDocument(String session, int version, String screen,
      */
     public static MenuDocument closed(String session) {
         return new MenuDocument(session, 0, "", "", "", 0, MenuIcon.NONE,
-                false, true, null, List.of(), List.of(), true);
+                false, true, null, List.of(), List.of(), true, Presentation.NONE);
     }
 
     public int accentArgb() {

@@ -35,6 +35,7 @@ public class AvatarRendererMixin {
     @Inject(method = "extractRenderState", at = @At("TAIL"))
     private void coi$extractPlayerUuid(Avatar entity, AvatarRenderState state, float partialTicks, CallbackInfo ci) {
         ((AvatarRenderStateAccessor) state).coi$setPlayerUuid(entity.getUUID().toString());
+        ((AvatarRenderStateAccessor) state).coi$setPreviewForm(null);
     }
 
 }

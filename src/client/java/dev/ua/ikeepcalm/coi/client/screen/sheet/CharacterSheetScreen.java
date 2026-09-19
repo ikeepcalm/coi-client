@@ -12,6 +12,8 @@ import dev.ua.ikeepcalm.coi.client.screen.menu.MenuTheme;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
 import dev.ua.ikeepcalm.coi.client.state.SheetState;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
+import dev.ua.ikeepcalm.coi.client.ui.ArchivePaint;
+import dev.ua.ikeepcalm.coi.client.ui.ArchiveTab;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,53 +34,13 @@ import org.jspecify.annotations.NonNull;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The Beyonder character sheet — the client-rendered half of the plugin's
- * InvUI stats page, and the full-size sibling of the character plate on the
- * HUD.
- * <p>
- * Opening announces {@code sheet_open} so the server starts pushing
- * {@code coi-client:sheet} every 60 ticks; closing announces {@code sheet_close}
- * exactly once, whichever way the screen goes away. Everything drawn here is
- * re-read from {@link SheetState} each frame, so those pushes land live.
- * <p>
- * <b>The sheet is drawn as a menu document, not as a screen of its own.</b> It
- * opens every server-authored menu the player will see, so the two have to be
- * the same object: one bounded card on {@link CoiStyle#BACKDROP}, a header
- * carrying the pathway emblem and a close cross, small-caps section headings on
- * the card's own surface, a draggable accent scrollbar inside the card, and a
- * footer of {@link MenuTheme} buttons under a hairline. Every primitive — chip,
- * gauge, panel, toggle, badge — comes from {@code MenuTheme}, so a change to the
- * menus' look reaches the sheet without anybody remembering to make it twice.
- * That is the whole reason this screen owns no paint of its own any more: the
- * old sheet floated a stack of separately bordered cards over a differently dim
- * backdrop with vanilla-ish buttons in the corner, and stepping from it into a
- * menu read as stepping into another program.
- * <p>
- * Two consequences of the layout shape the code:
- * <ul>
- *   <li><b>Geometry is recomputed every frame, during the draw.</b> Section
- *       heights follow the data (a source appears, a condition clears), so the
- *       draw is the layout, and mouse events reuse the last frame's hit boxes —
- *       the same bargain {@code AbilityPickerOverlay} makes.</li>
- *   <li><b>The card's height trails the content by one frame.</b> Measuring
- *       ahead would mean a second pass that can drift from the first, so
- *       {@link #contentHeight} is seeded full instead: the card opens at its
- *       full size and settles down to a short document, rather than opening as
- *       a sliver and snapping out.</li>
- * </ul>
- * The page itself is a column of sections, one class each — {@link SheetHero},
- * {@link SheetVitals}, {@link SheetActing}, {@link SheetConditions} and
- * {@link SheetDestinations} — all drawn through a {@link SheetContext} and each
- * returning the y it reached. This class owns what is around them: the card,
- * the scroll, the two payloads and the wait for the server's answer.
- * <p>
- * The seven sub-menus stay server-side: their cards send
- * {@link ActionPayload#ofOpen(String)} and close the sheet, and the server
- * answers with either its own GUI or a {@code coi-client:menu} document.
+ * Server-fed character dossier with a fixed identity leaf and three local index pages.
+ * Page selection and scroll positions belong to the client; all values, destination gates,
+ * terrain preferences and navigation actions still come from the server.
+ * The sheet remains visible during a destination request so latency never releases the camera.
  */
 public class CharacterSheetScreen extends Screen {
 
-    private static final int WATERMARK = 64;
     private static final int SCROLL_STEP = 20;
 
     /** Three pixels of paint, and a grab box deliberately wider — see {@link #onTrack}. */
@@ -101,6 +63,23 @@ public class CharacterSheetScreen extends Screen {
      */
     private SheetContext ctx;
     private SheetDestinations destinations;
+    private final List<ArchiveTab> tabs = new ArrayList<>();
+    private final double[] pageScroll = new double[3];
+    private int page;
+    private int portraitW;
+
+    private int bodyX() { return cardX + pad() + portraitW; }
+    private int bodyW() { return contentW() - portraitW; }
+
+    private void selectPage(int next) {
+        if (awaitingSince != 0 || page == next) return;
+        pageScroll[page] = scroll;
+        page = next;
+        scroll = pageScroll[page];
+        contentHeight = Integer.MAX_VALUE / 4;
+        draggingScroll = false;
+        ctx.beginFrame(0, viewTop, viewBottom, compact());
+    }
 
     private boolean openSent;
     private boolean closeSent;
@@ -113,8 +92,7 @@ public class CharacterSheetScreen extends Screen {
 
     /**
      * Last frame's measured content height — what the scroll clamp works
-     * against, one frame behind and self-correcting. Seeded full so the card
-     * never opens as a sliver; see the class comment.
+     * against, one frame behind. A page is measured while drawing its rows.
      */
     private int contentHeight = Integer.MAX_VALUE / 4;
 
@@ -139,7 +117,7 @@ public class CharacterSheetScreen extends Screen {
         this.parent = parent;
     }
 
-    // --- Geometry, shared verbatim with the menu screen ---
+    // --- Dossier geometry ---
 
     private boolean compact() {
         return this.height < 300;
@@ -172,6 +150,14 @@ public class CharacterSheetScreen extends Screen {
             destinations = new SheetDestinations(ctx);
         }
         footer.clear();
+        tabs.clear();
+        String[] labels = {"record", "acting", "connections"};
+        for (int i = 0; i < labels.length; i++) {
+            final int index = i;
+            tabs.add(addRenderableWidget(new ArchiveTab(
+                    Component.translatable("screen.coi.dossier_tab_" + labels[i]),
+                    () -> selectPage(index), () -> page == index)));
+        }
         layout();
         if (!openSent) {
             send(ActionPayload.of("sheet_open"));
@@ -180,19 +166,27 @@ public class CharacterSheetScreen extends Screen {
     }
 
     private void layout() {
-        cardW = CoiStyle.cardWidth(this.width, compact());
+        cardW = Math.max(120, Math.min(920, this.width - (compact() ? 16 : 36)));
         cardX = (this.width - cardW) / 2;
-        headerH = pad() + ICON + 6;
+        headerH = pad() + ICON + 32;
+        portraitW = cardW >= 570 ? Math.min(230, cardW / 3) : 0;
 
         if (footer.isEmpty()) footer.build(this::openServerMenu, this::onClose);
         footerH = buttonH() + pad();
 
         int margin = compact() ? 8 : 18;
         int availH = Math.max(80, this.height - margin * 2);
-        cardH = Math.min(availH, headerH + contentHeight + pad() + footerH);
+        cardH = availH;
         cardY = (this.height - cardH) / 2;
         viewTop = cardY + headerH;
         viewBottom = Math.max(viewTop + 20, cardY + cardH - footerH - pad() / 2);
+        int tabW = contentW() / 3;
+        for (int i = 0; i < tabs.size(); i++) {
+            tabs.get(i).setX(cardX + pad() + i * tabW);
+            tabs.get(i).setY(viewTop - 24);
+            tabs.get(i).setWidth(tabW);
+            tabs.get(i).active = awaitingSince == 0;
+        }
 
         scroll = Mth.clamp(scroll, 0, maxScroll());
     }
@@ -284,6 +278,8 @@ public class CharacterSheetScreen extends Screen {
         // click cannot queue a second destination behind the first
         if (awaitingSince != 0) return true;
 
+        if (my >= viewTop - 24 && my < viewTop) return super.mouseClicked(event, doubleClick);
+
         if (clickHeader(mx, my)) return true;
         if (clickFooter(mx, my)) return true;
 
@@ -353,6 +349,10 @@ public class CharacterSheetScreen extends Screen {
 
     @Override
     public boolean keyPressed(@NonNull KeyEvent event) {
+        if (event.key() == GLFW.GLFW_KEY_LEFT || event.key() == GLFW.GLFW_KEY_RIGHT) {
+            if (awaitingSince == 0) selectPage(Math.floorMod(page + (event.key() == GLFW.GLFW_KEY_RIGHT ? 1 : -1), 3));
+            return true;
+        }
         int page = viewBottom - viewTop - 20;
         switch (event.key()) {
             case GLFW.GLFW_KEY_PAGE_DOWN -> scroll = Mth.clamp(scroll + page, 0, maxScroll());
@@ -385,27 +385,37 @@ public class CharacterSheetScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, CoiStyle.BACKDROP);
 
         int accent = accent();
-        CoiStyle.drawCard(graphics, cardX, cardY, cardW, cardH);
-        graphics.fill(cardX, cardY, cardX + cardW, cardY + 1, accent);
-        drawWatermark(graphics);
+        ArchivePaint.folio(graphics, cardX, cardY, cardW, cardH);
 
         scroll = Mth.clamp(scroll, 0, maxScroll());
         ctx.beginFrame(frameDelta, viewTop, viewBottom, compact());
 
         drawHeader(graphics, mouseX, mouseY, accent);
 
-        graphics.enableScissor(cardX + 1, viewTop, cardX + cardW - 1, viewBottom);
-        int x = cardX + pad();
-        int w = contentW();
+        if (portraitW > 0) SheetPortrait.draw(ctx, graphics, cardX + pad(), viewTop,
+                portraitW - 12, viewBottom - viewTop);
+
+        graphics.enableScissor(bodyX(), viewTop, cardX + cardW - 1, viewBottom);
+        int x = bodyX();
+        int w = bodyW();
         int y = viewTop - (int) scroll;
         int start = y;
-        y = SheetHero.draw(ctx, graphics, x, y + pad() / 2, w) + ctx.sectionGap();
+        if (portraitW == 0) {
+            int identityH = this.height <= 320 ? 72 : 100;
+            SheetPortrait.draw(ctx, graphics, x, y, w, identityH);
+            y += identityH + 12;
+        }
         if (SheetState.hasData()) {
-            y = SheetVitals.draw(ctx, graphics, x, y, w) + ctx.sectionGap();
-            y = SheetActing.draw(ctx, graphics, x, y, w) + ctx.sectionGap();
-            y = SheetConditions.draw(ctx, graphics, x, y, w);
-            y = destinations.draw(graphics, x, y, w, mouseX, mouseY) + ctx.sectionGap();
-            y = destinations.preferences(graphics, x, y, w, mouseX, mouseY);
+            // The unscrolled page end stays fixed while overflowing content scrolls past it.
+            int bottom = start + viewBottom - viewTop - pad();
+            if (page == 0) {
+                y = drawRecord(graphics, x, y, w, bottom);
+            } else if (page == 1) {
+                y = SheetActing.draw(ctx, graphics, x, y, w, bottom);
+            } else {
+                y = destinations.draw(graphics, x, y, w, mouseX, mouseY, bottom) + ctx.sectionGap();
+                y = destinations.preferences(graphics, x, y, w, mouseX, mouseY);
+            }
         } else {
             y = drawWaiting(graphics, x, y, w);
         }
@@ -429,6 +439,28 @@ public class CharacterSheetScreen extends Screen {
         }
     }
 
+    private int drawRecord(GuiGraphicsExtractor graphics, int x, int y, int w, int bottom) {
+        // Measure actual wrapped text first, so language, state changes and resizing cannot
+        // turn extra spacing into overflow or feed last frame's expanded height back into layout.
+        ctx.distributeSpace(0, 0);
+        int vitalsH = SheetVitals.draw(ctx, null, 0, 0, w);
+        int actingH = SheetActing.overview(ctx, null, 0, 0, w);
+        int conditionsH = SheetConditions.draw(ctx, null, 0, 0, w);
+        int sections = (actingH > 0 ? 1 : 0) + (conditionsH > 0 ? 1 : 0);
+        int naturalH = vitalsH + actingH + conditionsH + sections * ctx.sectionGap();
+        ctx.distributeSpace(bottom - y - naturalH, 3 + sections);
+        y = SheetVitals.draw(ctx, graphics, x, y, w);
+        if (actingH > 0) {
+            y += ctx.expandedGap(ctx.sectionGap());
+            y = SheetActing.overview(ctx, graphics, x, y, w);
+        }
+        if (conditionsH > 0) {
+            y += ctx.expandedGap(ctx.sectionGap());
+            y = SheetConditions.draw(ctx, graphics, x, y, w);
+        }
+        return y;
+    }
+
     /**
      * The hand-over veil: the card dims and says what it is doing, so the pause between the click
      * and the server's screen reads as "working" rather than as a click that did nothing.
@@ -440,29 +472,10 @@ public class CharacterSheetScreen extends Screen {
                 cardX + cardW / 2, cardY + cardH / 2 - 4, accent);
     }
 
-    /**
-     * The pathway emblem, huge and almost invisible behind the top right of the
-     * card — the same mark a menu document puts there, so the sheet and the
-     * screens it opens carry one watermark between them.
-     */
-    private void drawWatermark(GuiGraphicsExtractor graphics) {
-        if (SheetState.pathway().isEmpty()) return;
-        graphics.enableScissor(cardX + 1, cardY + 1, cardX + cardW - 1, cardY + cardH - 1);
-        MenuIcons.watermark(graphics, this.font,
-                new MenuIcon(MenuIcon.Kind.PATHWAY, SheetState.pathway()),
-                cardX + cardW - WATERMARK - 4, cardY + 4, WATERMARK);
-        graphics.disableScissor();
-    }
-
     private void drawHeader(GuiGraphicsExtractor graphics, int mouseX, int mouseY, int accent) {
         int left = cardX + pad();
         int right = cardX + cardW - pad();
         int top = cardY + pad();
-
-        // The accent band: the header is the one block that belongs to the
-        // subject's own colour rather than to the card
-        graphics.fill(cardX + 1, cardY + 1, cardX + cardW - 1, cardY + headerH - 3,
-                MenuTheme.withAlpha(accent, 0.06f));
 
         // Only the debug screen opens the sheet over something; from the world
         // it is the root, and a root has nowhere to go back to
@@ -482,8 +495,7 @@ public class CharacterSheetScreen extends Screen {
         }
         int textW = Math.max(20, right - left);
         graphics.text(this.font, this.font.plainSubstrByWidth(this.title.getString(), textW),
-                left, top + (ICON - 8) / 2, accent, true);
-        MenuTheme.hairline(graphics, cardX + pad(), cardY + headerH - 3, contentW());
+                left, top + (ICON - 8) / 2, ArchivePaint.LABEL, false);
     }
 
     private void drawFooter(GuiGraphicsExtractor graphics, int mouseX, int mouseY, int accent) {

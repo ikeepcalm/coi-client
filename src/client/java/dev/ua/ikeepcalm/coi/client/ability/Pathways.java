@@ -78,6 +78,24 @@ public class Pathways {
                 "textures/pathways/" + ("aeon".equals(key) ? "eternalaeon" : key) + ".png");
     }
 
+    /** Original-resolution menu artwork; the three extra pathways retain their bundled emblems. */
+    public static Identifier qualityEmblemTexture(String pathway) {
+        String key = normalizePathway(pathway);
+        if (!PATHWAY_ICONS.containsKey(key)) return null;
+        String file = switch (key) {
+            case "aeon", "patriarch", "sublunary" -> null;
+            case "emperor" -> "black-emperor";
+            case "giant" -> "twilight-giant";
+            case "hanged" -> "hanged-man";
+            case "priest" -> "red-priest";
+            case "tower" -> "white-tower";
+            case "fortune" -> "weel-of-fortune";
+            default -> key;
+        };
+        return file == null ? null : Identifier.fromNamespaceAndPath("coi-client",
+                "textures/pathways/quality/" + file + "-min.png");
+    }
+
     /**
      * The pathway's emblem glyph from the {@code pathway_icons} font, or null
      * when that pathway has none. Shared by the tooltip decorators and the

@@ -10,6 +10,7 @@ import dev.ua.ikeepcalm.coi.client.menu.MenuDocument;
 import dev.ua.ikeepcalm.coi.client.network.payload.MenuActionPayload;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
+import dev.ua.ikeepcalm.coi.client.ui.ArchivePaint;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -65,6 +66,9 @@ public class MenuScreen extends Screen implements MenuContext {
     private final MenuChrome chrome = new MenuChrome(this);
     private final MenuScrollbar scrollbar = new MenuScrollbar();
     private final MenuConfirmModal confirm = new MenuConfirmModal(this);
+    private final MenuSpecimen specimen = new MenuSpecimen();
+    private int specimenW;
+    private int specimenH;
 
     private MenuDocument doc;
     private int docRevision = -1;
@@ -139,6 +143,11 @@ public class MenuScreen extends Screen implements MenuContext {
     @Override
     public int accent() {
         return doc != null ? doc.accentArgb() : CoiStyle.ACCENT;
+    }
+
+    @Override
+    public boolean archival() {
+        return doc != null && doc.presentation().specimen();
     }
 
     @Override
@@ -234,6 +243,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
         boolean sameScreen = doc != null && doc.screen().equals(next.screen());
         if (!sameScreen) {
+            specimen.reset();
             scrollbar.toTop();
             fields.clear();
             focusedField = null;
@@ -257,14 +267,33 @@ public class MenuScreen extends Screen implements MenuContext {
     private void layout() {
         cardW = CoiStyle.cardWidth(this.width, compact());
         cardX = (this.width - cardW) / 2;
+        specimenW = 0;
+        specimenH = 0;
+        if (doc.presentation().specimen()) {
+            int totalW = Math.min(960, this.width - 32);
+            if (totalW >= 620) {
+                specimenW = Math.min(340, totalW / 3);
+                cardW = totalW - specimenW - 12;
+                cardX = (this.width - totalW) / 2 + specimenW + 12;
+            } else {
+                specimenH = Math.clamp((this.height - 90) / 2, 100, 160);
+            }
+        } else {
+            specimen.clear();
+        }
 
         chrome.measure(doc);
 
         contentH = MenuPartFactory.build(this, doc, parts);
+        if (specimenH > 0) {
+            for (MenuPart part : parts) part.y += specimenH + 10;
+            contentH += specimenH + 10;
+        }
 
         int margin = compact() ? 8 : 18;
         int availH = Math.max(80, this.height - margin * 2);
         cardH = Math.min(availH, chrome.headerH() + chrome.noticeH() + contentH + pad() + chrome.footerH());
+        if (specimenW > 0) cardH = availH;
         cardY = (this.height - cardH) / 2;
         viewTop = cardY + chrome.headerH() + chrome.noticeH();
         viewBottom = Math.max(viewTop + 20, cardY + cardH - chrome.footerH() - pad() / 2);
@@ -432,11 +461,16 @@ public class MenuScreen extends Screen implements MenuContext {
         g.fill(0, 0, this.width, this.height, CoiStyle.BACKDROP);
         tooltip = null;
 
-        CoiStyle.drawCard(g, cardX, cardY, cardW, cardH);
+        if (doc.presentation().specimen()) ArchivePaint.folio(g, cardX, cardY, cardW, cardH);
+        else CoiStyle.drawCard(g, cardX, cardY, cardW, cardH);
         // CoiStyle's top rule is the mod's gold; a document that named its own
         // accent owns that edge too
-        g.fill(cardX, cardY, cardX + cardW, cardY + 1, accent());
-        chrome.drawWatermark(g);
+        if (!doc.presentation().specimen()) {
+            g.fill(cardX, cardY, cardX + cardW, cardY + 1, accent());
+            chrome.drawWatermark(g);
+        }
+        if (specimenW > 0) specimen.draw(g, font, doc, cardX - specimenW - 12, cardY,
+                specimenW, cardH, cardY, cardY + cardH);
 
         chrome.drawHeader(g, mouseX, mouseY);
         chrome.drawNotice(g, adoptedAt);
@@ -459,6 +493,8 @@ public class MenuScreen extends Screen implements MenuContext {
 
         g.enableScissor(cardX + 1, viewTop, cardX + cardW - 1, viewBottom);
         int originX = cardX + pad();
+        if (specimenH > 0) specimen.draw(g, font, doc, originX, viewTop - scrollbar.scrollY(),
+                contentW(), specimenH, viewTop, viewBottom);
         for (MenuPart part : parts) {
             int top = viewTop + part.y - scrollbar.scrollY();
             if (top + part.height < viewTop || top > viewBottom) continue;
@@ -478,6 +514,7 @@ public class MenuScreen extends Screen implements MenuContext {
         double my = event.y();
 
         if (confirm.active()) return confirm.click(mx, my);
+        if (doc.presentation().specimen() && specimen.press(mx, my)) return true;
         if (clickHeader(mx, my)) return true;
         if (chrome.clickFooter(mx, my)) return true;
 
@@ -499,6 +536,8 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean mouseDragged(@NonNull MouseButtonEvent event, double dragX, double dragY) {
+        if (confirm.active()) return true;
+        if (specimen.drag(dragX)) return true;
         if (scrollbar.drag(event.y())) return true;
         return super.mouseDragged(event, dragX, dragY);
     }
@@ -537,6 +576,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean mouseReleased(@NonNull MouseButtonEvent event) {
+        specimen.release();
         pressedAction = null;
         scrollbar.release();
         return super.mouseReleased(event);
@@ -545,6 +585,7 @@ public class MenuScreen extends Screen implements MenuContext {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
         if (confirm.active()) return true;
+        if (doc != null && doc.presentation().specimen() && specimen.zoom(mouseX, mouseY, vertical)) return true;
         scrollbar.scrollBy(-(int) Math.signum(vertical) * SCROLL_STEP);
         return true;
     }

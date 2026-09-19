@@ -29,6 +29,14 @@ loom {
         }
     }
 
+    if (project.hasProperty('archivePreview')) {
+        runs.client {
+            runDir 'build/archive-preview'
+            programArgs '--width', '1440', '--height', '900', '--quickPlaySingleplayer', 'Preview'
+            vmArg '-Dcoi.archivePreview=true'
+        }
+    }
+
 }
 
 dependencies {
@@ -45,6 +53,15 @@ dependencies {
     // is Gson, which Minecraft already provides. Bundled jar-in-jar.
     implementation 'com.github.JnCrMx:discord-game-sdk4j:v1.0.0'
     include 'com.github.JnCrMx:discord-game-sdk4j:v1.0.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+// The protocol model lives in the client source set, but can be tested without a game window.
+sourceSets.test.compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
+test {
+    useJUnitPlatform()
 }
 
 processResources {

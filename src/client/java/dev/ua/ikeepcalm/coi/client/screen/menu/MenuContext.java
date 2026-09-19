@@ -25,6 +25,8 @@ interface MenuContext {
     /** The document's own colour, or the mod's gold when it named none. */
     int accent();
 
+    default boolean archival() { return false; }
+
     /** A short window has no room for the roomy paddings; see {@code pad}. */
     boolean compact();
 

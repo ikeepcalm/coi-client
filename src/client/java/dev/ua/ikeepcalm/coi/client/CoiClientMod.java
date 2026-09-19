@@ -26,6 +26,7 @@ import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
 import dev.ua.ikeepcalm.coi.client.presence.DiscordPresenceManager;
 import dev.ua.ikeepcalm.coi.client.screen.InventoryHint;
 import dev.ua.ikeepcalm.coi.client.screen.TourScreen;
+import dev.ua.ikeepcalm.coi.client.screen.debug.ArchivePreviewSmoke;
 import dev.ua.ikeepcalm.coi.client.state.ActingState;
 import dev.ua.ikeepcalm.coi.client.state.ActionBarState;
 import dev.ua.ikeepcalm.coi.client.state.AppearanceState;
@@ -77,6 +78,7 @@ public class CoiClientMod implements ClientModInitializer {
         AbilityBindings.load();
         CoiNetworking.registerPayloads();
         CoiKeyBindings.registerKeybindings();
+        ArchivePreviewSmoke.register();
         registerTickHandler();
         registerOverlays();
         registerConnectionEvents();

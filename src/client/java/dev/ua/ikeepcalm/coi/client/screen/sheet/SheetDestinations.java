@@ -50,26 +50,33 @@ final class SheetDestinations {
     private final SheetContext ctx;
     private final float[] navHover = new float[NAV.length];
     private float prefsHover;
+    private int preferenceHeight = NAV_CARD_H;
 
     SheetDestinations(SheetContext ctx) {
         this.ctx = ctx;
     }
 
-    int draw(GuiGraphicsExtractor graphics, int x, int y, int w, int mouseX, int mouseY) {
+    int draw(GuiGraphicsExtractor graphics, int x, int y, int w, int mouseX, int mouseY, int bottom) {
         int ry = ctx.section(graphics, x, y, w, "screen.coi.sheet_sec_nav", GLYPH_DIVINATION) + 4;
         // Seven destinations. At the sheet's old 440 these could only ever be two abreast, which
         // was four rows of card; with the shared width a third column fits and it becomes three.
         int cols = w >= THREE_COLUMN_MIN ? 3 : w >= TWO_COLUMN_MIN ? 2 : 1;
         int tileW = (w - GAP * (cols - 1)) / cols;
         boolean[] gates = gates();
+        int rows = (NAV.length + cols - 1) / cols;
+        int preferenceHeading = SheetMetrics.HEADING_H + 4;
+        int naturalBottom = ry + rows * (NAV_CARD_H + GAP) - GAP
+                + ctx.sectionGap() + preferenceHeading + NAV_CARD_H;
+        int spare = Math.max(0, bottom - naturalBottom);
+        int tileH = NAV_CARD_H + spare / (rows + 1);
+        preferenceHeight = NAV_CARD_H + spare - (tileH - NAV_CARD_H) * rows;
 
         for (int i = 0; i < NAV.length; i++) {
             int cx = x + (i % cols) * (tileW + GAP);
-            int cy = ry + (i / cols) * (NAV_CARD_H + GAP);
-            drawNavCard(graphics, i, gates[i], cx, cy, tileW, mouseX, mouseY);
+            int cy = ry + (i / cols) * (tileH + GAP);
+            drawNavCard(graphics, i, gates[i], cx, cy, tileW, tileH, mouseX, mouseY);
         }
-        int rows = (NAV.length + cols - 1) / cols;
-        return ry + rows * (NAV_CARD_H + GAP) - GAP;
+        return ry + rows * (tileH + GAP) - GAP;
     }
 
     private static boolean[] gates() {
@@ -91,34 +98,32 @@ final class SheetDestinations {
      * eases in rather than snapping, as everything in a document does.
      */
     private void drawNavCard(GuiGraphicsExtractor graphics, int index, boolean unlocked,
-                             int x, int y, int w, int mouseX, int mouseY) {
+                             int x, int y, int w, int h, int mouseX, int mouseY) {
         Nav nav = NAV[index];
         boolean inside = mouseY >= ctx.viewTop() && mouseY < ctx.viewBottom()
-                && SheetMetrics.inBox(mouseX, mouseY, x, y, w, NAV_CARD_H);
+                && SheetMetrics.inBox(mouseX, mouseY, x, y, w, h);
         navHover[index] = ctx.approach(navHover[index], inside && unlocked ? 1f : 0f, HOVER_MS);
         float hoverT = navHover[index];
 
         int accent = unlocked ? accent() : CoiStyle.INACTIVE;
-        MenuTheme.panel(graphics, x, y, w, NAV_CARD_H, MenuTheme.surface(hoverT),
-                unlocked ? MenuTheme.lerpArgb(MenuTheme.withAlpha(accent, 0.30f), accent, hoverT)
-                        : MenuTheme.BORDER_OFF);
-        graphics.fill(x, y + 1, x + 2, y + NAV_CARD_H - 1, accent);
+        graphics.fill(x, y, x + w, y + h, MenuTheme.withAlpha(accent, hoverT * 0.08f));
+        graphics.fill(x, y + h - 1, x + w, y + h, 0xFF494C43);
 
-        SheetGlyphs.draw(graphics, nav.glyph(), x + 7, y + (NAV_CARD_H - 16) / 2, 16, accent);
+        SheetGlyphs.draw(graphics, nav.glyph(), x + 7, y + (h - 16) / 2, 16, accent);
 
         int textX = x + 27;
         int textW = x + w - 8 - textX - (unlocked ? 0 : 12);
         graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_btn_" + nav.target()), textW),
-                textX, y + 6, unlocked ? CoiStyle.TEXT_BODY : CoiStyle.INACTIVE, true);
+                textX, y + (h - 19) / 2, unlocked ? CoiStyle.TEXT_BODY : CoiStyle.INACTIVE, true);
         graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_nav_" + nav.target() + "_desc"), textW),
-                textX, y + 17, unlocked ? CoiStyle.TEXT_MUTED : CoiStyle.INACTIVE, false);
+                textX, y + (h - 19) / 2 + 11, unlocked ? CoiStyle.TEXT_MUTED : CoiStyle.INACTIVE, false);
 
         if (!unlocked) {
-            SheetGlyphs.draw(graphics, SheetGlyphs.LOCK, x + w - 16, y + (NAV_CARD_H - 10) / 2, 10,
+            SheetGlyphs.draw(graphics, SheetGlyphs.LOCK, x + w - 16, y + (h - 10) / 2, 10,
                     CoiStyle.INACTIVE);
         }
         Component tip = unlocked ? null : Component.translatable("screen.coi.sheet_lock_" + nav.target());
-        ctx.addHit(new SheetContext.Hit(x, y, w, NAV_CARD_H,
+        ctx.addHit(new SheetContext.Hit(x, y, w, h,
                 unlocked ? () -> ctx.open(nav.target()) : null, tip));
         if (inside && tip != null) ctx.hover(tip);
     }
@@ -132,15 +137,15 @@ final class SheetDestinations {
         int ry = ctx.section(graphics, x, y, w, "screen.coi.sheet_sec_prefs", GLYPH_DEFENSE) + 4;
         boolean on = SheetState.actions().terrainDamage();
         boolean hovered = mouseY >= ctx.viewTop() && mouseY < ctx.viewBottom()
-                && SheetMetrics.inBox(mouseX, mouseY, x, ry, w, NAV_CARD_H);
+                && SheetMetrics.inBox(mouseX, mouseY, x, ry, w, preferenceHeight);
         prefsHover = ctx.approach(prefsHover, hovered ? 1f : 0f, HOVER_MS);
 
         int accent = accent();
         int state = on ? MenuTheme.SUCCESS : CoiStyle.INACTIVE;
-        MenuTheme.panel(graphics, x, ry, w, NAV_CARD_H, MenuTheme.surface(prefsHover),
+        MenuTheme.panel(graphics, x, ry, w, preferenceHeight, MenuTheme.surface(prefsHover),
                 MenuTheme.lerpArgb(MenuTheme.withAlpha(accent, 0.30f), accent, prefsHover));
 
-        SheetGlyphs.draw(graphics, SheetGlyphs.BLOCKS, x + 7, ry + (NAV_CARD_H - 16) / 2, 16, state);
+        SheetGlyphs.draw(graphics, SheetGlyphs.BLOCKS, x + 7, ry + (preferenceHeight - 16) / 2, 16, state);
 
         String label = I18n.get(on ? "screen.coi.sheet_on" : "screen.coi.sheet_off");
         int labelW = ctx.font().width(label);
@@ -148,15 +153,15 @@ final class SheetDestinations {
         int textX = x + 27;
         int textW = switchX - 6 - labelW - 4 - textX;
 
-        graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_terrain_title"), textW), textX, ry + 6,
+        graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_terrain_title"), textW), textX, ry + (preferenceHeight - 19) / 2,
                 CoiStyle.TEXT_BODY, true);
-        graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_terrain_desc"), textW), textX, ry + 17,
+        graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_terrain_desc"), textW), textX, ry + (preferenceHeight - 19) / 2 + 11,
                 CoiStyle.TEXT_MUTED, false);
-        graphics.text(ctx.font(), label, switchX - 4 - labelW, ry + (NAV_CARD_H - 8) / 2, state, false);
-        MenuTheme.toggle(graphics, switchX, ry + (NAV_CARD_H - 10) / 2, on, true, MenuTheme.SUCCESS);
+        graphics.text(ctx.font(), label, switchX - 4 - labelW, ry + (preferenceHeight - 8) / 2, state, false);
+        MenuTheme.toggle(graphics, switchX, ry + (preferenceHeight - 10) / 2, on, true, MenuTheme.SUCCESS);
 
-        ctx.addHit(new SheetContext.Hit(x, ry, w, NAV_CARD_H,
+        ctx.addHit(new SheetContext.Hit(x, ry, w, preferenceHeight,
                 () -> CharacterSheetScreen.send(ActionPayload.of("toggle_terrain")), null));
-        return ry + NAV_CARD_H;
+        return ry + preferenceHeight;
     }
 }

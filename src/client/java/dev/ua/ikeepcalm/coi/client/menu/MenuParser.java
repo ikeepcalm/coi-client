@@ -53,11 +53,21 @@ public final class MenuParser {
                     toast(node.get("toast")),
                     sections(node.get("sections")),
                     MenuParts.buttons(node.get("footer"), MenuLimits.MAX_BUTTONS),
-                    false);
+                    false, presentation(node.get("presentation")));
         } catch (Exception e) {
             CoiLog.LOG.warn("Malformed menu payload", e);
             return null;
         }
+    }
+
+    private static MenuDocument.Presentation presentation(JsonElement element) {
+        if (element == null || !element.isJsonObject()) return MenuDocument.Presentation.NONE;
+        JsonObject node = element.getAsJsonObject();
+        String template = MenuJson.string(node, "template", MenuLimits.MAX_ID);
+        if (!template.equals("specimen")) return MenuDocument.Presentation.NONE;
+        return new MenuDocument.Presentation(template,
+                MenuJson.string(node, "subject", MenuLimits.MAX_ID),
+                MenuJson.string(node, "caption", MenuLimits.MAX_TITLE));
     }
 
     private static MenuDocument.Toast toast(JsonElement element) {

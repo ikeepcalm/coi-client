@@ -1,5 +1,7 @@
 # The COI menu system — native server menus
 
+> The dossier and optional specimen layout now extend this system. See [Archive presentation](ARCHIVE_PRESENTATION.md) for the current visual contract, fallback behavior and runtime captures.
+
 **Status:** implemented on both sides, both builds green. The original renderer was runtime-tested by
 the user ("it works"); **the v2 vocabulary and the seven adapter rewrites are built but not yet
 runtime-tested.**

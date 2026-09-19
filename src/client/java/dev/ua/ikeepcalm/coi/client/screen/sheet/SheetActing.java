@@ -40,7 +40,14 @@ final class SheetActing {
     private SheetActing() {
     }
 
-    static int draw(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w) {
+    static int overview(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w) {
+        SheetState.Acting acting = SheetState.acting();
+        if (SheetState.outer() || acting == null) return y;
+        return actingRow(ctx, graphics, x,
+                ctx.section(graphics, x, y, w, "screen.coi.sheet_acting", GLYPH_GROWTH), w, acting);
+    }
+
+    static int draw(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w, int bottom) {
         SheetState.Acting acting = SheetState.acting();
         if (SheetState.outer() || acting == null) return drawOuter(ctx, graphics, x, y, w);
 
@@ -56,7 +63,7 @@ final class SheetActing {
         MenuTheme.hairline(graphics, x, ry, w);
         ry += 6;
         ry = ctx.section(graphics, x, ry, w, "screen.coi.sheet_sources", GLYPH_RESTORE);
-        return drawLedger(ctx, graphics, x, ry, w, acting);
+        return drawLedger(ctx, graphics, x, ry, w, acting, bottom);
     }
 
     private static int actingRow(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w,
@@ -83,13 +90,25 @@ final class SheetActing {
      * arithmetic.
      */
     private static int drawLedger(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w,
-                                  SheetState.Acting acting) {
+                                  SheetState.Acting acting, int bottom) {
         if (acting.sources().isEmpty()) {
             graphics.text(ctx.font(), ctx.trim(I18n.get("screen.coi.sheet_sources_empty"), w),
                     x, y + 2, CoiStyle.TEXT_MUTED, false);
             return y + LEDGER_ROW_H;
         }
+        int count = acting.sources().size();
+        int minimumHeight = LEDGER_ROW_H + 8;
+        int remainingHeight = Math.max(count * minimumHeight, bottom - y);
+        int index = 0;
         for (SheetState.Source source : acting.sources()) {
+            int rowHeight = remainingHeight / (count - index);
+            remainingHeight -= rowHeight;
+            int surfaceBottom = y + rowHeight - 3;
+            graphics.fill(x, y, x + w, surfaceBottom, index % 2 == 0 ? 0x0EFFFFFF : 0x07FFFFFF);
+            graphics.fill(x, surfaceBottom - 1, x + w, surfaceBottom, 0xFF494C43);
+            int rowY = y + (rowHeight - 3 - 8) / 2;
+            int left = x + 6;
+            int right = x + w - 6;
             String label = source.label().isEmpty() ? source.source() : source.label();
             String value = source.contributed() + " / " + (source.unlimited() ? "∞" : source.cap());
             boolean capped = source.capped();
@@ -97,17 +116,18 @@ final class SheetActing {
 
             int labelW = Math.min(ctx.font().width(label), w * 2 / 5);
             int valueW = ctx.font().width(value);
-            graphics.text(ctx.font(), ctx.trim(label, labelW), x, y + 3, color, false);
-            graphics.text(ctx.font(), value, x + w - valueW, y + 3,
+            graphics.text(ctx.font(), ctx.trim(label, labelW), left, rowY, color, false);
+            graphics.text(ctx.font(), value, right - valueW, rowY,
                     capped ? RED : CoiStyle.TEXT_MUTED, false);
 
-            int barX = x + labelW + 6;
-            int barW = x + w - valueW - 6 - barX;
+            int barX = left + labelW + 6;
+            int barW = right - valueW - 6 - barX;
             if (barW > 8 && !source.unlimited() && source.cap() > 0) {
-                MenuGauges.gauge(graphics, barX, y + 4, barW, 4,
+                MenuGauges.gauge(graphics, barX, rowY + 2, barW, 4,
                         source.contributed() / (double) source.cap(), capped ? RED : accent());
             }
-            y += LEDGER_ROW_H;
+            y += rowHeight;
+            index++;
         }
         return y;
     }

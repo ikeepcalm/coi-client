@@ -10,4 +10,9 @@ public interface AvatarRenderStateAccessor {
 
     void coi$setPlayerUuid(String uuid);
 
+    /** Null follows the world state; empty explicitly renders the human body. */
+    String coi$getPreviewForm();
+
+    void coi$setPreviewForm(String form);
+
 }

@@ -39,7 +39,11 @@ public final class PartialForms {
         if (!(state instanceof AvatarRenderState avatarState)) {
             return null;
         }
-        String playerUuid = ((AvatarRenderStateAccessor) avatarState).coi$getPlayerUuid();
+        AvatarRenderStateAccessor identity = (AvatarRenderStateAccessor) avatarState;
+        if (identity.coi$getPreviewForm() != null) {
+            return MythicalFormManager.getRegisteredForm(identity.coi$getPreviewForm());
+        }
+        String playerUuid = identity.coi$getPlayerUuid();
         if (playerUuid == null) {
             return null;
         }

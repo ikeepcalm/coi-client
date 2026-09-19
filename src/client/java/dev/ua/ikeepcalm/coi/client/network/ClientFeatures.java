@@ -36,7 +36,8 @@ public final class ClientFeatures {
             "notify",
             "character_sheet",
             "resource_bar",
-            "menu_ui"
+            "menu_ui",
+            "menu_specimen"
     );
 
     private ClientFeatures() {

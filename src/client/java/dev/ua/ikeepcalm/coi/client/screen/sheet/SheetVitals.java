@@ -40,9 +40,9 @@ final class SheetVitals {
         boolean floors = SheetState.permanentFloor() > 0 || SheetState.godhoodFloor() > 0;
         int ry = ctx.section(graphics, x, y, w, "screen.coi.sheet_sec_vitals", GLYPH_HEALTH);
 
-        ry = healthRow(ctx, graphics, x, ry, w) + VITAL_GAP;
-        ry = spiritualityRow(ctx, graphics, x, ry, w) + VITAL_GAP;
-        ry = madnessRow(ctx, graphics, x, ry, w, floors) + VITAL_GAP;
+        ry = healthRow(ctx, graphics, x, ry, w) + ctx.expandedGap(VITAL_GAP);
+        ry = spiritualityRow(ctx, graphics, x, ry, w) + ctx.expandedGap(VITAL_GAP);
+        ry = madnessRow(ctx, graphics, x, ry, w, floors) + ctx.expandedGap(VITAL_GAP);
         return tirednessRow(ctx, graphics, x, ry, w);
     }
 

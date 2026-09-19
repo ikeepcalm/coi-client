@@ -2,7 +2,6 @@ package dev.ua.ikeepcalm.coi.client.screen.sheet;
 
 import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.BAR_H;
 import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.SYMBOL;
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.VITAL_NOTE_H;
 import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.VITAL_ROW_H;
 
 import dev.ua.ikeepcalm.coi.client.hud.render.PlateSymbols;
@@ -50,19 +49,33 @@ final class SheetRows {
     static int vital(SheetContext ctx, GuiGraphicsExtractor graphics, int x, int y, int w,
                             SymbolPainter symbol, String label, String value, int valueRgb,
                             BarPainter bar, Component sub, int subRgb, Component note) {
-        symbol.draw(graphics, x, y);
+        // A null extractor measures the same wrapped row without submitting paint.
+        if (graphics != null) symbol.draw(graphics, x, y);
         int textX = x + SYMBOL + 8;
         int textW = x + w - textX;
 
         int valueW = ctx.font().width(value);
-        graphics.text(ctx.font(), ctx.trim(label, textW - valueW - 6), textX, y + 1, CoiStyle.TEXT_BODY, true);
-        graphics.text(ctx.font(), value, textX + textW - valueW, y + 1, valueRgb, true);
-        bar.draw(graphics, textX, y + 13, textW);
-        graphics.text(ctx.font(), ctx.trim(sub.getString(), textW), textX, y + 23, subRgb, false);
-        if (note == null) return y + VITAL_ROW_H;
-        graphics.text(ctx.font(), ctx.trim(note.getString(), textW), textX, y + VITAL_ROW_H + 2,
-                CoiStyle.TEXT_MUTED, false);
-        return y + VITAL_ROW_H + VITAL_NOTE_H;
+        boolean stacked = ctx.font().width(label) + valueW + 8 > textW;
+        int valueY = y + (stacked ? 13 : 1);
+        if (graphics != null) {
+            graphics.text(ctx.font(), ctx.trim(label, textW), textX, y + 1, CoiStyle.TEXT_BODY, false);
+            graphics.text(ctx.font(), ctx.trim(value, textW), stacked ? textX : textX + textW - valueW,
+                    valueY, valueRgb, false);
+            bar.draw(graphics, textX, valueY + 12, textW);
+        }
+        int next = valueY + 22;
+        for (var line : ctx.font().split(sub, Math.max(1, textW))) {
+            if (graphics != null) graphics.text(ctx.font(), line, textX, next, subRgb, false);
+            next += 10;
+        }
+        if (note != null) {
+            next += 3;
+            for (var line : ctx.font().split(note, Math.max(1, textW))) {
+                if (graphics != null) graphics.text(ctx.font(), line, textX, next, CoiStyle.TEXT_MUTED, false);
+                next += 10;
+            }
+        }
+        return Math.max(y + VITAL_ROW_H, next + 3);
     }
 
 

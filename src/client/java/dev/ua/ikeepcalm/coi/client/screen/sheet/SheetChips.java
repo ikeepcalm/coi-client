@@ -69,7 +69,7 @@ final class SheetChips {
             int cx = x;
             for (Chip chip : row) {
                 MenuComponent.Chip model = chip.model();
-                MenuTheme.chip(graphics, ctx.font(), model, cx, y, accent(), 0f);
+                if (graphics != null) MenuTheme.chip(graphics, ctx.font(), model, cx, y, accent(), 0f);
                 cx += MenuTheme.chipWidth(ctx.font(), model) + CHIP_GAP;
             }
             y += MenuTheme.CHIP_H + CHIP_GAP;
@@ -88,7 +88,7 @@ final class SheetChips {
         y += 4;
         for (Chip chip : chips) {
             for (FormattedCharSequence line : ctx.font().split(chip.explanation(), w)) {
-                graphics.text(ctx.font(), line, x, y, CoiStyle.TEXT_MUTED);
+                if (graphics != null) graphics.text(ctx.font(), line, x, y, CoiStyle.TEXT_MUTED);
                 y += PARA_LINE;
             }
         }
