@@ -3,7 +3,22 @@ package dev.ua.ikeepcalm.coi.client.menu;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class MenuPresentationTest {
+public class MenuPresentationTest {
+    @Test
+    void archiveFamiliesKeepAuthorityAndUnknownTemplatesFallBack() {
+        for (String template : new String[]{"ledger", "relic", "inscription", "atlas", "challenge"}) {
+            MenuDocument doc = document("{\"template\":\"" + template + "\"}");
+            assertTrue(doc.presentation().archive(), template);
+            assertEquals(template, doc.presentation().template());
+            assertEquals("token", doc.session());
+            assertEquals(12, doc.version());
+            MenuComponent.Button button = (MenuComponent.Button) doc.sections().getFirst().components().getFirst();
+            assertEquals("server-action", button.id());
+            assertFalse(button.enabled());
+            assertEquals("Cooldown", button.disabledReason());
+        }
+        assertFalse(document("{\"template\":\"future\"}").presentation().archive());
+    }
     @Test void manualPresentationRetainsServerControls() {
         MenuDocument doc = document("{\"template\":\"ability_manual\"}");
         assertTrue(doc.presentation().abilityManual());

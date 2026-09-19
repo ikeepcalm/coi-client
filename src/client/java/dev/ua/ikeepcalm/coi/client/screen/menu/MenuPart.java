@@ -1,10 +1,10 @@
 package dev.ua.ikeepcalm.coi.client.screen.menu;
 
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAUGE_MS;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HOVER_MS;
-
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAUGE_MS;
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HOVER_MS;
 
 /**
  * One laid-out piece of the document, positioned in content space: the
@@ -12,7 +12,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * here, so the scrollbar and the hit test can never disagree with what was
  * drawn.
  */
-abstract class MenuPart {
+public abstract class MenuPart {
 
     protected final MenuContext ctx;
     protected final Font font;
@@ -33,6 +33,13 @@ abstract class MenuPart {
     }
 
     abstract void render(GuiGraphicsExtractor g, int x, int top, int mouseX, int mouseY);
+
+    /**
+     * Extra useful room a short document may give this component.
+     */
+    int growthCapacity() {
+        return 0;
+    }
 
     boolean click(double mx, double my, int x, int top) {
         return false;

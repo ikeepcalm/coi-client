@@ -1,22 +1,14 @@
 package dev.ua.ikeepcalm.coi.client.screen.menu;
 
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.FIELD_H;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAP;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HOVER_MS;
-
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.menu.MenuDocument;
+import dev.ua.ikeepcalm.coi.client.network.CoiNetworking;
 import dev.ua.ikeepcalm.coi.client.network.payload.MenuActionPayload;
+import dev.ua.ikeepcalm.coi.client.screen.ability.AbilityPickerOverlay;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
-import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 import dev.ua.ikeepcalm.coi.client.ui.ArchivePaint;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -32,6 +24,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import org.jspecify.annotations.NonNull;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.*;
+import java.util.function.Supplier;
+
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.*;
 
 /**
  * Renders a server-authored {@link MenuDocument} — the native replacement for
@@ -67,8 +64,12 @@ public class MenuScreen extends Screen implements MenuContext {
     private final MenuScrollbar scrollbar = new MenuScrollbar();
     private final MenuConfirmModal confirm = new MenuConfirmModal(this);
     private final MenuSpecimen specimen = new MenuSpecimen();
-    private final dev.ua.ikeepcalm.coi.client.screen.ability.AbilityPickerOverlay manual =
-            new dev.ua.ikeepcalm.coi.client.screen.ability.AbilityPickerOverlay();
+    private final MenuArchiveLeaf archiveLeaf = new MenuArchiveLeaf();
+    private final List<MenuArchiveLeaf.Anchor> sectionAnchors = new ArrayList<>();
+    private final AbilityPickerOverlay manual = new AbilityPickerOverlay();
+    private int archiveW;
+    private int archiveH;
+    private int selectedAnchorOffset;
     private int specimenW;
     private int specimenH;
 
@@ -149,7 +150,7 @@ public class MenuScreen extends Screen implements MenuContext {
 
     @Override
     public boolean archival() {
-        return doc != null && doc.presentation().specimen();
+        return doc != null && (doc.presentation().specimen() || doc.presentation().archive());
     }
 
     @Override
@@ -166,8 +167,6 @@ public class MenuScreen extends Screen implements MenuContext {
     public int screenHeight() {
         return this.height;
     }
-
-    // --- Lifecycle ---
 
     @Override
     protected void init() {
@@ -233,8 +232,6 @@ public class MenuScreen extends Screen implements MenuContext {
         send(action, value);
     }
 
-    // --- Document adoption ---
-
     /**
      * Takes on whatever document the state holds. Called from {@code init} (so
      * a resize or a gui-scale change re-lays out) and from the render loop
@@ -249,9 +246,10 @@ public class MenuScreen extends Screen implements MenuContext {
             manual.close();
             if (next.presentation().abilityManual()) {
                 manual.openManual(Component.literal(next.title()));
-                dev.ua.ikeepcalm.coi.client.network.CoiNetworking.requestAbilitiesFromServer();
+                CoiNetworking.requestAbilitiesFromServer();
             }
             specimen.reset();
+            selectedAnchorOffset = 0;
             scrollbar.toTop();
             fields.clear();
             focusedField = null;
@@ -278,6 +276,8 @@ public class MenuScreen extends Screen implements MenuContext {
         cardX = (this.width - cardW) / 2;
         specimenW = 0;
         specimenH = 0;
+        archiveW = 0;
+        archiveH = 0;
         if (doc.presentation().specimen()) {
             int totalW = Math.min(960, this.width - 32);
             if (totalW >= 620) {
@@ -291,27 +291,70 @@ public class MenuScreen extends Screen implements MenuContext {
             specimen.clear();
         }
 
-        chrome.measure(doc);
+        if (doc.presentation().archive()) {
+            int totalW = Math.min(980, this.width - 32);
+            if (totalW >= 620) {
+                archiveW = Math.clamp(totalW / 4, 180, 240);
+                cardW = totalW - archiveW - 10;
+                cardX = (this.width - totalW) / 2 + archiveW + 10;
+            } else {
+                cardW = Math.max(160, this.width - 24);
+                cardX = (this.width - cardW) / 2;
+                archiveH = 36;
+            }
+        }
 
-        contentH = MenuPartFactory.build(this, doc, parts);
+        MenuDocument content = doc.presentation().abilityManual() ? MenuManualControls.project(doc) : doc;
+        chrome.measure(content);
+
+        contentH = MenuPartFactory.build(this, content, parts, sectionAnchors);
         if (specimenH > 0) {
             for (MenuPart part : parts) part.y += specimenH + 10;
             contentH += specimenH + 10;
         }
 
         int margin = compact() ? 8 : 18;
-        int availH = Math.max(80, this.height - margin * 2);
+        int availH = Math.max(80, this.height - margin * 2 - archiveH);
         cardH = Math.min(availH, chrome.headerH() + chrome.noticeH() + contentH + pad() + chrome.footerH());
         if (specimenW > 0) cardH = availH;
-        cardY = (this.height - cardH) / 2;
+        if (doc.presentation().archive()) {
+            int usefulGrowth = compact() ? 0 : parts.stream().mapToInt(MenuPart::growthCapacity).sum();
+            cardH = Math.min(availH, Math.max(archiveW > 0 ? 210 : 0, cardH + usefulGrowth));
+        }
+        cardY = (this.height - cardH - archiveH) / 2 + archiveH;
         viewTop = cardY + chrome.headerH() + chrome.noticeH();
         viewBottom = Math.max(viewTop + 20, cardY + cardH - chrome.footerH() - pad() / 2);
+        if (doc.presentation().archive() && !compact()) fillReadingSpace();
 
         chrome.place(cardX, cardY, cardW, cardH);
         scrollbar.place(cardX, cardW, viewTop, viewBottom, contentH);
     }
 
-    // --- Animation ---
+    /**
+     * Give short documents room inside their actual rows, keeping long documents dense.
+     */
+    private void fillReadingSpace() {
+        int spare = viewBottom - viewTop - contentH;
+        if (spare <= 0) return;
+        int capacity = parts.stream().mapToInt(MenuPart::growthCapacity).sum();
+        if (capacity == 0) return;
+        double proportion = Math.min(1, spare / (double) capacity);
+        var shifts = new TreeMap<Integer, Integer>();
+        int added = 0;
+        for (MenuPart part : parts) {
+            shifts.put(part.y, added);
+            part.y += added;
+            int growth = (int) Math.floor(part.growthCapacity() * proportion);
+            part.height += growth;
+            added += growth;
+        }
+        for (int i = 0; i < sectionAnchors.size(); i++) {
+            var anchor = sectionAnchors.get(i);
+            var shift = shifts.floorEntry(anchor.offset());
+            sectionAnchors.set(i, new MenuArchiveLeaf.Anchor(anchor.title(), anchor.offset() + (shift == null ? 0 : shift.getValue())));
+        }
+        contentH += added;
+    }
 
     /**
      * One step of a tween toward {@code target}, frame-rate independent.
@@ -328,8 +371,6 @@ public class MenuScreen extends Screen implements MenuContext {
         float step = frameDelta / durationMs;
         return step >= 1f ? target : current + (target - current) * step;
     }
-
-    // --- Disclosure ---
 
     private String disclosureKey(String id) {
         return doc.screen() + "/" + id;
@@ -368,8 +409,6 @@ public class MenuScreen extends Screen implements MenuContext {
     public void relayout() {
         layout();
     }
-
-    // --- Button rows (footer, buttons component, confirm modal all share this) ---
 
     @Override
     public int rowHeightFor(List<MenuComponent.Button> buttons) {
@@ -452,8 +491,6 @@ public class MenuScreen extends Screen implements MenuContext {
         box.extractRenderState(g, mouseX, mouseY, 0f);
     }
 
-    // --- Rendering ---
-
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
         if (docRevision != MenuState.revision()) rebuild();
@@ -474,16 +511,20 @@ public class MenuScreen extends Screen implements MenuContext {
         g.fill(0, 0, this.width, this.height, CoiStyle.BACKDROP);
         tooltip = null;
 
-        if (doc.presentation().specimen()) ArchivePaint.folio(g, cardX, cardY, cardW, cardH);
+        if (archival()) ArchivePaint.folio(g, cardX, cardY, cardW, cardH);
         else CoiStyle.drawCard(g, cardX, cardY, cardW, cardH);
         // CoiStyle's top rule is the mod's gold; a document that named its own
         // accent owns that edge too
-        if (!doc.presentation().specimen()) {
+        if (!archival()) {
             g.fill(cardX, cardY, cardX + cardW, cardY + 1, accent());
             chrome.drawWatermark(g);
         }
         if (specimenW > 0) specimen.draw(g, font, doc, cardX - specimenW - 12, cardY,
                 specimenW, cardH, cardY, cardY + cardH);
+        if (archiveW > 0) archiveLeaf.draw(g, font, doc, sectionAnchors,
+                cardX - archiveW - 10, cardY, archiveW, cardH, indexOffset(), mouseX, mouseY, false);
+        if (archiveH > 0) archiveLeaf.draw(g, font, doc, sectionAnchors,
+                cardX, cardY - archiveH, cardW, archiveH - 3, indexOffset(), mouseX, mouseY, true);
 
         chrome.drawHeader(g, mouseX, mouseY);
         chrome.drawNotice(g, adoptedAt);
@@ -508,6 +549,10 @@ public class MenuScreen extends Screen implements MenuContext {
 
         g.enableScissor(cardX + 1, viewTop, cardX + cardW - 1, viewBottom);
         int originX = cardX + pad();
+        if (doc.presentation().archive() && scrollbar.maxScroll() == 0 && selectedAnchorOffset > 0) {
+            g.fill(originX - 3, viewTop + selectedAnchorOffset, originX + contentW(),
+                    viewTop + selectedAnchorOffset + 15, MenuTheme.withAlpha(accent(), .10f));
+        }
         if (specimenH > 0) specimen.draw(g, font, doc, originX, viewTop - scrollbar.scrollY(),
                 contentW(), specimenH, viewTop, viewBottom);
         for (MenuPart part : parts) {
@@ -520,7 +565,9 @@ public class MenuScreen extends Screen implements MenuContext {
         if (scrollbar.maxScroll() > 0) scrollbar.draw(g, mouseX, mouseY, accent());
     }
 
-    // --- Input ---
+    private int indexOffset() {
+        return scrollbar.maxScroll() == 0 ? selectedAnchorOffset : scrollbar.scrollY();
+    }
 
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
@@ -535,6 +582,16 @@ public class MenuScreen extends Screen implements MenuContext {
         double my = event.y();
 
         if (confirm.active()) return confirm.click(mx, my);
+        if (doc.presentation().archive()) {
+            int offset = archiveLeaf.hit(mx, my);
+            if (offset >= 0) {
+                focusField(null);
+                selectedAnchorOffset = offset;
+                scrollbar.scrollBy(offset - scrollbar.scrollY());
+                click();
+                return true;
+            }
+        }
         if (doc.presentation().specimen() && specimen.press(mx, my)) return true;
         if (clickHeader(mx, my)) return true;
         if (chrome.clickFooter(mx, my)) return true;
@@ -630,6 +687,18 @@ public class MenuScreen extends Screen implements MenuContext {
         }
         if (event.key() == GLFW.GLFW_KEY_BACKSPACE && doc != null && doc.back()) {
             fire(MenuActionPayload.BACK, null);
+            return true;
+        }
+        if (focusedField == null) {
+            switch (event.key()) {
+                case GLFW.GLFW_KEY_PAGE_DOWN -> scrollbar.scrollBy(Math.max(20, viewBottom - viewTop - 20));
+                case GLFW.GLFW_KEY_PAGE_UP -> scrollbar.scrollBy(-Math.max(20, viewBottom - viewTop - 20));
+                case GLFW.GLFW_KEY_HOME -> scrollbar.toTop();
+                case GLFW.GLFW_KEY_END -> scrollbar.scrollBy(scrollbar.maxScroll());
+                default -> {
+                    return super.keyPressed(event);
+                }
+            }
             return true;
         }
         return super.keyPressed(event);

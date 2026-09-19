@@ -2,10 +2,10 @@ package dev.ua.ikeepcalm.coi.client.screen.menu;
 
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.menu.MenuDocument;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.Locale;
-import net.minecraft.network.chat.Component;
 
 /**
  * Turns a document into the flat list of {@link MenuPart}s the screen scrolls.
@@ -17,11 +17,12 @@ import net.minecraft.network.chat.Component;
  * The {@code switch} is exhaustive because {@link MenuComponent} is sealed — a
  * new component type cannot be added without deciding how it draws.
  */
-final class MenuPartFactory {
+public class MenuPartFactory {
 
     private final MenuContext ctx;
     private final List<MenuPart> parts;
     private int contentH;
+    private List<MenuArchiveLeaf.Anchor> anchors;
 
     private MenuPartFactory(MenuContext ctx, List<MenuPart> parts) {
         this.ctx = ctx;
@@ -34,7 +35,13 @@ final class MenuPartFactory {
      * @return the total content height, which is what the outer scroll runs on
      */
     static int build(MenuContext ctx, MenuDocument doc, List<MenuPart> parts) {
+        return build(ctx, doc, parts, null);
+    }
+
+    static int build(MenuContext ctx, MenuDocument doc, List<MenuPart> parts, List<MenuArchiveLeaf.Anchor> anchors) {
         MenuPartFactory factory = new MenuPartFactory(ctx, parts);
+        factory.anchors = anchors;
+        if (anchors != null) anchors.clear();
         factory.buildParts(doc);
         return factory.contentH;
     }
@@ -50,6 +57,16 @@ final class MenuPartFactory {
         contentH = 0;
 
         for (MenuDocument.Section section : doc.sections()) {
+            String title = section.title();
+            if (title.isEmpty()) {
+                for (MenuComponent component : section.components()) {
+                    if (component instanceof MenuComponent.Heading heading) {
+                        title = heading.title();
+                        break;
+                    }
+                }
+            }
+            if (anchors != null && !title.isEmpty()) anchors.add(new MenuArchiveLeaf.Anchor(title, contentH));
             if (!section.title().isEmpty()) add(new MenuTextParts.HeadingPart(ctx, section.title()));
             for (MenuComponent component : section.components()) {
                 if (component instanceof MenuComponent.Heading heading) {

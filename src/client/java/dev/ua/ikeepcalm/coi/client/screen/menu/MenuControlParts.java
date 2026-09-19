@@ -1,58 +1,71 @@
 package dev.ua.ikeepcalm.coi.client.screen.menu;
 
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.FIELD_H;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAP;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.SMALL_ICON;
-
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.menu.MenuIcon;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
-
-import java.util.List;
-import java.util.Locale;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+import java.util.Locale;
+
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.*;
+
 /**
  * The parts the player operates: buttons, a switch, the live search box a
  * searchable list grows, and a text field with its own submit.
  */
-final class MenuControlParts {
+public class MenuControlParts {
 
     private MenuControlParts() {
     }
 
-    static final class ButtonsPart extends MenuPart {
+    public static class ButtonsPart extends MenuPart {
         private final List<MenuComponent.Button> buttons;
         private final int columns;
         private final int rowH;
+        private final int rows;
 
         ButtonsPart(MenuContext ctx, List<MenuComponent.Button> buttons, int columns) {
             super(ctx);
             this.buttons = buttons;
             this.columns = Math.max(1, columns);
             this.rowH = ctx.rowHeightFor(buttons);
-            int rows = (buttons.size() + this.columns - 1) / this.columns;
+            this.rows = (buttons.size() + this.columns - 1) / this.columns;
             this.height = rows * (rowH + GAP) + 2;
         }
 
         @Override
+        int growthCapacity() {
+            return rows * 12;
+        }
+
+        private int expandedRowH() {
+            return rows == 0 ? rowH : (height - 2) / rows - GAP;
+        }
+
+        @Override
         void render(GuiGraphicsExtractor g, int x, int top, int mouseX, int mouseY) {
-            ctx.drawButtons(g, buttons, x, top + 1, ctx.contentW(), columns, rowH, mouseX, mouseY);
+            ctx.drawButtons(g, buttons, x, top + 1, ctx.contentW(), columns, expandedRowH(), mouseX, mouseY);
         }
 
         @Override
         boolean click(double mx, double my, int x, int top) {
-            int index = ctx.hitButton(mx, my, buttons.size(), x, top + 1, ctx.contentW(), columns, rowH);
+            int index = ctx.hitButton(mx, my, buttons.size(), x, top + 1, ctx.contentW(), columns, expandedRowH());
             if (index >= 0) ctx.activate(buttons.get(index), null);
             return true;
         }
     }
 
-    static final class TogglePart extends MenuPart {
+    public static class TogglePart extends MenuPart {
         private final MenuComponent.Toggle toggle;
+
+        @Override
+        int growthCapacity() {
+            return 16;
+        }
 
         TogglePart(MenuContext ctx, MenuComponent.Toggle toggle) {
             super(ctx);
@@ -77,7 +90,7 @@ final class MenuControlParts {
             g.text(font, state, switchX - stateW - 6, top + (h - 8) / 2, stateColor, false);
 
             int labelX = x + 6;
-            int labelY = top + (toggle.desc().isEmpty() ? (h - 8) / 2 : 4);
+            int labelY = top + (h - (toggle.desc().isEmpty() ? 8 : 19)) / 2;
             if (MenuIcons.draw(g, font, toggle.icon(), labelX, labelY - 2,
                     SMALL_ICON, toggle.enabled() ? 1f : 0.4f)) {
                 labelX += SMALL_ICON + 3;
@@ -88,7 +101,7 @@ final class MenuControlParts {
                     labelX, labelY, labelColor, false);
             if (!toggle.desc().isEmpty()) {
                 g.text(font, font.plainSubstrByWidth(toggle.desc(), labelW),
-                        labelX, top + 15, CoiStyle.TEXT_MUTED, false);
+                        labelX, labelY + 11, CoiStyle.TEXT_MUTED, false);
             }
             if (hovered && !toggle.enabled()) ctx.reason(toggle.disabledReason());
         }
@@ -109,7 +122,7 @@ final class MenuControlParts {
         }
     }
 
-    static final class SearchPart extends MenuPart {
+    public static class SearchPart extends MenuPart {
         private final EditBox box;
 
         SearchPart(MenuContext ctx, MenuComponent.ListView list) {
@@ -146,7 +159,7 @@ final class MenuControlParts {
         }
     }
 
-    static final class InputPart extends MenuPart {
+    public static class InputPart extends MenuPart {
         private final MenuComponent.Input input;
         private final EditBox box;
         private final MenuComponent.Button submit;

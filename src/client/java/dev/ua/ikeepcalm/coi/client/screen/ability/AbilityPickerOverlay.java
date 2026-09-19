@@ -1,12 +1,14 @@
 package dev.ua.ikeepcalm.coi.client.screen.ability;
 
-import dev.ua.ikeepcalm.coi.client.ability.*;
-import dev.ua.ikeepcalm.coi.client.ui.*;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityCategories;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry;
+import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
+import dev.ua.ikeepcalm.coi.client.menu.MenuDocument;
 import dev.ua.ikeepcalm.coi.client.screen.menu.MenuTheme;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Consumer;
+import dev.ua.ikeepcalm.coi.client.ui.AbilityIcons;
+import dev.ua.ikeepcalm.coi.client.ui.ArchivePaint;
+import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -19,6 +21,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+
 /** Field manual shared by the server catalogue and all three local binding pickers. */
 public class AbilityPickerOverlay {
     private record Hit(int x, int y, int w, int h, Runnable action) {
@@ -26,7 +33,7 @@ public class AbilityPickerOverlay {
     }
     private final PickerModel model = new PickerModel();
     private final List<Hit> hits = new ArrayList<>();
-    private boolean open, browsing, detailsOnly, assigning;
+    private boolean open, browsing, detailsOnly, assigning, serverDetails;
     private Component contextTitle = Component.empty();
     private Consumer<String> onSelect;
     private EditBox search;
@@ -37,10 +44,10 @@ public class AbilityPickerOverlay {
     private int feedbackColor = MenuTheme.SUCCESS;
     private int keyboardHit = -1;
     private Runnable onExit;
-    private dev.ua.ikeepcalm.coi.client.menu.MenuDocument serverDocument;
+    private MenuDocument serverDocument;
     private Consumer<String> serverAction;
 
-    public void setServerControls(dev.ua.ikeepcalm.coi.client.menu.MenuDocument document, Consumer<String> action) {
+    public void setServerControls(MenuDocument document, Consumer<String> action) {
         serverDocument = document;
         serverAction = action;
         if (document.toast() != null && !document.toast().text().isBlank()) {
@@ -54,12 +61,14 @@ public class AbilityPickerOverlay {
         }
     }
 
-    private dev.ua.ikeepcalm.coi.client.menu.MenuComponent.Row passiveControl(String id) {
+    private MenuComponent.Row abilityControl(String id) {
         if (serverDocument == null) return null;
         for (var section : serverDocument.sections()) {
             for (var component : section.components()) {
-                if (component instanceof dev.ua.ikeepcalm.coi.client.menu.MenuComponent.ListView list) {
+                if (component instanceof MenuComponent.ListView list) {
                     for (var row : list.rows()) if (id.equals(row.id())) return row;
+                } else if (component instanceof MenuComponent.Grid grid) {
+                    for (var row : grid.cells()) if (id.equals(row.id())) return row;
                 }
             }
         }
@@ -204,7 +213,7 @@ public class AbilityPickerOverlay {
 
     private void select(String option) {
         selected = option;
-
+        serverDetails = false;
         detailScroll = 0;
         assigning = false;
         keyboardHit = -1;
@@ -256,7 +265,7 @@ public class AbilityPickerOverlay {
             ry = drawTargets(g, font, ry, mx, my);
         } else if (option != null) {
             if (info != null && AbilityInfo.KIND_PASSIVE.equals(info.kind())) {
-                var control = passiveControl(id);
+                var control = abilityControl(id);
                 String status = control != null && !control.subtitle().isBlank() ? control.subtitle()
                         : I18n.get(info.active() ? "screen.coi.manual_passive_enabled" : "screen.coi.manual_passive_disabled");
                 ry = paragraph(g, font, status, detailX+6, ry, detailW-12, ArchivePaint.LABEL) + 6;
@@ -278,6 +287,24 @@ public class AbilityPickerOverlay {
             button(g, font, detailX+6, ry+5, detailW-12, 22, I18n.get("screen.coi.manual_bind"),
                     () -> { assigning = true; detailScroll = 0; keyboardHit = -1; }, mx, my);
             ry += 33;
+            var control = abilityControl(id);
+            if (control != null && info != null && !AbilityInfo.KIND_PASSIVE.equals(info.kind())) {
+                if (control.enabled() && !control.action().isBlank() && serverAction != null) {
+                    button(g, font, detailX + 6, ry, detailW - 12, 22, I18n.get("screen.coi.manual_take_item"),
+                            () -> serverAction.accept(control.action()), mx, my);
+                    ry += 30;
+                } else if (!control.disabledReason().isBlank()) {
+                    ry = paragraph(g, font, control.disabledReason(), detailX + 6, ry, detailW - 12, CoiStyle.TEXT_MUTED) + 8;
+                }
+            }
+            if (control != null && !control.tooltip().isEmpty()) {
+                button(g, font, detailX + 6, ry, detailW - 12, 22,
+                        I18n.get(serverDetails ? "screen.coi.menu_collapse" : "screen.coi.manual_server_details"),
+                        () -> serverDetails = !serverDetails, mx, my);
+                ry += 30;
+                if (serverDetails) for (String line : control.tooltip())
+                    ry = paragraph(g, font, line, detailX + 6, ry, detailW - 12, CoiStyle.TEXT_BODY) + 3;
+            }
         }
         detailHeight = ry - (top-detailScroll) + 6;
         paintingDetails = false;
@@ -373,6 +400,7 @@ public class AbilityPickerOverlay {
         if (key == GLFW.GLFW_KEY_ESCAPE) {
             if (assigning) assigning = false;
             else if (!wide && detailsOnly) detailsOnly = false;
+            else if (browsing && onExit != null) onExit.run();
             else close();
         } else if (key == GLFW.GLFW_KEY_UP || key == GLFW.GLFW_KEY_DOWN) {
             var list = model.filtered();

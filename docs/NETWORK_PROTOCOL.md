@@ -168,7 +168,9 @@ two sheet lifecycle actions, which must be exempt or the sheet can get stuck ope
 The `open` action also carries `"ui":"client"|"server"` — the player's own `useServerMenus`
 setting (`ActionPayload.ofOpen`). `client` (the default) asks for a `coi-client:menu` document,
 `server` for the original InvUI chest GUI. A server that predates the menu protocol ignores the
-field and opens its chest GUI either way.
+field and opens its chest GUI either way. When both peers support `menu_archive`, registered
+native menus take precedence over this legacy preference. `open_menu` opens a native pathway
+chooser, including secondary pathways; unported flows retain their existing fallback.
 
 When neither `character_sheet` nor `menu_action` is advertised, `M` shows
 `notification.coi.menu_unsupported` on the action bar instead of sending anything.

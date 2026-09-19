@@ -1,32 +1,27 @@
 package dev.ua.ikeepcalm.coi.client.screen.menu;
 
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAP;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAUGE_MS;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HOVER_MS;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.ICON;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.MIN_PANEL_W;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.MIN_TILE;
-
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
-
-import java.util.ArrayList;
-import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.*;
 
 /**
  * The parts that repeat a cell: a list row, a tile grid, and the side-by-side
  * mini-cards. Each decides its own columns, because a document's {@code
  * columns} is a hint the card's width can overrule.
  */
-final class MenuCollectionParts {
+public class MenuCollectionParts {
 
     private MenuCollectionParts() {
     }
 
-    static final class RowPart extends MenuPart {
+    public static class RowPart extends MenuPart {
         private final MenuComponent.Row row;
 
         RowPart(MenuContext ctx, MenuComponent.Row row) {
@@ -37,6 +32,11 @@ final class MenuCollectionParts {
 
         private boolean clickable() {
             return row.enabled() && !row.action().isEmpty();
+        }
+
+        @Override
+        int growthCapacity() {
+            return 24;
         }
 
         @Override
@@ -70,7 +70,7 @@ final class MenuCollectionParts {
 
             int textW = Math.max(10, rightEdge - textX);
             int titleColor = row.enabled() ? CoiStyle.TEXT_BODY : CoiStyle.INACTIVE;
-            int titleY = row.subtitle().isEmpty() ? top + (h - 8 - (row.hasFraction() ? 4 : 0)) / 2 : top + 4;
+            int titleY = top + (h - (row.subtitle().isEmpty() ? 8 : 19) - (row.hasFraction() ? 4 : 0)) / 2;
             g.text(font, font.plainSubstrByWidth(row.title(), textW),
                     textX, titleY, titleColor, false);
             if (!row.subtitle().isEmpty()) {
@@ -99,7 +99,7 @@ final class MenuCollectionParts {
      * caption under the tile, the badge a corner pill and the colour a bottom
      * edge — all three were parsed and thrown away before.
      */
-    static final class GridPart extends MenuPart {
+    public static class GridPart extends MenuPart {
         /**
          * How wide a captioned cell gets regardless of its tile. An ability name clipped to a 40px
          * tile is about seven characters, which is not a name — so when a grid carries captions the
@@ -208,7 +208,7 @@ final class MenuCollectionParts {
                 if (captions && !cell.title().isEmpty()) {
                     int capX = cellX(x, i);
                     int capColor = cell.enabled() ? CoiStyle.TEXT_MUTED : CoiStyle.INACTIVE;
-                    List<net.minecraft.util.FormattedCharSequence> wrapped =
+                    List<FormattedCharSequence> wrapped =
                             font.split(Component.literal(cell.title()), cellW);
                     for (int line = 0; line < Math.min(wrapped.size(), captionLines); line++) {
                         var seq = wrapped.get(line);
@@ -257,7 +257,7 @@ final class MenuCollectionParts {
      * since every other component is a full-width band. A cell with an
      * {@code action} is a button; one without is a read-only stat card.
      */
-    static final class PanelsPart extends MenuPart {
+    public static class PanelsPart extends MenuPart {
         private final List<MenuComponent.PanelCell> cells;
         private final int columns;
         private final int cellW;

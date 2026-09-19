@@ -65,19 +65,47 @@ For repeatable runtime screenshots, put a disposable singleplayer world at
 .\gradlew.bat runClient -ParchivePreview --offline
 ```
 
-This uses a separate game directory, opens twenty-seven views at three GUI scales (including partial
+This uses a separate game directory, opens forty views at three GUI scales (including partial
 and unknown forms, spacious Status, and the compact tabs at their scroll limits), writes screenshots under
 `build/archive-preview/screenshots`, and exits. The capture hook requires both development mode
 and the explicit `coi.archivePreview` JVM property; it also refuses multiplayer worlds.
 
-The presentation covers the dossier, fixed mythical forms and the [ability field manual](ABILITY_MANUAL.md).
-Visionary's form selection remains its existing server-owned flow. Church ledgers, relic
-presentation and milestone sequences remain future work.
+The presentation covers the dossier, fixed mythical forms, the [ability field manual](ABILITY_MANUAL.md),
+church ledgers, uniqueness reliquaries, honorific inscriptions, map visibility and seat challenges.
+`menu_archive` negotiates the five additional templates: `ledger`, `relic`, `inscription`, `atlas`,
+and `challenge`. A wide folio includes a section index; narrow windows use a compact index strip.
+Section labels and offsets come from the actual document. Page Up/Down and Home/End navigate
+the reading area while a text field is not focused. Server sections, gates and confirmations stay
+authoritative. The native pathway chooser preserves access to secondary pathways. Visionary's
+conception/form chooser remains its existing server-owned flow.
+
+## Pathway portraits
+
+The portrait uses the server sheet's pathway and sequence to select a dark scene and an isolated
+model pose. Every recognized pathway has its own scene and animated gesture: Priest flames,
+Fool masks, Door stars, Sun orbiting suns, Hermit scrolls, Tyrant rain and water currents,
+Chained foreground restraints, Paragon gears, Tower rising masonry, Fortune dice, Aeon hourglasses,
+Patriarch birds, Sublunary orbital moons, Abyss fissures, Death shades, Demoness mirrors,
+Darkness eclipse veils, Moon lunar phases, Mother blossoms, Hanged sacrificial roots,
+Giant twilight blades, Emperor crown and columns, Justiciar scales, Visionary dream eyes,
+and Error clocks and worms. Unknown pathways retain a neutral constellation fallback.
+Effects increase toward Sequence 0; Priest and Giant carry a cosmetic sword
+at Sequences 2–0. These decorations confer no equipment or abilities.
+
+The engraved halo rotates slowly. Reduced-effects mode freezes every portrait animation.
+The dossier head follows the cursor with a smoothed additive gaze, limited to 6 degrees horizontally
+and 4 degrees vertically. Body and limb poses remain unchanged, keeping props and restraints aligned.
+Reduced-effects mode also disables this gaze offset.
+Pose and item overrides exist only on the GUI avatar render state, reset during normal extraction;
+the live player's position, equipment and animation are never changed. Portrait samples at
+Sequences 9 and 0, compact layouts and frozen/animated modes are included in the capture run.
 
 ## Verification performed
 
-Both offline builds passed. Client protocol/localization tests and all 159 server tests passed.
-Minecraft 26.2 development runs captured the three dossier pages, two GUI scales, full and partial
-creature models, and the missing-model fallback. English and Ukrainian dossier labels were checked
-in game. These captures use sample data in a copied singleplayer world; a live plugin connection
-and every pathway's model have not been exercised by this smoke run.
+The client offline build and 13 protocol/localization/projection tests passed. The Minecraft 26.2
+development run captured all 40 views, including the five additional menu families and Priest,
+Fool and Door portraits. Binding persistence, passive state confirmation and normal render-state
+extraction after closing a portrait were asserted in game. These captures use sample data in a
+copied singleplayer world; a live plugin connection has not been exercised by this smoke run.
+The separate `gradlew.bat build runClient -PportraitPreview --offline` run captures all 25 pathways
+at Sequences 9 and 0, frozen and compact Chained portraits, and the honorific emblem alignment.

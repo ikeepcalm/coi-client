@@ -1115,8 +1115,17 @@ new one.
   server's own `{"closed":true}`. Every send is guarded by `canSend`, like the character sheet's.
 - Text fields outlive a rebuild (`fields` is keyed by component id): the search box re-lays out the
   whole card on every keystroke, and recreating the `EditBox` would drop the caret mid-word.
-- **`useServerMenus`** (General tab, default false) is the escape hatch: it rides out on
-  `coi-client:action`'s `open` as `"ui":"server"`, and the plugin opens its original chest GUI.
+- **`useServerMenus`** remains a compatibility preference for older servers. When the server
+  advertises `menu_archive`, the checkbox is hidden and registered native replacements take
+  precedence. The sheet's Pathways button opens the native multi-pathway chooser; unsupported
+  flows still retain their server fallback.
+- **Archive templates** (`ledger`, `relic`, `inscription`, `atlas`, `challenge`) keep all document
+  sections and actions, adding a section index and adaptive folio layout. `ability_manual` moves
+  represented ability rows into its details; Other actions preserves every remaining control.
+  See `docs/ARCHIVE_PRESENTATION.md` and `docs/ABILITY_MANUAL.md` for the current presentation contract.
+- **Portrait scenes** use the authoritative sheet pathway and sequence. `PortraitPose` is attached
+  to an isolated avatar render state and reset during ordinary extraction; never mutate the live
+  player to pose a menu model. Reduced-effects mode freezes scene motion.
 - Dev testing: F8 → *Menu* feeds a sample document covering every component type through the real
   parser, so the renderer can be judged with no server attached.
 

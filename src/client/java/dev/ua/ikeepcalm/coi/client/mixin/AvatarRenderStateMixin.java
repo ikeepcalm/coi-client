@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.mixin;
 
 import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.ui.PortraitPose;
 
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,6 +20,19 @@ public class AvatarRenderStateMixin implements AvatarRenderStateAccessor {
 
     @Unique
     private String coi$previewForm;
+
+    @Unique
+    private PortraitPose coi$portraitPose;
+
+    @Override
+    public PortraitPose coi$getPortraitPose() {
+        return coi$portraitPose;
+    }
+
+    @Override
+    public void coi$setPortraitPose(PortraitPose pose) {
+        coi$portraitPose = pose;
+    }
 
     @Override
     public String coi$getPreviewForm() {

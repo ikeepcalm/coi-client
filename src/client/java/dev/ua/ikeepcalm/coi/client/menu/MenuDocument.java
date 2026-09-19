@@ -22,6 +22,13 @@ public record MenuDocument(String session, int version, String screen,
         public static final Presentation NONE = new Presentation("", "", "");
         public boolean specimen() { return template.equals("specimen") && !subject.isEmpty(); }
         public boolean abilityManual() { return template.equals("ability_manual"); }
+
+        public boolean archive() {
+            return switch (template) {
+                case "ledger", "relic", "inscription", "atlas", "challenge", "ability_manual" -> true;
+                default -> false;
+            };
+        }
     }
 
     /**

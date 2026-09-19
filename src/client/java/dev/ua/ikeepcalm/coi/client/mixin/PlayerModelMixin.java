@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.mixin;
 
+import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
 import dev.ua.ikeepcalm.coi.client.form.PartialForms;
 
 import net.minecraft.client.model.player.PlayerModel;
@@ -31,5 +32,7 @@ public abstract class PlayerModelMixin {
         // would force pants back on for players who have that layer switched off.
         self.leftPants.visible = !hidden && state.showLeftPants;
         self.rightPants.visible = !hidden && state.showRightPants;
+        var portrait = ((AvatarRenderStateAccessor) state).coi$getPortraitPose();
+        if (portrait != null) portrait.apply(self, state.ageInTicks);
     }
 }

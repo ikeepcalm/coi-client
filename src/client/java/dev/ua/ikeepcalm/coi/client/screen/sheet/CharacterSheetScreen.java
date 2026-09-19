@@ -1,22 +1,14 @@
 package dev.ua.ikeepcalm.coi.client.screen.sheet;
 
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetGlyphs.GLYPH_COOLDOWN;
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.ICON;
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.PARA_LINE;
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetPalette.accent;
-
 import dev.ua.ikeepcalm.coi.client.menu.MenuIcon;
 import dev.ua.ikeepcalm.coi.client.network.payload.ActionPayload;
 import dev.ua.ikeepcalm.coi.client.screen.menu.MenuIcons;
 import dev.ua.ikeepcalm.coi.client.screen.menu.MenuTheme;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
 import dev.ua.ikeepcalm.coi.client.state.SheetState;
-import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 import dev.ua.ikeepcalm.coi.client.ui.ArchivePaint;
 import dev.ua.ikeepcalm.coi.client.ui.ArchiveTab;
-
-import java.util.ArrayList;
-import java.util.List;
+import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -32,6 +24,14 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import org.jspecify.annotations.NonNull;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetGlyphs.GLYPH_COOLDOWN;
+import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.ICON;
+import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.PARA_LINE;
+import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetPalette.accent;
 
 /**
  * Server-fed character dossier with a fixed identity leaf and three local index pages.
@@ -56,6 +56,7 @@ public class CharacterSheetScreen extends Screen {
 
     private final Screen parent;
     private final SheetFooter footer = new SheetFooter();
+    private final SheetPortrait portrait = new SheetPortrait();
 
     /**
      * Built on the first {@code init} and kept across later ones: a resize
@@ -117,8 +118,6 @@ public class CharacterSheetScreen extends Screen {
         this.parent = parent;
     }
 
-    // --- Dossier geometry ---
-
     private boolean compact() {
         return this.height < 300;
     }
@@ -140,8 +139,6 @@ public class CharacterSheetScreen extends Screen {
         // A chest GUI never paused the world, and this stands in for one
         return false;
     }
-
-    // --- Lifecycle ---
 
     @Override
     protected void init() {
@@ -267,8 +264,6 @@ public class CharacterSheetScreen extends Screen {
         this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
-    // --- Input ---
-
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         double mx = event.x();
@@ -370,8 +365,6 @@ public class CharacterSheetScreen extends Screen {
         return Math.max(0, contentHeight - (viewBottom - viewTop));
     }
 
-    // --- Rendering ---
-
     @Override
     public void extractRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partial) {
         long now = System.currentTimeMillis();
@@ -392,8 +385,8 @@ public class CharacterSheetScreen extends Screen {
 
         drawHeader(graphics, mouseX, mouseY, accent);
 
-        if (portraitW > 0) SheetPortrait.draw(ctx, graphics, cardX + pad(), viewTop,
-                portraitW - 12, viewBottom - viewTop);
+        if (portraitW > 0) portrait.draw(ctx, graphics, cardX + pad(), viewTop,
+                portraitW - 12, viewBottom - viewTop, mouseX, mouseY);
 
         graphics.enableScissor(bodyX(), viewTop, cardX + cardW - 1, viewBottom);
         int x = bodyX();
@@ -402,7 +395,7 @@ public class CharacterSheetScreen extends Screen {
         int start = y;
         if (portraitW == 0) {
             int identityH = this.height <= 320 ? 72 : 100;
-            SheetPortrait.draw(ctx, graphics, x, y, w, identityH);
+            portrait.draw(ctx, graphics, x, y, w, identityH, mouseX, mouseY);
             y += identityH + 12;
         }
         if (SheetState.hasData()) {
@@ -504,7 +497,7 @@ public class CharacterSheetScreen extends Screen {
         footer.draw(this.font, graphics, cardX + pad(), y, contentW(), buttonH(), accent, mouseX, mouseY);
     }
 
-    // --- Scrollbar (the handle is grabbable, not decoration) ---
+    // The scrollbar handle is grabbable, not decoration.
 
     private int trackX() {
         return cardX + cardW - 5;
@@ -555,8 +548,6 @@ public class CharacterSheetScreen extends Screen {
         }
         scroll = Mth.clamp((handleTop - trackTop()) * maxScroll() / span, 0, maxScroll());
     }
-
-    // --- Empty state ---
 
     /**
      * Before the first packet lands the sheet still knows who the player is, so

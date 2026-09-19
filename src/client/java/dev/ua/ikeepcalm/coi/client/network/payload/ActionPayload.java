@@ -1,8 +1,8 @@
 package dev.ua.ikeepcalm.coi.client.network.payload;
 
-import dev.ua.ikeepcalm.coi.client.config.HudConfig;
-
 import com.google.gson.JsonObject;
+import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -28,8 +28,8 @@ public record ActionPayload(String json) implements CustomPacketPayload {
 
     /**
      * {@code {"action":"open","target":…,"ui":"client"|"server"}} - the sheet's
-     * sub-menu buttons. {@code ui} is the player's own preference
-     * ({@code useServerMenus}): {@code client} asks for a
+     * sub-menu buttons. Archive servers use the native replacement; older servers
+     * follow {@code useServerMenus}: {@code client} asks for a
      * {@code coi-client:menu} document, {@code server} for the original InvUI
      * chest GUI. A server that predates the menu protocol ignores the field and
      * opens its chest GUI either way.
@@ -39,6 +39,7 @@ public record ActionPayload(String json) implements CustomPacketPayload {
         json.addProperty("action", "open");
         json.addProperty("target", target);
         json.addProperty("ui", HudConfig.getSettings().useServerMenus
+                && !ServerCapabilities.has("menu_archive")
                 ? "server" : "client");
         return new ActionPayload(json.toString());
     }

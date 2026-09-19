@@ -1,24 +1,19 @@
 package dev.ua.ikeepcalm.coi.client.screen.menu;
 
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.GAP;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HERO_ICON;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HERO_RING;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.HOVER_MS;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.SMALL_ICON;
-import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.STAT_RING;
-
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.List;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+
+import static dev.ua.ikeepcalm.coi.client.screen.menu.MenuMetrics.*;
 
 /**
  * The parts that carry a value: a stat and its gauge, a two-column table, a
  * checklist, a row of pills, and the hero block that is the screen's own
  * identity.
  */
-final class MenuValueParts {
+public class MenuValueParts {
 
     private MenuValueParts() {
     }
@@ -28,7 +23,7 @@ final class MenuValueParts {
      * 24px arc — the arc is for the one number on the screen that is the point
      * of the screen.
      */
-    static final class StatPart extends MenuPart {
+    public static class StatPart extends MenuPart {
         private final MenuComponent.Stat stat;
         private final int color;
         private final boolean ring;
@@ -84,7 +79,7 @@ final class MenuValueParts {
         }
     }
 
-    static final class KvPart extends MenuPart {
+    public static class KvPart extends MenuPart {
         private final List<MenuComponent.KvRow> rows;
 
         KvPart(MenuContext ctx, MenuComponent.Kv kv) {
@@ -94,10 +89,18 @@ final class MenuValueParts {
         }
 
         @Override
+        int growthCapacity() {
+            return rows.size() * 12;
+        }
+
+        @Override
         void render(GuiGraphicsExtractor g, int x, int top, int mouseX, int mouseY) {
             int w = ctx.contentW();
-            int y = top + 1;
+            int rowH = rows.isEmpty() ? 11 : (height - 3) / rows.size();
+            int y = top + 1 + (rowH - 11) / 2;
             for (MenuComponent.KvRow row : rows) {
+                if (ctx.archival()) g.fill(x, y + 10 + (rowH - 11) / 2, x + w,
+                        y + 11 + (rowH - 11) / 2, 0x184D5549);
                 int labelX = x;
                 if (MenuIcons.draw(g, font, row.icon(), x, y - 2, SMALL_ICON, 1f)) {
                     labelX += SMALL_ICON + 3;
@@ -110,13 +113,14 @@ final class MenuValueParts {
                 g.text(font, row.value(), x + w - valueW, y,
                         MenuTheme.argb(row.rgb(), CoiStyle.TEXT_BODY), false);
                 if (!row.hint().isEmpty() && MenuMetrics.inBox(mouseX, mouseY, x, y - 1, w, 11)) ctx.hint(row.hint());
-                y += 11;
+                y += rowH;
             }
         }
     }
 
-    static final class ChecklistPart extends MenuPart {
+    public static class ChecklistPart extends MenuPart {
         private final List<MenuComponent.Check> items;
+        private final int naturalHeight;
 
         ChecklistPart(MenuContext ctx, MenuComponent.Checklist checklist) {
             super(ctx);
@@ -124,11 +128,18 @@ final class MenuValueParts {
             int h = 3;
             for (MenuComponent.Check item : items) h += item.detail().isEmpty() ? 11 : 20;
             this.height = h;
+            this.naturalHeight = h;
+        }
+
+        @Override
+        int growthCapacity() {
+            return items.size() * 10;
         }
 
         @Override
         void render(GuiGraphicsExtractor g, int x, int top, int mouseX, int mouseY) {
-            int y = top + 1;
+            int extra = items.isEmpty() ? 0 : (height - naturalHeight) / items.size();
+            int y = top + 1 + extra / 2;
             for (MenuComponent.Check item : items) {
                 // An icon stands in for the glyph entirely: a tick beside a
                 // symbol says the same thing twice
@@ -145,6 +156,7 @@ final class MenuValueParts {
                             x + 16, y, CoiStyle.TEXT_MUTED, false);
                     y += 9;
                 }
+                y += extra;
             }
         }
     }
@@ -153,7 +165,7 @@ final class MenuValueParts {
      * A wrapping row of pills. The layout is decided once, in the constructor,
      * because a wrapping row's height is not knowable from its item count.
      */
-    static final class ChipsPart extends MenuPart {
+    public static class ChipsPart extends MenuPart {
         private final List<MenuComponent.Chip> items;
         private final int[][] spots;
         private final float[] hovers;
@@ -198,12 +210,13 @@ final class MenuValueParts {
      * same weight; this one is a panel in the document's own colour, with the
      * title at 1.5× and the one number that matters as a bar or an arc.
      */
-    static final class HeroPart extends MenuPart {
+    public static class HeroPart extends MenuPart {
         private final MenuComponent.Hero hero;
         private final int color;
         private final boolean ringGauge;
         private final boolean barGauge;
         private final int core;
+        private final int naturalHeight;
         private final float[] hovers;
 
         HeroPart(MenuContext ctx, MenuComponent.Hero hero) {
@@ -221,6 +234,12 @@ final class MenuValueParts {
             this.core = Math.max(Math.max(HERO_ICON, titleBlock), ringGauge ? HERO_RING + 6 : 0);
             this.height = 10 + core + (barGauge ? 10 : 0)
                     + (hero.chips().isEmpty() ? 0 : MenuTheme.CHIP_H + GAP) + 8 + 4;
+            this.naturalHeight = height;
+        }
+
+        @Override
+        int growthCapacity() {
+            return 42;
         }
 
         @Override
@@ -232,7 +251,7 @@ final class MenuValueParts {
 
             int left = x + 8;
             int right = x + w - 8;
-            int coreTop = top + 10;
+            int coreTop = top + 10 + (height - naturalHeight) / 2;
 
             // The ring claims the right edge *before* the badge is placed. Both used
             // to anchor there independently, so a hero with a gauge and a state word

@@ -1,13 +1,14 @@
 package dev.ua.ikeepcalm.coi.client.menu;
 
-import dev.ua.ikeepcalm.coi.CoiLog;
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.ua.ikeepcalm.coi.CoiLog;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * {@code coi-client:menu} JSON to a {@link MenuDocument}.
@@ -23,7 +24,7 @@ import java.util.Locale;
  * in {@link MenuParts}, the reads themselves in {@link MenuJson}, the enum
  * words in {@link MenuStyles} and the ceilings in {@link MenuLimits}.
  */
-public final class MenuParser {
+public class MenuParser {
 
     private MenuParser() {
     }
@@ -64,7 +65,8 @@ public final class MenuParser {
         if (element == null || !element.isJsonObject()) return MenuDocument.Presentation.NONE;
         JsonObject node = element.getAsJsonObject();
         String template = MenuJson.string(node, "template", MenuLimits.MAX_ID);
-        if (!template.equals("specimen") && !template.equals("ability_manual")) return MenuDocument.Presentation.NONE;
+        if (!Set.of("specimen", "ability_manual", "ledger", "relic", "inscription", "atlas", "challenge")
+                .contains(template)) return MenuDocument.Presentation.NONE;
         return new MenuDocument.Presentation(template,
                 MenuJson.string(node, "subject", MenuLimits.MAX_ID),
                 MenuJson.string(node, "caption", MenuLimits.MAX_TITLE));

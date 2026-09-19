@@ -1,3 +1,6 @@
+import javax.imageio.ImageIO
+import java.awt.image.BufferedImage
+
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
     id 'maven-publish'
@@ -29,11 +32,12 @@ loom {
         }
     }
 
-    if (project.hasProperty('archivePreview')) {
+    if (project.hasProperty('archivePreview') || project.hasProperty('portraitPreview')) {
         runs.client {
             runDir 'build/archive-preview'
             programArgs '--width', '1440', '--height', '900', '--quickPlaySingleplayer', 'Preview'
             vmArg '-Dcoi.archivePreview=true'
+            if (project.hasProperty('portraitPreview')) vmArg '-Dcoi.portraitPreview=true'
         }
     }
 
@@ -120,9 +124,9 @@ tasks.register("generateWhiteTexture") {
     doLast {
         def dir = file("src/client/resources/assets/coi-client/textures/entity")
         dir.mkdirs()
-        def img = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        def img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB)
         img.setRGB(0, 0, -1) // white
-        javax.imageio.ImageIO.write(img, "png", new File(dir, "white.png"))
+        ImageIO.write(img, "png", new File(dir, "white.png"))
         println("Generated white.png successfully!")
     }
 }
@@ -135,4 +139,4 @@ tasks.named("compileClientJava").configure {
 
 
 
-
+

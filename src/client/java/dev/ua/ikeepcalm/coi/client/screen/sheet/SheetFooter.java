@@ -1,16 +1,17 @@
 package dev.ua.ikeepcalm.coi.client.screen.sheet;
 
-import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.GAP;
-
 import dev.ua.ikeepcalm.coi.client.menu.MenuComponent;
 import dev.ua.ikeepcalm.coi.client.menu.MenuIcon;
+import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
 import dev.ua.ikeepcalm.coi.client.screen.menu.MenuTheme;
-
-import java.util.ArrayList;
-import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.resources.language.I18n;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static dev.ua.ikeepcalm.coi.client.screen.sheet.SheetMetrics.GAP;
 
 /**
  * The way out, and only the way out — the sheet's real actions are its cards,
@@ -20,7 +21,7 @@ import net.minecraft.client.resources.language.I18n;
  * draws them exactly as it draws a document's own, and laid out as one even row
  * so the draw and the hit test cannot disagree about where a button is.
  */
-final class SheetFooter {
+public class SheetFooter {
 
     private record Action(MenuComponent.Button model, Runnable run) {
     }
@@ -41,7 +42,9 @@ final class SheetFooter {
 
     void build(Runnable serverMenu, Runnable done) {
         actions.clear();
-        actions.add(new Action(button("server_menu", I18n.get("screen.coi.sheet_btn_server_menu"),
+        actions.add(new Action(button("server_menu", I18n.get(
+                        ServerCapabilities.has("menu_archive")
+                                ? "screen.coi.sheet_btn_pathways" : "screen.coi.sheet_btn_server_menu"),
                 MenuComponent.ButtonStyle.SECONDARY), serverMenu));
         actions.add(new Action(button("done", I18n.get("gui.done"),
                 MenuComponent.ButtonStyle.PRIMARY), done));

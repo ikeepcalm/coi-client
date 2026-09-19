@@ -1,10 +1,14 @@
 package dev.ua.ikeepcalm.coi.client.input;
 
+import com.google.gson.JsonObject;
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityCategories;
 import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.hud.overlay.AbilityOverlay;
 import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
+import dev.ua.ikeepcalm.coi.client.network.payload.AbilityCategoryUsePayload;
 import dev.ua.ikeepcalm.coi.client.network.payload.AbilityUsePayload;
 import dev.ua.ikeepcalm.coi.client.network.payload.ActionPayload;
 import dev.ua.ikeepcalm.coi.client.screen.GestureScreen;
@@ -13,9 +17,8 @@ import dev.ua.ikeepcalm.coi.client.screen.ability.AbilityWheelScreen;
 import dev.ua.ikeepcalm.coi.client.screen.debug.EffectDebugScreen;
 import dev.ua.ikeepcalm.coi.client.screen.sheet.CharacterSheetScreen;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
+import dev.ua.ikeepcalm.coi.client.state.NotificationState;
 import dev.ua.ikeepcalm.coi.client.state.SheetState;
-
-import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -37,7 +40,7 @@ import org.lwjgl.glfw.GLFW;
  * {@code consumeClick}, because the wheel and the gesture screen need to know
  * the key is still <em>held</em>, which a consumed click no longer says.
  */
-public final class CoiKeyBindings {
+public class CoiKeyBindings {
 
     /**
      * The character sheet's seven destinations, in its own order — the same
@@ -179,15 +182,15 @@ public final class CoiKeyBindings {
         String action = AbilityInfo.extractAction(abilityIdWithName);
         String category = AbilityInfo.extractCategory(abilityIdWithName);
         if (!category.isEmpty()) {
-            if (!dev.ua.ikeepcalm.coi.client.network.ServerCapabilities.has("ability_categories")
-                    || dev.ua.ikeepcalm.coi.client.ability.AbilityCategories.find(abilityId, category) == null
-                    || !ClientPlayNetworking.canSend(dev.ua.ikeepcalm.coi.client.network.payload.AbilityCategoryUsePayload.ID)) {
-                com.google.gson.JsonObject message = new com.google.gson.JsonObject();
+            if (!ServerCapabilities.has("ability_categories")
+                    || AbilityCategories.find(abilityId, category) == null
+                    || !ClientPlayNetworking.canSend(AbilityCategoryUsePayload.ID)) {
+                JsonObject message = new JsonObject();
                 message.addProperty("title", Component.translatable("screen.coi.category_unavailable").getString());
-                dev.ua.ikeepcalm.coi.client.state.NotificationState.handle(message.toString());
+                NotificationState.handle(message.toString());
                 return;
             }
-            ClientPlayNetworking.send(new dev.ua.ikeepcalm.coi.client.network.payload.AbilityCategoryUsePayload(abilityId, category));
+            ClientPlayNetworking.send(new AbilityCategoryUsePayload(abilityId, category));
         } else {
             if (!ClientPlayNetworking.canSend(AbilityUsePayload.ID)) return;
             ClientPlayNetworking.send(new AbilityUsePayload(abilityId, action));
@@ -201,7 +204,7 @@ public final class CoiKeyBindings {
      * A server that advertised neither has nothing listening, so say so instead
      * of sending into the void.
      * <p>
-     * {@code useServerMenus} takes the chest GUI first, because a player who
+     * On older servers, {@code useServerMenus} takes the chest GUI first, because a player who
      * asked for the plugin's own UI should not have to open the sheet and click
      * its footer to reach it. It only <em>reorders</em> the two, though: on a
      * server without {@code menu_action} the sheet still opens, since the
@@ -209,7 +212,8 @@ public final class CoiKeyBindings {
      */
     private static void openServerMenu(Minecraft client) {
         if (client.player == null) return;
-        if (HudConfig.getSettings().useServerMenus && ServerCapabilities.has("menu_action")) {
+        if (HudConfig.getSettings().useServerMenus && !ServerCapabilities.has("menu_archive")
+                && ServerCapabilities.has("menu_action")) {
             ClientPlayNetworking.send(ActionPayload.of("open_menu"));
         } else if (ServerCapabilities.has("character_sheet")) {
             client.gui.setScreen(new CharacterSheetScreen(null));

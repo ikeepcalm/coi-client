@@ -2,8 +2,11 @@
 
 The server catalogue opens a searchable ability index with a detail leaf for descriptions,
 costs, casting modes and bindings. Narrow windows show the index and detail separately.
-Pathway controls returns to the complete server document, including passive configuration,
-puppets and other actions; M reopens the manual. The original menu session stays active.
+Other actions opens an indexed folio containing passive configuration, puppets, cogitation,
+cohort controls and any unknown server content; M reopens the manual. Ability rows already
+represented in the manual are removed from this supplemental view. Their shortcut-item actions
+and full server lore are available in the detail leaf. Missing metadata retains the original rows.
+The original menu session stays active; Escape closes it after backing out of assignment/details.
 
 Each named category and secondary action is its own entry, grouped under the spell's name.
 Named categories appear first; Use current mode remains an explicit entry for dynamic bindings.

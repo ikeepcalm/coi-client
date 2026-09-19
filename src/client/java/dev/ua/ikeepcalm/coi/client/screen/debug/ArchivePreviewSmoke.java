@@ -1,7 +1,15 @@
 package dev.ua.ikeepcalm.coi.client.screen.debug;
 
 import dev.ua.ikeepcalm.coi.CoiLog;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityInfo;
+import dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry;
+import dev.ua.ikeepcalm.coi.client.ability.Pathways;
+import dev.ua.ikeepcalm.coi.client.config.AbilityConfig;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
+import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.menu.MenuParser;
+import dev.ua.ikeepcalm.coi.client.network.ServerCapabilities;
+import dev.ua.ikeepcalm.coi.client.screen.ability.AbilityBindingScreen;
 import dev.ua.ikeepcalm.coi.client.screen.menu.MenuScreen;
 import dev.ua.ikeepcalm.coi.client.screen.sheet.CharacterSheetScreen;
 import dev.ua.ikeepcalm.coi.client.state.MenuState;
@@ -10,11 +18,16 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+
 /** Opt-in development capture, run in a disposable game directory with a copied singleplayer world. */
-public final class ArchivePreviewSmoke {
+public class ArchivePreviewSmoke {
     private int ticks;
 
     private ArchivePreviewSmoke() {}
@@ -25,9 +38,133 @@ public final class ArchivePreviewSmoke {
         ClientTickEvents.END_CLIENT_TICK.register(smoke::tick);
     }
 
+    private static void cursor(Minecraft client, double x, double y) {
+        int[] width = new int[1], height = new int[1];
+        long handle = client.getWindow().handle();
+        GLFW.glfwGetWindowSize(handle, width, height);
+        GLFW.glfwSetCursorPos(handle, width[0] * x, height[0] * y);
+    }
+
+    private static void capture(Minecraft client, String name) {
+        Screenshot.grab(client.gameDirectory, name + ".png", client.gameRenderer.mainRenderTarget(), 1,
+                message -> CoiLog.LOG.info("Archive preview: {}", message.getString()));
+    }
+
+    private static void portrait(Minecraft client, String pathway, int sequence, String name) {
+        client.gui.setScreen(null);
+        ServerCapabilities.handle(
+                "{\"protocol\":2,\"features\":[\"menu_archive\",\"character_sheet\"]}");
+        client.options.guiScale().set(2);
+        client.resizeGui();
+        SheetState.handle("""
+                {"pathway":"%s","pathwayName":"%s","sequence":%d,"sequenceName":"%s",
+                 "health":40,"maxHealth":40,"spirituality":1200,"maxSpirituality":1600,
+                 "actions":{"church":true,"abilities":true,"mythical":true,"uniqueness":true,
+                 "honorific":true,"map":true,"seat":true}}
+                """.formatted(pathway, pathway, sequence, name));
+        client.gui.setScreen(new CharacterSheetScreen(null));
+    }
+
+    private static void archive(Minecraft client, String template, String title) {
+        client.gui.setScreen(null);
+        String body = switch (template) {
+            case "ledger" -> """
+                    {"type":"kv","rows":[{"label":"Your rank","value":"Bishop"},
+                     {"label":"Members","value":"12"},{"label":"Treasury","value":"2,400"}]},
+                    {"type":"buttons","buttons":[{"id":"members","label":"Members"},
+                     {"id":"sites","label":"Sacred sites"},{"id":"settings","label":"Settings"}]}
+                    """;
+            case "relic" -> """
+                    {"type":"hero","icon":{"kind":"pathway","value":"fool"},"title":"The Fool",
+                     "subtitle":"Accommodated","badge":"SEQUENCE 0"},
+                    {"type":"stat","label":"Stability","value":"84%","fraction":0.84},
+                    {"type":"button","id":"release","label":"Release uniqueness","style":"danger",
+                     "confirm":{"title":"Release uniqueness?","body":"The uniqueness will leave your possession."}}
+                    """;
+            case "inscription" -> """
+                    {"type":"text","text":"The Fool that does not belong to this era;
+                    The mysterious ruler above the gray fog;
+                    The King of Yellow and Black who wields good luck."},
+                    {"type":"input","id":"name","label":"Honorific name","value":"The Fool",
+                     "submit":"save","submitLabel":"Save","maxLength":80}
+                    """;
+            case "atlas" -> """
+                    {"type":"toggle","id":"visibility","label":"Visible on the map","on":true,
+                     "desc":"Show your location to other players."},
+                    {"type":"kv","rows":[{"label":"Current state","value":"Visible"}]},
+                    {"type":"note","style":"warn","text":"Hiding your marker does not conceal you from divination."}
+                    """;
+            default -> """
+                    {"type":"steps","items":[{"title":"Hold the sequence bracket","done":true},
+                     {"title":"Prepare the acting reserve","text":"8,000 / 10,000","done":false},
+                     {"title":"Challenge the seat","text":"The server selects the holder."}]},
+                    {"type":"button","id":"challenge","label":"Challenge","enabled":false,
+                     "disabledReason":"You need 2,000 more acting points."}
+                    """;
+        };
+        MenuState.adopt(MenuParser.parse("""
+                {"session":"preview","version":1,"screen":"preview.%s","title":"%s",
+                 "accent":"B893D5","icon":{"kind":"pathway","value":"fool"},"back":true,
+                 "presentation":{"template":"%s","subject":"fool"},
+                 "sections":[{"title":"Overview","components":[%s]},
+                   {"title":"Requirements","components":[{"type":"checklist","items":[
+                    {"label":"Pathway unlocked","state":"ok"},{"label":"Permission granted","state":"ok"}]}]},
+                   {"title":"Details","components":[{"type":"details","id":"more","summary":"More information",
+                    "text":["The server checks your current state before applying any changes."]}]}],
+                 "footer":[{"id":"refresh","label":"Refresh"}]}
+                """.formatted(template, title, template, body)));
+        client.gui.setScreen(new MenuScreen(null));
+    }
+
+    private static void passiveDocument(int version, boolean active, boolean toggleable) {
+        MenuState.adopt(MenuParser.parse("""
+                {"session":"preview","version":%d,"screen":"preview.passives","title":"Door · Sequence 9",
+                 "presentation":{"template":"ability_manual"},"sections":[{"components":[
+                   {"type":"list","rows":[{"id":"door-9-2","title":"Spiritual Perception","subtitle":"%s",
+                    "action":"passive-toggle","enabled":%s,"disabledReason":"This passive is always enabled."}]}]}]}
+                """.formatted(version, active ? "Enabled" : "Disabled", toggleable)));
+    }
+
+    private static void type(Minecraft client, String text) {
+        text.codePoints().forEach(code -> client.gui.screen().charTyped(new CharacterEvent(code)));
+    }
+
+    private static void click(Minecraft client, double x, double y) {
+        client.gui.screen().mouseClicked(new MouseButtonEvent(x, y,
+                new MouseButtonInfo(0, 0)), false);
+    }
+
+    private static void seedManual() {
+        AbilityRegistry.handleAbilityDataV2("""
+                {"abilities":[
+                  {"id":"door-5-1","name":"Traveler's Door","englishName":"Traveler's Door","pathway":"door","sequence":5,
+                   "category":"mobility","hasLeftClick":true,"description":"Open a door to a place you have visited. Choose whether to travel yourself or let others pass through.",
+                   "cost":120,"cooldownSeconds":15,"selectedCategory":"travel","castCategories":[
+                     {"id":"travel","name":"Travel","cooldownSeconds":15,"cooldownRemainingTicks":100},
+                     {"id":"passage","name":"Open passage","cooldownSeconds":30},
+                     {"id":"return","name":"Return","cooldownSeconds":5}]},
+                  {"id":"door-6-2","name":"Blink","englishName":"Blink","pathway":"door","sequence":6,"category":"mobility",
+                   "description":"Teleport a short distance in the direction you are looking.","cost":40,"cooldownSeconds":3},
+                  {"id":"door-7-1","name":"Spirit Vision","englishName":"Spirit Vision","pathway":"door","sequence":7,
+                   "kind":"activated","description":"See nearby spiritual traces.","drainPerSecond":2},
+                  {"id":"fool-7-2","name":"Flame Jump","englishName":"Flame Jump","pathway":"fool","sequence":7,
+                   "locked":true,"description":"Travel between nearby flames.","cost":60,"cooldownSeconds":8}
+                ]}
+                """);
+        MenuState.adopt(MenuParser.parse("""
+                {"session":"preview","version":1,"screen":"preview.manual","title":"Door · Sequence 5",
+                 "presentation":{"template":"ability_manual"},"sections":[{"title":"Pathway controls",
+                 "components":[{"type":"text","text":"Server controls remain here."}]}]}
+                """));
+    }
+
     private void tick(Minecraft client) {
         if (client.player == null || !client.hasSingleplayerServer()) return;
         ticks++;
+        if (Boolean.getBoolean("coi.portraitPreview")) {
+            portraitTick(client);
+            return;
+        }
         switch (ticks) {
             case 40 -> {
                 HudConfig.getSettings().epilepsyMode = true;
@@ -94,8 +231,8 @@ public final class ArchivePreviewSmoke {
             case 545 -> {
                 for (int i = 0; i < 2; i++) client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_TAB, 0, 0));
                 client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-                String stored = dev.ua.ikeepcalm.coi.client.config.AbilityConfig.loadBindings()[0];
-                if (!"passage".equals(dev.ua.ikeepcalm.coi.client.ability.AbilityInfo.extractCategory(stored)))
+                String stored = AbilityConfig.loadBindings()[0];
+                if (!"passage".equals(AbilityInfo.extractCategory(stored)))
                     throw new IllegalStateException("Category binding did not survive UI assignment and config reload");
                 CoiLog.LOG.info("Archive preview: category binding persisted correctly");
             }
@@ -115,7 +252,7 @@ public final class ArchivePreviewSmoke {
             case 650 -> {
                 client.options.guiScale().set(2);
                 client.resizeGui();
-                client.gui.setScreen(new dev.ua.ikeepcalm.coi.client.screen.ability.AbilityBindingScreen(null));
+                client.gui.setScreen(new AbilityBindingScreen(null));
             }
             case 665 -> capture(client, "21-binding-screen");
             case 670 -> click(client, client.gui.screen().width / 2, 110);
@@ -124,16 +261,16 @@ public final class ArchivePreviewSmoke {
             case 695 -> capture(client, "23-binding-search");
             case 700 -> {
                 client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-                String stored = dev.ua.ikeepcalm.coi.client.config.AbilityConfig.loadBindings()[0];
-                if (!"passage".equals(dev.ua.ikeepcalm.coi.client.ability.AbilityInfo.extractCategory(stored)))
+                String stored = AbilityConfig.loadBindings()[0];
+                if (!"passage".equals(AbilityInfo.extractCategory(stored)))
                     throw new IllegalStateException("Direct category picker failed");
             }
             case 705 -> click(client, client.gui.screen().width / 2, 110);
             case 710 -> type(client, "Secondary action");
             case 715 -> {
                 client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-                String stored = dev.ua.ikeepcalm.coi.client.config.AbilityConfig.loadBindings()[0];
-                if (!"left_click".equals(dev.ua.ikeepcalm.coi.client.ability.AbilityInfo.extractAction(stored)))
+                String stored = AbilityConfig.loadBindings()[0];
+                if (!"left_click".equals(AbilityInfo.extractAction(stored)))
                     throw new IllegalStateException("Direct secondary action picker failed");
                 CoiLog.LOG.info("Archive preview: grouped category and secondary entries assigned correctly");
             }
@@ -147,7 +284,7 @@ public final class ArchivePreviewSmoke {
                 client.gui.setScreen(null);
                 client.options.guiScale().set(2);
                 client.resizeGui();
-                dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.handleAbilityDataV2("""
+                AbilityRegistry.handleAbilityDataV2("""
                         {"abilities":[{"id":"door-9-2","name":"Spiritual Perception","englishName":"Spiritual Perception",
                         "pathway":"door","sequence":9,"kind":"passive","active":true,
                         "description":"Sense nearby spiritual traces."}]}
@@ -159,71 +296,122 @@ public final class ArchivePreviewSmoke {
             case 775 -> {
                 for (int i=0; i<2; i++) client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_TAB, 0, 0));
                 client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
-                if (!dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.getAbilityInfo("door-9-2").active())
+                if (!AbilityRegistry.getAbilityInfo("door-9-2").active())
                     throw new IllegalStateException("Passive changed without server confirmation");
             }
             case 780 -> {
-                dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.handleAbilityState("{\"id\":\"door-9-2\",\"active\":false}");
-                if (dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.getAbilityInfo("door-9-2").active())
+                AbilityRegistry.handleAbilityState("{\"id\":\"door-9-2\",\"active\":false}");
+                if (AbilityRegistry.getAbilityInfo("door-9-2").active())
                     throw new IllegalStateException("Passive metadata did not follow server state");
                 passiveDocument(2, false, true);
             }
             case 800 -> capture(client, "26-passive-disabled");
             case 805 -> {
-                dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.handleAbilityState("{\"id\":\"door-9-2\",\"active\":true}");
+                AbilityRegistry.handleAbilityState("{\"id\":\"door-9-2\",\"active\":true}");
                 passiveDocument(3, true, false);
                 CoiLog.LOG.info("Archive preview: passive controls follow server state");
             }
             case 820 -> capture(client, "27-passive-always-on");
-            case 830 -> client.stop();
+            case 830 -> archive(client, "ledger", "Church of the Fool");
+            case 850 -> capture(client, "28-church-ledger");
+            case 860 -> archive(client, "relic", "Uniqueness");
+            case 880 -> capture(client, "29-relic");
+            case 890 -> archive(client, "inscription", "Honorific name");
+            case 910 -> capture(client, "30-inscription");
+            case 920 -> archive(client, "atlas", "Map visibility");
+            case 940 -> capture(client, "31-atlas");
+            case 950 -> archive(client, "challenge", "Sequence seat");
+            case 970 -> capture(client, "32-challenge");
+            case 980 -> {
+                client.options.guiScale().set(4);
+                client.resizeGui();
+            }
+            case 1000 -> capture(client, "33-challenge-compact");
+            case 1010 -> client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_END, 0, 0));
+            case 1030 -> capture(client, "34-challenge-compact-end");
+            case 1040 -> portrait(client, "priest", 9, "Hunter");
+            case 1060 -> capture(client, "35-priest-nine");
+            case 1070 -> portrait(client, "priest", 0, "Red Priest");
+            case 1090 -> capture(client, "36-priest-zero");
+            case 1100 -> portrait(client, "fool", 0, "The Fool");
+            case 1120 -> capture(client, "37-fool-zero");
+            case 1130 -> portrait(client, "door", 0, "Door");
+            case 1150 -> capture(client, "38-door-zero");
+            case 1160 -> HudConfig.getSettings().epilepsyMode = false;
+            case 1180 -> capture(client, "39-door-animated");
+            case 1190 -> {
+                client.options.guiScale().set(4);
+                client.resizeGui();
+            }
+            case 1210 -> capture(client, "40-door-compact");
+            case 1220 -> {
+                client.gui.setScreen(null);
+                var renderer = client.getEntityRenderDispatcher().getRenderer(client.player);
+                var state = renderer.createRenderState(client.player, 1f);
+                if (state instanceof AvatarRenderStateAccessor avatar
+                        && (avatar.coi$getPortraitPose() != null || avatar.coi$getPreviewForm() != null))
+                    throw new IllegalStateException("Portrait state leaked into normal player extraction");
+                CoiLog.LOG.info("Archive preview: normal player extraction has no portrait overrides");
+                client.stop();
+            }
             default -> { }
         }
     }
 
-    private static void capture(Minecraft client, String name) {
-        Screenshot.grab(client.gameDirectory, name + ".png", client.gameRenderer.mainRenderTarget(), 1,
-                message -> CoiLog.LOG.info("Archive preview: {}", message.getString()));
-    }
-
-    private static void passiveDocument(int version, boolean active, boolean toggleable) {
-        MenuState.adopt(dev.ua.ikeepcalm.coi.client.menu.MenuParser.parse("""
-                {"session":"preview","version":%d,"screen":"preview.passives","title":"Door · Sequence 9",
-                 "presentation":{"template":"ability_manual"},"sections":[{"components":[
-                   {"type":"list","rows":[{"id":"door-9-2","title":"Spiritual Perception","subtitle":"%s",
-                    "action":"passive-toggle","enabled":%s,"disabledReason":"This passive is always enabled."}]}]}]}
-                """.formatted(version, active ? "Enabled" : "Disabled", toggleable)));
-    }
-
-    private static void type(Minecraft client, String text) {
-        text.codePoints().forEach(code -> client.gui.screen().charTyped(new net.minecraft.client.input.CharacterEvent(code)));
-    }
-
-    private static void click(Minecraft client, double x, double y) {
-        client.gui.screen().mouseClicked(new net.minecraft.client.input.MouseButtonEvent(x, y,
-                new net.minecraft.client.input.MouseButtonInfo(0, 0)), false);
-    }
-
-    private static void seedManual() {
-        dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry.handleAbilityDataV2("""
-                {"abilities":[
-                  {"id":"door-5-1","name":"Traveler's Door","englishName":"Traveler's Door","pathway":"door","sequence":5,
-                   "category":"mobility","hasLeftClick":true,"description":"Open a door to a place you have visited. Choose whether to travel yourself or let others pass through.",
-                   "cost":120,"cooldownSeconds":15,"selectedCategory":"travel","castCategories":[
-                     {"id":"travel","name":"Travel","cooldownSeconds":15,"cooldownRemainingTicks":100},
-                     {"id":"passage","name":"Open passage","cooldownSeconds":30},
-                     {"id":"return","name":"Return","cooldownSeconds":5}]},
-                  {"id":"door-6-2","name":"Blink","englishName":"Blink","pathway":"door","sequence":6,"category":"mobility",
-                   "description":"Teleport a short distance in the direction you are looking.","cost":40,"cooldownSeconds":3},
-                  {"id":"door-7-1","name":"Spirit Vision","englishName":"Spirit Vision","pathway":"door","sequence":7,
-                   "kind":"activated","description":"See nearby spiritual traces.","drainPerSecond":2},
-                  {"id":"fool-7-2","name":"Flame Jump","englishName":"Flame Jump","pathway":"fool","sequence":7,
-                   "locked":true,"description":"Travel between nearby flames.","cost":60,"cooldownSeconds":8}
-                ]}
-                """);
-        MenuState.adopt(dev.ua.ikeepcalm.coi.client.menu.MenuParser.parse("""
-                {"session":"preview","version":1,"screen":"preview.manual","title":"Door · Sequence 5",
-                 "presentation":{"template":"ability_manual"},"sections":[{"title":"Pathway controls",
-                 "components":[{"type":"text","text":"Server controls remain here."}]}]}
-                """));
+    private void portraitTick(Minecraft client) {
+        var pathways = new ArrayList<>(Pathways.RING);
+        pathways.add("error");
+        int phase = ticks - 40;
+        if (phase < 0) return;
+        int shot = phase / 16;
+        if (shot < pathways.size() * 2) {
+            String pathway = pathways.get(shot / 2);
+            int sequence = shot % 2 == 0 ? 9 : 0;
+            if (phase % 16 == 0) {
+                HudConfig.getSettings().epilepsyMode = false;
+                portrait(client, pathway, sequence, "Portrait preview");
+            } else if (phase % 16 == 12) capture(client, "pathway-" + pathway + "-" + sequence);
+            return;
+        }
+        int end = phase - pathways.size() * 32;
+        switch (end) {
+            case 0 -> {
+                HudConfig.getSettings().epilepsyMode = true;
+                portrait(client, "chained", 0, "Chained");
+            }
+            case 12 -> capture(client, "pathway-chained-frozen");
+            case 16 -> {
+                client.options.guiScale().set(4);
+                client.resizeGui();
+            }
+            case 28 -> capture(client, "pathway-chained-compact");
+            case 32 -> {
+                client.options.guiScale().set(2);
+                client.resizeGui();
+                archive(client, "inscription", "Honorific name");
+            }
+            case 44 -> capture(client, "honorific-emblem-aligned");
+            case 48 -> {
+                HudConfig.getSettings().epilepsyMode = false;
+                portrait(client, "chained", 0, "Chained");
+                cursor(client, .01, .01);
+            }
+            case 68 -> capture(client, "portrait-cursor-left");
+            case 72 -> cursor(client, .99, .99);
+            case 92 -> capture(client, "portrait-cursor-right");
+            case 96 -> HudConfig.getSettings().epilepsyMode = true;
+            case 108 -> capture(client, "portrait-cursor-frozen");
+            case 112 -> {
+                client.gui.setScreen(null);
+                var state = client.getEntityRenderDispatcher().getRenderer(client.player).createRenderState(client.player, 1f);
+                if (state instanceof AvatarRenderStateAccessor avatar
+                        && avatar.coi$getPortraitPose() != null)
+                    throw new IllegalStateException("Portrait override leaked into world rendering");
+                CoiLog.LOG.info("Portrait preview: all 25 pathways at Sequences 9/0 and clean world state verified");
+                client.stop();
+            }
+            default -> {
+            }
+        }
     }
 }

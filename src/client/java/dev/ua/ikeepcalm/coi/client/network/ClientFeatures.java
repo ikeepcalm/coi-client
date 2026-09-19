@@ -2,8 +2,9 @@ package dev.ua.ikeepcalm.coi.client.network;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
+
+import java.util.List;
 
 /**
  * What this client tells the server it can render, and the protocol version
@@ -14,7 +15,7 @@ import net.fabricmc.loader.api.FabricLoader;
  * back to the legacy set (everything here except {@code spirituality_hud}
  * and {@code menu_action}).
  */
-public final class ClientFeatures {
+public class ClientFeatures {
 
     public static final int PROTOCOL = 2;
 
@@ -37,7 +38,7 @@ public final class ClientFeatures {
             "character_sheet",
             "resource_bar",
             "menu_ui",
-            "menu_specimen", "ability_categories", "ability_manual"
+            "menu_specimen", "menu_archive", "ability_categories", "ability_manual"
     );
 
     private ClientFeatures() {

@@ -1,8 +1,8 @@
 package dev.ua.ikeepcalm.coi.client.mixin;
 
 import dev.ua.ikeepcalm.coi.client.appearance.AppearanceTraitLayer;
-import dev.ua.ikeepcalm.coi.client.form.PartialFormLayer;
 import dev.ua.ikeepcalm.coi.client.duck.AvatarRenderStateAccessor;
+import dev.ua.ikeepcalm.coi.client.form.PartialFormLayer;
 
 import net.minecraft.client.model.player.PlayerModel;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -27,7 +27,7 @@ public class AvatarRendererMixin {
     @SuppressWarnings("unchecked")
     private void coi$addAppearanceTraitLayer(EntityRendererProvider.Context context, boolean slim, CallbackInfo ci) {
         RenderLayerParent<AvatarRenderState, PlayerModel> parent =
-                (RenderLayerParent<AvatarRenderState, PlayerModel>) (Object) this;
+                (RenderLayerParent<AvatarRenderState, PlayerModel>) this;
         ((LivingEntityRendererAccessor) this).coi$addLayer(new AppearanceTraitLayer(parent));
         ((LivingEntityRendererAccessor) this).coi$addLayer(new PartialFormLayer(parent, context));
     }
@@ -36,6 +36,7 @@ public class AvatarRendererMixin {
     private void coi$extractPlayerUuid(Avatar entity, AvatarRenderState state, float partialTicks, CallbackInfo ci) {
         ((AvatarRenderStateAccessor) state).coi$setPlayerUuid(entity.getUUID().toString());
         ((AvatarRenderStateAccessor) state).coi$setPreviewForm(null);
+        ((AvatarRenderStateAccessor) state).coi$setPortraitPose(null);
     }
 
 }
