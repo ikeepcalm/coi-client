@@ -34,6 +34,33 @@ public class TraitGeometry implements FormPrimitives {
     }
 
     /**
+     * Six-face box in part-local pixel space with a single tint — the workhorse for
+     * hair slabs, side locks and fringe segments. Drawn closed so silhouettes read
+     * from every angle.
+     */
+    public void boxPixels(
+            PoseStack.Pose pose,
+            VertexConsumer consumer,
+            float minX, float minY, float minZ,
+            float maxX, float maxY, float maxZ,
+            Tint tint,
+            int light
+    ) {
+        quad(pose, consumer, pointPixels(minX, minY, minZ), pointPixels(maxX, minY, minZ),
+                pointPixels(maxX, maxY, minZ), pointPixels(minX, maxY, minZ), tint, light);
+        quad(pose, consumer, pointPixels(minX, minY, maxZ), pointPixels(minX, maxY, maxZ),
+                pointPixels(maxX, maxY, maxZ), pointPixels(maxX, minY, maxZ), tint, light);
+        quad(pose, consumer, pointPixels(minX, maxY, minZ), pointPixels(maxX, maxY, minZ),
+                pointPixels(maxX, maxY, maxZ), pointPixels(minX, maxY, maxZ), tint, light);
+        quad(pose, consumer, pointPixels(minX, minY, minZ), pointPixels(minX, minY, maxZ),
+                pointPixels(maxX, minY, maxZ), pointPixels(maxX, minY, minZ), tint, light);
+        quad(pose, consumer, pointPixels(maxX, minY, minZ), pointPixels(maxX, minY, maxZ),
+                pointPixels(maxX, maxY, maxZ), pointPixels(maxX, maxY, minZ), tint, light);
+        quad(pose, consumer, pointPixels(minX, minY, minZ), pointPixels(minX, maxY, minZ),
+                pointPixels(minX, maxY, maxZ), pointPixels(minX, minY, maxZ), tint, light);
+    }
+
+    /**
      * A tapering tube swept along {@code path}, closed at the far end with a cone of triangles.
      * {@code colors} is indexed per segment and its last entry is reused for any overrun, so a
      * two-colour gradient needs only two entries.
@@ -81,6 +108,7 @@ public class TraitGeometry implements FormPrimitives {
      */
     private Point[][] buildRings(Point[] path, float[] radiiPixels, int sides) {
         Point[][] rings = new Point[path.length][sides];
+        Vec previousAxisV = null;
         for (int index = 0; index < path.length; index++) {
             Vec tangent;
             if (index == 0) {
@@ -92,8 +120,11 @@ public class TraitGeometry implements FormPrimitives {
             }
 
             Vec reference = Math.abs(tangent.y()) > VERTICAL_TANGENT_LIMIT ? new Vec(0, 0, 1) : new Vec(0, 1, 0);
-            Vec axisU = tangent.cross(reference).normalize();
+            // Carry the previous frame along the curve instead of flipping at a tangent threshold.
+            Vec axisU = previousAxisV == null ? tangent.cross(reference).normalize()
+                    : previousAxisV.cross(tangent).normalize();
             Vec axisV = tangent.cross(axisU).normalize();
+            previousAxisV = axisV;
             float radius = radiiPixels[index] * PIXEL;
             for (int side = 0; side < sides; side++) {
                 float angle = TAU * side / sides;

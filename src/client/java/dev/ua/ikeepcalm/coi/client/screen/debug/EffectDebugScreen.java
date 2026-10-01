@@ -1,5 +1,6 @@
 package dev.ua.ikeepcalm.coi.client.screen.debug;
 
+import dev.ua.ikeepcalm.coi.client.appearance.UniquenessParticleManager;
 import dev.ua.ikeepcalm.coi.client.effect.EffectManager;
 import dev.ua.ikeepcalm.coi.client.effect.VisualEffect;
 import dev.ua.ikeepcalm.coi.client.effect.visual.ImpactFrameEffect;
@@ -30,7 +31,8 @@ import org.jspecify.annotations.NonNull;
 
 /**
  * Developer-only screen for testing visual effects without server commands.
- * Only accessible via the debug keybinding registered in dev environments.
+ * Only accessible via the debug keybinding registered in dev environments. A uniqueness
+ * cycler previews each pathway's uniqueness signature on the local player.
  */
 public class EffectDebugScreen extends Screen {
 
@@ -40,7 +42,7 @@ public class EffectDebugScreen extends Screen {
     /** Every row below the effect list is one of these tall. */
     private static final int CONTROL_ROW_H = 26;
     /** Control rows drawn below the effect list, for the backing panel's height. */
-    private static final int CONTROL_ROWS = 7;
+    private static final int CONTROL_ROWS = 8;
 
     private final Screen parent;
     private final List<EffectRow> rows = new ArrayList<>();
@@ -71,6 +73,7 @@ public class EffectDebugScreen extends Screen {
         y = addOverlayRow(panelX, y);
         y = addResourceRow(panelX, y);
         y = addFormRow(panelX, y);
+        y = addUniquenessRow(panelX, y);
         addFooterRows(panelX, y);
     }
 
@@ -245,6 +248,44 @@ public class EffectDebugScreen extends Screen {
                 MythicalFormManager.handlePacket(minecraft.player.getUUID().toString(), ":true:stop");
                 activeIndex[0] = -1;
                 formCycleBtn.setMessage(Component.literal("Form: None (Click to cycle)"));
+            }
+        }).bounds(panelX + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+
+        return y + CONTROL_ROW_H;
+    }
+
+    /**
+     * Cycles a debug uniqueness pathway on the local player, previewing each of the 22
+     * pathway signatures without a server.
+     */
+    private int addUniquenessRow(int panelX, int y) {
+        List<String> pathways = UniquenessParticleManager.PATHWAYS;
+        String currentPathway = minecraft.player != null
+                ? UniquenessParticleManager.getDebugPathway(minecraft.player.getUUID().toString())
+                : null;
+        final int[] pathwayIndex = {-1};
+        if (currentPathway != null) {
+            pathwayIndex[0] = pathways.indexOf(currentPathway);
+        }
+
+        String uniquenessLabel = pathwayIndex[0] == -1
+                ? "Uniqueness: None (Click to cycle)"
+                : "Uniqueness: " + pathways.get(pathwayIndex[0]);
+        Button uniquenessCycleBtn = Button.builder(Component.literal(uniquenessLabel), btn -> {
+            if (minecraft.player == null || pathways.isEmpty()) return;
+            String uuid = minecraft.player.getUUID().toString();
+            pathwayIndex[0] = (pathwayIndex[0] + 1) % pathways.size();
+            String selected = pathways.get(pathwayIndex[0]);
+            UniquenessParticleManager.setDebugPathway(uuid, selected);
+            btn.setMessage(Component.literal("Uniqueness: " + selected));
+        }).bounds(panelX, y, PANEL_W / 2 - 2, 20).build();
+        addRenderableWidget(uniquenessCycleBtn);
+
+        addRenderableWidget(Button.builder(Component.literal("Clear Uniqueness").withStyle(ChatFormatting.YELLOW), btn -> {
+            if (minecraft.player != null) {
+                UniquenessParticleManager.setDebugPathway(minecraft.player.getUUID().toString(), null);
+                pathwayIndex[0] = -1;
+                uniquenessCycleBtn.setMessage(Component.literal("Uniqueness: None (Click to cycle)"));
             }
         }).bounds(panelX + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
 

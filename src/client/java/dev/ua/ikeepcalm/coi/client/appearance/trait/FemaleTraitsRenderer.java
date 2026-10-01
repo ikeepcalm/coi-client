@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.client.appearance.trait;
 
 import dev.ua.ikeepcalm.coi.client.appearance.AppearanceTraitRenderer;
+import dev.ua.ikeepcalm.coi.client.config.AppearanceConfig;
 import dev.ua.ikeepcalm.coi.client.form.FormPrimitives;
 
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -19,6 +20,10 @@ import net.minecraft.client.renderer.rendertype.RenderTypes;
  * <p>Both are built from the player's <em>own</em> skin texture rather than a texture of their own —
  * each generated vertex carries the UV of the skin pixel that would have been at that spot on the
  * flat model, so the new geometry inherits whatever skin the player is wearing.
+ *
+ * <p>The chest profile is scaled per pathway (Mother fullest) and adjusted by the viewer's
+ * appearance settings (size, separation, vertical position, roundness). Ears are drawn for
+ * {@code female_traits} only; {@code demoness_ears} is the standalone variant.
  */
 public class FemaleTraitsRenderer implements AppearanceTraitRenderer, FormPrimitives {
 
@@ -30,10 +35,19 @@ public class FemaleTraitsRenderer implements AppearanceTraitRenderer, FormPrimit
     private static final float[] CHEST_Y = {1.25f, 2.75f, 4.5f, 6.25f, 8.0f};
     private static final float[] CHEST_Y_LIFT = {0.0f, 0.62f, 1.0f, 0.65f, 0.0f};
     private static final float CHEST_DEPTH = 1.35f;
+    private static final float CHEST_TOP = 1.25f;
+
+    private final String traitId;
+    private final float pathwayScale;
+
+    public FemaleTraitsRenderer(String traitId, float pathwayScale) {
+        this.traitId = traitId;
+        this.pathwayScale = pathwayScale;
+    }
 
     @Override
     public String traitId() {
-        return "female_traits";
+        return traitId;
     }
 
     @Override
@@ -43,11 +57,15 @@ public class FemaleTraitsRenderer implements AppearanceTraitRenderer, FormPrimit
         // Chest armor owns the visible torso surface. Hiding the skin bump here prevents
         // lifted skin pixels from poking through chestplates, elytra, or other chest gear.
         if (state.chestEquipment.isEmpty()) {
-            submitOnPart(poseStack, collector, renderType, model.body, state.showJacket,
+            submitOnPart(poseStack, collector, renderType, model.body,
+                    state.showJacket && AppearanceConfig.get().projectJacket,
                     (pose, consumer, overlay) -> drawTorsoBump(pose, consumer, state, overlay));
         }
-        submitOnPart(poseStack, collector, renderType, model.head, state.showHat,
-                (pose, consumer, overlay) -> drawCatEars(pose, consumer, state, overlay));
+        // Demoness keeps the original ears; the other body profiles only use the torso.
+        if (traitId.equals("female_traits")) {
+            submitOnPart(poseStack, collector, renderType, model.head, state.showHat,
+                    (pose, consumer, overlay) -> drawCatEars(pose, consumer, state, overlay));
+        }
     }
 
     /**
@@ -99,16 +117,35 @@ public class FemaleTraitsRenderer implements AppearanceTraitRenderer, FormPrimit
     }
 
     private SkinVertex chestVertex(int xIndex, int yIndex, float front, float vOffset) {
-        float x = CHEST_X[xIndex];
-        float y = CHEST_Y[yIndex];
-        float lift = CHEST_X_LIFT[xIndex] * CHEST_Y_LIFT[yIndex];
-        float z = front - CHEST_DEPTH * lift;
+        AppearanceConfig.Settings settings = AppearanceConfig.get();
+        float scale = pathwayScale * settings.chestScale;
+        // Vertical growth is heavily damped (and never reaches past mid-torso): larger
+        // pathway profiles must project outward and widen, not drag the bust down to
+        // the stomach. The lift profile itself stays anchored at the upper chest.
+        float yScale = 1.0f + (scale - 1.0f) * 0.35f;
+        float sourceX = CHEST_X[xIndex];
+        float sourceY = CHEST_Y[yIndex];
+        float x = sourceX * scale;
+        float y = Math.min(CHEST_TOP + (sourceY - CHEST_TOP) * yScale + settings.chestYOffsetPixels,
+                CHEST_TOP + (CHEST_Y[CHEST_Y.length - 1] - CHEST_TOP) + settings.chestYOffsetPixels + 0.6f);
+
+        float xLift = CHEST_X_LIFT[xIndex];
+        if (xIndex == 3) {
+            // The default of zero leaves the original mesh completely unchanged.
+            xLift *= 1.0f - settings.chestSeparationPixels * 0.30f;
+        }
+        float lift = Math.max(0.0f, xLift * CHEST_Y_LIFT[yIndex]);
+        if (lift > 0.0f && settings.chestFullness != 1.0f) {
+            lift = (float) Math.pow(lift, 1.0f / settings.chestFullness);
+        }
+        float z = front - CHEST_DEPTH * scale * lift;
+
         return new SkinVertex(
                 x * PIXEL,
                 y * PIXEL,
                 z * PIXEL,
-                (24.0f + x) / TEXTURE_SIZE,
-                (vOffset + y) / TEXTURE_SIZE
+                (24.0f + sourceX) / TEXTURE_SIZE,
+                (vOffset + sourceY) / TEXTURE_SIZE
         );
     }
 

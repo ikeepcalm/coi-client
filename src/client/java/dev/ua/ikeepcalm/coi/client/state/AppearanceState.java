@@ -12,17 +12,50 @@ import java.util.concurrent.ConcurrentHashMap;
  * kept until an explicit clear (empty payload) or a fresh non-empty update arrives, so a
  * missed periodic resync from the server doesn't flicker the trait off.
  */
-public class AppearanceState {
+public final class AppearanceState {
 
     private static final Map<String, Set<String>> traitsByUuid = new ConcurrentHashMap<>();
     private static final Map<String, Set<String>> debugTraitsByUuid = new ConcurrentHashMap<>();
 
+    private AppearanceState() {
+    }
+
     public static void handlePacket(String targetUuid, String traits) {
+        if (targetUuid == null || targetUuid.isBlank()) {
+            return;
+        }
         if (traits == null || traits.isBlank()) {
             traitsByUuid.remove(targetUuid);
             return;
         }
-        traitsByUuid.put(targetUuid, Set.of(traits.split(",")));
+
+        Set<String> parsed = new HashSet<>();
+        for (String trait : traits.split(",")) {
+            String normalized = trait.trim();
+            if (!normalized.isEmpty()) {
+                parsed.add(normalized);
+            }
+        }
+        if (parsed.isEmpty()) {
+            traitsByUuid.remove(targetUuid);
+        } else {
+            traitsByUuid.put(targetUuid, Set.copyOf(parsed));
+        }
+    }
+
+    /**
+     * The renderable trait set for a player — server-reported traits unioned with local
+     * debug overrides, so the preview screen's toggles show up instantly. Never null.
+     */
+    public static Set<String> getTraits(String playerUuid) {
+        if (playerUuid == null) return Set.of();
+        Set<String> traits = traitsByUuid.get(playerUuid);
+        Set<String> debugTraits = debugTraitsByUuid.get(playerUuid);
+        if (traits == null) return debugTraits != null ? debugTraits : Set.of();
+        if (debugTraits == null) return traits;
+        Set<String> merged = new HashSet<>(traits);
+        merged.addAll(debugTraits);
+        return Set.copyOf(merged);
     }
 
     public static boolean hasTrait(String playerUuid, String traitId) {

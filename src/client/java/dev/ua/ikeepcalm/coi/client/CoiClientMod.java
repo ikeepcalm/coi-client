@@ -2,6 +2,8 @@ package dev.ua.ikeepcalm.coi.client;
 
 import dev.ua.ikeepcalm.coi.client.ability.AbilityBindings;
 import dev.ua.ikeepcalm.coi.client.ability.AbilityRegistry;
+import dev.ua.ikeepcalm.coi.client.appearance.UniquenessParticleManager;
+import dev.ua.ikeepcalm.coi.client.config.AppearanceConfig;
 import dev.ua.ikeepcalm.coi.client.config.ClientStateStore;
 import dev.ua.ikeepcalm.coi.client.config.HudConfig;
 import dev.ua.ikeepcalm.coi.client.data.ClientDataLoader;
@@ -74,6 +76,7 @@ public class CoiClientMod implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         HudConfig.load();
+        AppearanceConfig.load();
         ClientStateStore.load();
         AbilityBindings.load();
         CoiNetworking.registerPayloads();
@@ -150,6 +153,7 @@ public class CoiClientMod implements ClientModInitializer {
         SheetState.reset();
         MenuState.reset();
         AppearanceState.reset();
+        UniquenessParticleManager.reset();
         ServerCapabilities.reset();
         AbilityRegistry.reset();
         SpiritualityOverlay.reset();
@@ -168,8 +172,10 @@ public class CoiClientMod implements ClientModInitializer {
      * listener, so the order is readable in one place.
      */
     private static void registerTickHandler() {
+        UniquenessParticleManager.initializeWorldRenderer();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             HallucinationManager.tick(client);
+            UniquenessParticleManager.tick(client);
             DiscordPresenceManager.tick();
 
             if (client.player == null) return;

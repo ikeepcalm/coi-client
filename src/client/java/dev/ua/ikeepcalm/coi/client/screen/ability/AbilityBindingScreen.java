@@ -7,6 +7,7 @@ import dev.ua.ikeepcalm.coi.client.input.CoiKeyBindings;
 import dev.ua.ikeepcalm.coi.client.network.CoiNetworking;
 import dev.ua.ikeepcalm.coi.client.screen.ScreenInput;
 import dev.ua.ikeepcalm.coi.client.screen.ScrollbarPainter;
+import dev.ua.ikeepcalm.coi.client.screen.settings.AppearanceSettingsScreen;
 import dev.ua.ikeepcalm.coi.client.screen.settings.HudSettingsScreen;
 import dev.ua.ikeepcalm.coi.client.screen.widget.CoiTabButton;
 import dev.ua.ikeepcalm.coi.client.ui.CoiStyle;
@@ -54,6 +55,7 @@ public class AbilityBindingScreen extends Screen {
     private Tab currentTab = Tab.HOTKEYS;
     private double scrollOffset = 0;
     private Button hudSettingsButton;
+    private Button appearanceSettingsButton;
     private Button clearAllButton;
     private Button doneButton;
 
@@ -107,12 +109,12 @@ public class AbilityBindingScreen extends Screen {
     }
 
     /**
-     * HUD Settings | Clear All | Done. A single row instead of a floating
+     * HUD Settings | Appearance | Clear All | Done. A single row instead of a floating
      * top-right button so nothing collides with the tabs at high gui scales.
      */
     private void addBottomRow() {
-        int buttonW = Math.min(100, (contentW - 16) / 3);
-        int rowW = buttonW * 3 + 16;
+        int buttonW = Math.min(100, (contentW - 24) / 4);
+        int rowW = buttonW * 4 + 24;
         int buttonX = (this.width - rowW) / 2;
         int buttonY = this.height - 30;
 
@@ -123,12 +125,19 @@ public class AbilityBindingScreen extends Screen {
                 }).bounds(buttonX, buttonY, buttonW, 20).build();
         this.addRenderableWidget(hudSettingsButton);
 
+        appearanceSettingsButton = Button.builder(Component.translatable("screen.coi.appearance_settings"),
+                button -> {
+                    this.onClose();
+                    Minecraft.getInstance().gui.setScreen(new AppearanceSettingsScreen(null));
+                }).bounds(buttonX + buttonW + 8, buttonY, buttonW, 20).build();
+        this.addRenderableWidget(appearanceSettingsButton);
+
         clearAllButton = Button.builder(Component.translatable("screen.coi.clear_all"),
-                button -> clearCurrentTab()).bounds(buttonX + buttonW + 8, buttonY, buttonW, 20).build();
+                button -> clearCurrentTab()).bounds(buttonX + (buttonW + 8) * 2, buttonY, buttonW, 20).build();
         this.addRenderableWidget(clearAllButton);
 
         doneButton = Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-                .bounds(buttonX + (buttonW + 8) * 2, buttonY, buttonW, 20).build();
+                .bounds(buttonX + (buttonW + 8) * 3, buttonY, buttonW, 20).build();
         this.addRenderableWidget(doneButton);
     }
 
@@ -234,6 +243,7 @@ public class AbilityBindingScreen extends Screen {
 
         int buttonY = Math.min(this.height - (compact() ? 24 : 30), listBottom + 10);
         hudSettingsButton.setY(buttonY);
+        appearanceSettingsButton.setY(buttonY);
         clearAllButton.setY(buttonY);
         doneButton.setY(buttonY);
     }
