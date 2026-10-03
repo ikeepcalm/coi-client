@@ -133,6 +133,26 @@ public final class ClientboundPayloads {
         }
     }
 
+    /**
+     * Drawing magic (feature {@code glyph_canvas}): one JSON string, either
+     * {@code {"type":"open",…}} (open the canvas with a session, the layer cap, the limits and
+     * the reference glyphs) or {@code {"type":"result",…}} (what the server made of a submit).
+     *
+     * @see dev.ua.ikeepcalm.coi.domain.glyph.GlyphSheet
+     */
+    public record GlyphPayload(String json) implements CustomPacketPayload {
+        public static final CustomPacketPayload.Type<GlyphPayload> ID = CoiPayloads.type("glyph");
+        public static final StreamCodec<RegistryFriendlyByteBuf, GlyphPayload> CODEC =
+                CoiPayloads.text(GlyphPayload::json,
+                        GlyphPayload::new,
+                        CoiPayloads.MAX_DOCUMENT);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return ID;
+        }
+    }
+
     public record MenuPayload(String json) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<MenuPayload> ID = CoiPayloads.type("menu");
         public static final StreamCodec<RegistryFriendlyByteBuf, MenuPayload> CODEC =

@@ -138,4 +138,22 @@ public final class ServerboundPayloads {
             return ID;
         }
     }
+
+    /**
+     * Drawn spell: {@code {"session","dict","name","layers":[{"strokes":[{"p":[x,y,…],"t0","t1"}]}]}}.
+     * Canvas units are whole numbers {@code 0..1023}, y down. The server re-reads
+     * every stroke, so nothing here is trusted.
+     */
+    public record GlyphSubmitPayload(String json) implements CustomPacketPayload {
+        public static final CustomPacketPayload.Type<GlyphSubmitPayload> ID = CoiPayloads.type("glyph_submit");
+        public static final StreamCodec<RegistryFriendlyByteBuf, GlyphSubmitPayload> CODEC =
+                CoiPayloads.text(GlyphSubmitPayload::json,
+                        GlyphSubmitPayload::new,
+                        CoiPayloads.MAX_ACTION);
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+            return ID;
+        }
+    }
 }

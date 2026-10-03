@@ -36,7 +36,8 @@ public class ClientFeatures {
             // Both name further ids on the existing "effects" channel rather than a new one,
             // so a server that does not know them simply never sends them.
             "ceremony",
-            "impact_frame"
+            "impact_frame",
+            "glyph_canvas"
     );
 
     private ClientFeatures() {

@@ -22,17 +22,17 @@ arrange every HUD element themselves.
 One source root, `src/main/java/dev/ua/ikeepcalm/coi/`, with `CoiClient` (the entrypoint) and
 `DataGenerator` at its root and nine packages under it:
 
-| Package    | Holds                                                                                                                                                      |
-|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `config/`  | the three on-disk files, and the resource-pack data loader                                                                                                 |
-| `network/` | the wire — channels, payloads, the capability handshake                                                                                                    |
-| `domain/`  | what the mod *knows*: `ability` `beyonder` `menu` `ceremony` `effect` `form` `appearance` `gesture`, each with `model/` and `service/` where it needs them |
-| `hud/`     | what it *draws over the world* — `overlay/` `render/` `layout/`                                                                                            |
-| `screen/`  | its own screens — `ability/` `settings/` `menu/` `sheet/` `title/` `debug/`                                                                                |
-| `ui/`      | shared chrome both `hud/` and `screen/` draw with                                                                                                          |
-| `mixin/`   | every mixin and accessor                                                                                                                                   |
-| `input/`   | the keymappings                                                                                                                                            |
-| `util/`    | the logger, the defensive JSON reads, `duck/`, `hooks/`                                                                                                    |
+| Package    | Holds                                                                                                                                                              |
+|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `config/`  | the three on-disk files, and the resource-pack data loader                                                                                                         |
+| `network/` | the wire — channels, payloads, the capability handshake                                                                                                            |
+| `domain/`  | what the mod *knows*: `ability` `beyonder` `menu` `ceremony` `effect` `form` `appearance` `gesture` `glyph`, each with `model/` and `service/` where it needs them |
+| `hud/`     | what it *draws over the world* — `overlay/` `render/` `layout/`                                                                                                    |
+| `screen/`  | its own screens — `ability/` `settings/` `menu/` `sheet/` `title/` `debug/` `glyph/`                                                                               |
+| `ui/`      | shared chrome both `hud/` and `screen/` draw with                                                                                                                  |
+| `mixin/`   | every mixin and accessor                                                                                                                                           |
+| `input/`   | the keymappings                                                                                                                                                    |
+| `util/`    | the logger, the defensive JSON reads, `duck/`, `hooks/`                                                                                                            |
 
 ## Critical rules
 

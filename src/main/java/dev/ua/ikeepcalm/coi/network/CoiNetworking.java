@@ -1,19 +1,23 @@
 package dev.ua.ikeepcalm.coi.network;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.ua.ikeepcalm.coi.domain.ability.service.AbilityRegistry;
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.*;
 import dev.ua.ikeepcalm.coi.domain.effect.EffectManager;
 import dev.ua.ikeepcalm.coi.domain.form.MythicalFormManager;
+import dev.ua.ikeepcalm.coi.domain.glyph.GlyphSheet;
 import dev.ua.ikeepcalm.coi.domain.menu.model.MenuDocument;
 import dev.ua.ikeepcalm.coi.domain.menu.service.MenuParser;
 import dev.ua.ikeepcalm.coi.domain.menu.service.MenuState;
 import dev.ua.ikeepcalm.coi.network.payload.ClientboundPayloads.*;
 import dev.ua.ikeepcalm.coi.network.payload.ServerboundPayloads.*;
+import dev.ua.ikeepcalm.coi.screen.glyph.GlyphCanvasScreen;
 import dev.ua.ikeepcalm.coi.screen.menu.MenuScreen;
 import dev.ua.ikeepcalm.coi.screen.sheet.CharacterSheetScreen;
 import dev.ua.ikeepcalm.coi.util.CoiLog;
+import dev.ua.ikeepcalm.coi.util.JsonRead;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.Minecraft;
@@ -36,6 +40,7 @@ public class CoiNetworking {
         PayloadTypeRegistry.serverboundPlay().register(HelloPayload.ID, HelloPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ActionPayload.ID, ActionPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(MenuActionPayload.ID, MenuActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(GlyphSubmitPayload.ID, GlyphSubmitPayload.CODEC);
         // S2C (server → client = clientboundPlay)
         PayloadTypeRegistry.clientboundPlay().register(AbilitiesPayload.ID, AbilitiesPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(CooldownPayload.ID, CooldownPayload.CODEC);
@@ -54,6 +59,7 @@ public class CoiNetworking {
         PayloadTypeRegistry.clientboundPlay().register(NotifyPayload.ID, NotifyPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(SheetPayload.ID, SheetPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(MenuPayload.ID, MenuPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(GlyphPayload.ID, GlyphPayload.CODEC);
     }
 
     /**
@@ -94,6 +100,8 @@ public class CoiNetworking {
                 (payload, context) -> context.client().execute(() -> SheetState.handle(payload.json())));
         ClientPlayNetworking.registerGlobalReceiver(MenuPayload.ID,
                 (payload, context) -> context.client().execute(() -> handleMenu(payload.json())));
+        ClientPlayNetworking.registerGlobalReceiver(GlyphPayload.ID,
+                (payload, context) -> context.client().execute(() -> handleGlyph(payload.json())));
     }
 
     /** Always sent before the first ability request, so the server knows what to feed. */
@@ -130,6 +138,31 @@ public class CoiNetworking {
         MenuState.adopt(document);
         if (!(client.gui.screen() instanceof MenuScreen)) {
             client.gui.setScreen(new MenuScreen(null));
+        }
+    }
+
+    /**
+     * Drawing magic: an {@code open} replaces whatever screen is up with a
+     * fresh canvas; a {@code result} goes only to the canvas whose session id
+     * it names exactly, so a late answer never lands on a newer canvas. The
+     * server echoes the submitted id even when it has no session for us.
+     */
+    private static void handleGlyph(String json) {
+        try {
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            Minecraft client = Minecraft.getInstance();
+            String type = JsonRead.string(root, "type", "");
+            if ("open".equals(type)) {
+                GlyphSheet sheet = GlyphSheet.parse(root);
+                if (sheet != null) client.gui.setScreen(new GlyphCanvasScreen(sheet));
+            } else if ("result".equals(type) && client.gui.screen() instanceof GlyphCanvasScreen canvas) {
+                String session = JsonRead.string(root, "session", "");
+                if (session.isEmpty() || !session.equals(canvas.session())) return;
+                canvas.showResult(JsonRead.bool(root, "ok"), JsonRead.string(root, "message", ""),
+                        JsonRead.intOf(root, "layer", -1));
+            }
+        } catch (RuntimeException e) {
+            CoiLog.LOG.warn("Malformed glyph payload: {}", e.getMessage());
         }
     }
 

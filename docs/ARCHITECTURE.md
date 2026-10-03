@@ -30,13 +30,14 @@ dev.ua.ikeepcalm.coi
   │   └── payload/          — one record per channel, all built from `CoiPayloads`
   │       ├── CoiPayloads   — the shared type/codec shapes: the `coi-client` namespace, the
   │       │                   1 MiB / 32 KiB caps, the read/write pair — spelled out once
-  │       ├── ServerboundPayloads — the six C→S records, nested inside it:
+  │       ├── ServerboundPayloads — the seven C→S records, nested inside it:
   │       ├── AbilityUsePayload      C→S  coi-client:use
   │       ├── AbilityCategoryUsePayload C→S coi-client:use_category
   │       ├── AbilityRequestPayload  C→S  coi-client:request
   │       ├── HelloPayload           C→S  coi-client:hello   (capability handshake)
   │       ├── ActionPayload          C→S  coi-client:action  (open_menu, sheet lifecycle)
   │       ├── MenuActionPayload      C→S  coi-client:menu_action (a click in a menu document)
+  │       ├── GlyphSubmitPayload     C→S  coi-client:glyph_submit (a drawn spell, 32 KiB cap)
   │       ├── ClientboundPayloads — the S→C records, nested inside it:
   │       ├── AbilitiesPayload       S→C  coi-client:abilities
   │       ├── AbilitiesV2Payload     S→C  coi-client:abilities_v2 (JSON, 1 MiB cap)
@@ -54,6 +55,7 @@ dev.ua.ikeepcalm.coi
   │       ├── SheetPayload           S→C  coi-client:sheet   (JSON, 1 MiB cap)
   │       ├── ServerInfoPayload      S→C  coi-client:server
   │       ├── MenuPayload            S→C  coi-client:menu    (JSON document, 1 MiB cap)
+  │       ├── GlyphPayload           S→C  coi-client:glyph   (canvas open / submit result)
   │       └── VisualEffectPayload    S→C  coi-client:effect
   ├── domain/               — what the mod knows, as opposed to what it draws
   │   ├── ability/
@@ -162,6 +164,10 @@ dev.ua.ikeepcalm.coi
   │   │   ├── TraitGeometry           — smooth tubes/quads/triangles in block units
   │   │   └── trait/                  — HornsTraitRenderer, MushroomTraitRenderer,
   │   │                                 FemaleTraitsRenderer
+  │   ├── glyph/            : drawing magic's data (the server reads the strokes)
+  │   │   ├── GlyphSheet        : the parsed `coi-client:glyph` open: session, caps, limits,
+  │   │   │                       reference glyphs; clamped like every other channel
+  │   │   └── GlyphDrawing      : the strokes per layer, thinned as they finish; builds the submit
   │   └── gesture/
   │       ├── GestureType       — 9 shapes (circle, V, Z, line down, caret, triangle,
   │       │                       square, hook, arc): direction templates + preview
@@ -228,6 +234,9 @@ dev.ua.ikeepcalm.coi
   │   ├── CoiTabButton      — hand-drawn tab widget used by binding + settings screens
   │   ├── GestureScreen     — hold Left Alt, draw with mouse, release to cast;
   │   │                       inert until a gesture has an ability bound
+  │   ├── glyph/            : GlyphCanvasScreen (layer tabs, ring guide, undo/clear, name,
+  │   │                       submit, the server's verdict) + GlyphCanvasPainter (its pixels
+  │   │                       and the reference sheet drawn from the server's templates)
   │   ├── TourScreen        — first-join walkthrough: spotlight cutouts + text cards,
   │   │                       movement stays enabled; re-run via "Show Tour Again"
   │   ├── TitleScreenHaunt  — the main menu remembers the madness you left with

@@ -30,6 +30,7 @@ Names below are Mojang mappings (Mojmap), as used by the client sources.
 | C→S | `coi-client:hello` | `HelloPayload` | `String json` |
 | C→S | `coi-client:action` | `ActionPayload` | `String json` |
 | C→S | `coi-client:menu_action` | `MenuActionPayload` | `String json` (32 KiB cap) |
+| C→S | `coi-client:glyph_submit` | `GlyphSubmitPayload` | `String json` (32 KiB cap) |
 | S→C | `coi-client:abilities` | `AbilitiesPayload` | `String data` |
 | S→C | `coi-client:cooldown` | `CooldownPayload` | `String abilityId`, `int ticks` |
 | S→C | `coi-client:effect` | `VisualEffectPayload` | `String effectId`, `String params` |
@@ -47,6 +48,7 @@ Names below are Mojang mappings (Mojmap), as used by the client sources.
 | S→C | `coi-client:notify` | `NotifyPayload` | `String json` |
 | S→C | `coi-client:sheet` | `SheetPayload` | `String json` (1 MiB cap) |
 | S→C | `coi-client:menu` | `MenuPayload` | `String json` (1 MiB cap) |
+| S→C | `coi-client:glyph` | `GlyphPayload` | `String json` (1 MiB cap) |
 
 All payload records live in `network/payload/`, built from the shared type/codec shapes in
 `CoiPayloads` (the namespace, the 1 MiB / 32 KiB caps and the read/write pair are spelled out once
@@ -112,6 +114,7 @@ Client-advertised (`ClientFeatures.SUPPORTED`):
 | `ability_manual`     | renders the ability manual template                                                                                                          |
 | `ceremony`           | renders the six Sequence 0 set-piece effects (`postfx`, `sky_tint`, `shake`, `letterbox`, `orbit`, `bed`) — strictly additive over `effects` |
 | `impact_frame`       | renders the `impact_frame` effect — the server can fall back to a title or a particle burst without it                                       |
+| `glyph_canvas`       | draws spell circles from `coi-client:glyph` and submits them on `coi-client:glyph_submit`                                                    |
 
 Server-advertised:
 
@@ -129,6 +132,7 @@ Server-advertised:
 | `character_sheet` | `coi-client:sheet` is pushed and the `sheet_open`/`sheet_close`/`open`/`toggle_terrain` actions are handled |
 | `resource_bar` | resource meters go out on `coi-client:resource` |
 | `menu_ui` | server menus go out as `coi-client:menu` documents and `coi-client:menu_action` clicks are handled |
+| `glyph_canvas` | the spell list offers a Draw button and `coi-client:glyph_submit` is read |
 
 ### Legacy fallback
 
@@ -201,6 +205,26 @@ One JSON string — a click inside a `coi-client:menu` document.
   replaced), and `MenuScreen` guards it the way `CharacterSheetScreen` guards `sheet_close`.
   **Not** sent when the server itself closed the screen with `{"closed":true}`.
 - Nothing is sent unless `ClientPlayNetworking.canSend(MenuActionPayload.ID)`.
+
+### `coi-client:glyph_submit`
+
+One JSON string: the drawn spell, sent by `GlyphCanvasScreen` when the player presses *Inscribe*.
+
+```json
+{"session":"5f1c09ab2d7e4410","dict":"1:4c1d9e02","name":"Ember Lance",
+ "layers":[{"strokes":[{"p":[512,212,530,214],"t0":0,"t1":840}]}]}
+```
+
+- `session` and `dict` are echoed from the `open` that started the canvas.
+- Canvas units are whole numbers `0..1023`, x right, y down. The ring guide sits at radius 0.30 of
+  the canvas around its centre; a sign's centre must stay within 1.3 ring radii (the faint outer
+  guide circle).
+- `t0`/`t1` are milliseconds since the canvas opened, per stroke. The server only checks that they
+  are sane numbers; they are not a timing rule.
+- Layers run up to the last one with ink. `GlyphDrawing` thins every stroke (12 units apart, at most
+  64 points) and refuses strokes past the `limits` the server sent, so a full spell stays far
+  under them; the JSON is also checked against `limits.bytes` before sending.
+- The client recognises nothing. The server reads every stroke and answers on `coi-client:glyph`.
 
 ---
 
@@ -568,6 +592,30 @@ document.
 Parsed by `domain/menu/service/MenuParser` into `MenuDocument`/`MenuComponent`, held by `MenuState`,
 drawn by `screen/menu/MenuScreen` (+ `MenuTheme`), reset on disconnect.
 
+### `coi-client:glyph`
+
+One JSON string, `type` `open` or `result`. Feature `glyph_canvas`.
+
+```json
+{"type":"open","session":"5f1c09ab2d7e4410","maxLayers":3,"dict":"1:4c1d9e02",
+ "limits":{"strokes":24,"points":128,"total":2048,"bytes":31744,"name":64},
+ "glyphs":[{"id":"fire","kind":"sigil","name":"Fire","flow":"any","strokes":[[0,-90,80,60,-80,60,0,-90]]}]}
+```
+
+`open` replaces whatever screen is up with `GlyphCanvasScreen`. `glyphs` is the reference sheet,
+in hundredths with y down; signs are shown as drawn at the top slot, and `flow` `out`/`in` marks
+signs that must be drawn away from or toward the ring (the sheet puts a dot at the start). Sigils
+get a dot at every stroke start, since the server wants the same number of strokes.
+`GlyphSheet` clamps every number, so a hostile or newer server cannot blow up the screen.
+
+```json
+{"type":"result","session":"5f1c09ab2d7e4410","ok":false,"message":"Layer 2: the sigil is not clear.","layer":1}
+```
+
+`message` is already localized. On `ok` the canvas closes after a moment; otherwise it jumps to
+`layer` (0-based, -1 for none). A result is shown only on the canvas whose `session` it names
+exactly; results with any other or an empty `session` are ignored.
+
 ### `coi-client:appearance`
 
 ```
@@ -624,6 +672,7 @@ picker, the acting bar and the mythical-form burst all read from it. `eternalaeo
 | 2 (batch 4) | Still protocol 2. Adds `sheet` and the `character_sheet` feature id on both sides, plus the `sheet_open`, `sheet_close`, `open` and `toggle_terrain` actions on `coi-client:action`. No change to `conditions`. |
 | 2 (batch 5) | Still protocol 2. Adds `resource` and the `resource_bar` feature id on both sides — client-rendered resource meters replace the server's RESERVE glyph bars and per-ability reserve boss bars. No change to `conditions`. |
 | 2 (batch 6) | Still protocol 2. Adds `menu` and `menu_action` and the `menu_ui` feature id on both sides — declarative client-rendered menus replace the InvUI chest GUIs — plus the `ui` field on `coi-client:action`'s `open`. No change to `conditions`. |
+| 2 (batch 7) | Still protocol 2. Adds `glyph` and `glyph_submit` and the `glyph_canvas` feature id on both sides, for drawing magic. No change to `conditions`. |
 
 ## Category casts and manual presentation
 
