@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.hud.overlay;
 
 import dev.ua.ikeepcalm.coi.config.HudConfig;
 import dev.ua.ikeepcalm.coi.domain.ability.model.Pathways;
+import dev.ua.ikeepcalm.coi.domain.beyonder.model.ActingPercent;
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.ActingState;
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.BeyonderState;
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.ResourceState;
@@ -130,7 +131,7 @@ public class CharacterPlateOverlay {
         // The mask is already vivid; the pathway colour rides the bar instead of washing the art
         return new PlateCard.Gauge(PlateSymbols.MASK, (float) (clamped / 100.0), 1f,
                 Pathways.pathwayRgb(pathway), PlateSymbols.NO_WASH,
-                Component.translatable("hud.coi.plate_percent", String.format(Locale.ROOT, "%.0f", clamped)),
+                Component.translatable("hud.coi.plate_percent", String.format(Locale.ROOT, "%.0f", ActingPercent.floor(clamped, 0))),
                 cooldownClock == null ? null : Component.translatable("hud.coi.plate_cooldown", cooldownClock));
     }
 

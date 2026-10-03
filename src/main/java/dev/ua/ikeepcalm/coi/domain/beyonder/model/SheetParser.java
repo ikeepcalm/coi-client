@@ -131,7 +131,7 @@ final class SheetParser {
         if (node == null) return null;
         int current = JsonRead.intOf(node, "acting");
         int needed = JsonRead.intOf(node, "needed");
-        double percent = JsonRead.dbl(node, "percent", needed > 0 ? current * 100.0 / needed : 0);
+        double percent = ActingPercent.of(node, current, needed);
         return new SheetState.Acting(current, needed, percent, JsonRead.bool(node, "limited"),
                 JsonRead.intOf(node, "cooldownRemaining"), JsonRead.intOf(node, "cooldownTotal"),
                 sources(node.get("sources")), overflow(JsonRead.object(node, "overflow")));

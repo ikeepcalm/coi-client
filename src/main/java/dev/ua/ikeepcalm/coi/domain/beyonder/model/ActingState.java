@@ -52,7 +52,7 @@ public class ActingState {
             sequence = JsonRead.intOf(root, "sequence", -1);
             acting = JsonRead.intOf(root, "acting");
             needed = JsonRead.intOf(root, "needed");
-            percent = JsonRead.dbl(root, "percent", needed > 0 ? acting * 100.0 / needed : 0);
+            percent = ActingPercent.of(root, acting, needed);
             cooldownRemaining = JsonRead.intOf(root, "cooldownRemaining");
             cooldownTotal = JsonRead.intOf(root, "cooldownTotal");
             overflow = JsonRead.intOf(root, "overflow");

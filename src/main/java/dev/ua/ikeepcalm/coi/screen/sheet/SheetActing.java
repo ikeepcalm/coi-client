@@ -1,6 +1,7 @@
 package dev.ua.ikeepcalm.coi.screen.sheet;
 
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.SheetState;
+import dev.ua.ikeepcalm.coi.domain.beyonder.model.ActingPercent;
 import dev.ua.ikeepcalm.coi.hud.render.PlateSymbols;
 import dev.ua.ikeepcalm.coi.screen.menu.MenuGauges;
 import dev.ua.ikeepcalm.coi.screen.menu.MenuTheme;
@@ -60,7 +61,7 @@ final class SheetActing {
         return SheetRows.vital(ctx, graphics, x, y, w,
                 (g, sx, sy) -> PlateSymbols.draw(g, PlateSymbols.MASK, sx, sy,
                         (float) (percent / 100.0), 1f, PlateSymbols.NO_WASH),
-                I18n.get("screen.coi.sheet_progress"), pct(percent), acting.limited() ? RED : accent,
+                I18n.get("screen.coi.sheet_progress"), pct(ActingPercent.floor(percent, 1)), acting.limited() ? RED : accent,
                 SheetRows.bar(acting.acting() / Math.max(1.0, acting.needed()), acting.limited() ? RED : accent),
                 Component.translatable("screen.coi.sheet_acting_progress",
                         num(acting.acting()), num(acting.needed())), CoiStyle.TEXT_MUTED,

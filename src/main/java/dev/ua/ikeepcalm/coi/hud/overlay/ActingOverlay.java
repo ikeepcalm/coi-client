@@ -2,6 +2,7 @@ package dev.ua.ikeepcalm.coi.hud.overlay;
 
 import dev.ua.ikeepcalm.coi.config.HudConfig;
 import dev.ua.ikeepcalm.coi.domain.ability.model.Pathways;
+import dev.ua.ikeepcalm.coi.domain.beyonder.model.ActingPercent;
 import dev.ua.ikeepcalm.coi.domain.beyonder.model.ActingState;
 import dev.ua.ikeepcalm.coi.domain.effect.visual.EffectPaint;
 import dev.ua.ikeepcalm.coi.hud.HudAnchor;
@@ -91,7 +92,7 @@ public class ActingOverlay {
     }
 
     private static String labelText(double percent) {
-        String text = I18n.get("hud.coi.acting_label", String.format(Locale.ROOT, "%.1f", percent));
+        String text = I18n.get("hud.coi.acting_label", String.format(Locale.ROOT, "%.1f", ActingPercent.floor(percent, 1)));
         if (ActingState.cooldownRemainingNow() > 0) {
             text = text + " · " + I18n.get("hud.coi.acting_cooldown", ActingState.cooldownClock());
         }
