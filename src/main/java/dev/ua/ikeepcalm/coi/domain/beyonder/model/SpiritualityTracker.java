@@ -31,6 +31,7 @@ final class SpiritualityTracker {
     private long lastIncreaseMs;
     private int lastIncreaseValue;
     private double regenPerMs;
+    private double lastRatePerMs;
 
     int current() {
         return current;
@@ -96,7 +97,11 @@ final class SpiritualityTracker {
     private void measureRate(int nextCurrent, int nextMax, long now) {
         if (lastIncreaseMs > 0 && now > lastIncreaseMs) {
             double rate = (nextCurrent - lastIncreaseValue) / (double) (now - lastIncreaseMs);
-            regenPerMs = Math.clamp(rate, 0.0, Math.max(1, nextMax) / 2.0 / 1000.0);
+            rate = Math.clamp(rate, 0.0, Math.max(1, nextMax) / 2.0 / 1000.0);
+            // A one-off burst (Spiritualism's 1% every 5 s) must not set the pace: running ahead on it
+            // made the bar climb past the next packet and snap back. Keep the slower of the last two.
+            regenPerMs = lastRatePerMs > 0 ? Math.min(rate, lastRatePerMs) : rate;
+            lastRatePerMs = rate;
         }
         lastIncreaseMs = now;
         lastIncreaseValue = nextCurrent;
@@ -104,6 +109,7 @@ final class SpiritualityTracker {
 
     private void forgetRate() {
         regenPerMs = 0.0;
+        lastRatePerMs = 0.0;
         lastIncreaseMs = 0;
         lastIncreaseValue = 0;
     }
